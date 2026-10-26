@@ -11,7 +11,22 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.PictureAsPdf
+import androidx.compose.material.icons.automirrored.outlined.VolumeUp
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import com.freellm.chat.data.Attachment
+import com.freellm.chat.data.AttachmentCodec
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -151,6 +166,25 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
     val generating = s?.active == true
     val pendingReq = s == null && messages.lastOrNull()?.role == "user"
     val voiceMissing = stringResource(R.string.voice_unavailable)
+    val pendingAtt by vm.pending.collectAsStateWithLifecycle()
+    val importingAtt by vm.importing.collectAsStateWithLifecycle()
+    var pdfJob by remember { mutableStateOf<PdfJob?>(null) }
+    val speaker = remember { Speaker(ctx) }
+    DisposableEffect(Unit) { onDispose { speaker.shutdown() } }
+    val pickImages = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        if (uris.isNotEmpty()) vm.attachImages(uris)
+    }
+    val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) vm.attachFile(uri)
+    }
+    val pickPdfImages = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) vm.attachPdfAsImages(uri)
+    }
+    val savePdf = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+        val j = pdfJob
+        if (uri != null && j != null) vm.savePdf(uri, j.text, j.images)
+        pdfJob = null
+    }
 
     val speech = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         val said = r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
@@ -286,7 +320,12 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                                 onRegenerate = { picker = Picker.Regen(it) },
                                 onSwitch = { picker = Picker.Continue },
                                 onEdit = { editing = it },
-                                onDelete = { vm.deleteMessage(it) }
+                                onDelete = { vm.deleteMessage(it) },
+                                onPdf = {
+                                    pdfJob = PdfJob(it.content, emptyList())
+                                    savePdf.launch("chat.pdf")
+                                },
+                                onSpeak = { speaker.toggle(it.content) }
                             )
                         }
                         if (s != null) {
@@ -322,6 +361,20 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                         input = ""
                     },
                     onStop = { vm.stop() },
+                    pending = pendingAtt,
+                    importing = importingAtt,
+                    onPickImage = { pickImages.launch("image/*") },
+                    onPickFile = { pickFile.launch(arrayOf("*/*")) },
+                    onPickPdfImages = { pickPdfImages.launch(arrayOf("application/pdf")) },
+                    onRemove = { vm.removePending(it) },
+                    onQuick = { prompt ->
+                        vm.send(if (input.isBlank()) prompt else prompt + "\n" + input.trim())
+                        input = ""
+                    },
+                    onImagesToPdf = {
+                        pdfJob = PdfJob(null, pendingAtt.filter { it.isImage })
+                        savePdf.launch("images.pdf")
+                    },
                     onPlus = { picker = if (generating) Picker.Continue else Picker.Select },
                     onMic = {
                         try {
@@ -506,10 +559,19 @@ private fun Composer(
     generating: Boolean,
     onSend: () -> Unit,
     onStop: () -> Unit,
+    pending: List<Attachment>,
+    importing: Boolean,
+    onPickImage: () -> Unit,
+    onPickFile: () -> Unit,
+    onPickPdfImages: () -> Unit,
+    onRemove: (Attachment) -> Unit,
+    onQuick: (String) -> Unit,
+    onImagesToPdf: () -> Unit,
     onPlus: () -> Unit,
     onMic: () -> Unit
 ) {
     val cs = MaterialTheme.colorScheme
+    var attachMenu by remember { mutableStateOf(false) }
     Surface(
         shape = RoundedCornerShape(30.dp),
         color = cs.surfaceContainerHigh,
@@ -517,9 +579,58 @@ private fun Composer(
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
+        Column {
+        if (pending.isNotEmpty() || importing) {
+            Row(
+                Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(start = 12.dp, end = 12.dp, top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                pending.forEach { a -> PendingChip(a, onRemove = { onRemove(a) }) }
+                if (importing) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+            }
+            val qTranslate = stringResource(R.string.qa_translate_prompt)
+            val qSummary = stringResource(R.string.qa_summarize_prompt)
+            val qExtract = stringResource(R.string.qa_extract_prompt)
+            val qExplain = stringResource(R.string.qa_explain_prompt)
+            Row(
+                Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                QuickChip(stringResource(R.string.qa_translate)) { onQuick(qTranslate) }
+                QuickChip(stringResource(R.string.qa_summarize)) { onQuick(qSummary) }
+                QuickChip(stringResource(R.string.qa_extract)) { onQuick(qExtract) }
+                QuickChip(stringResource(R.string.qa_explain)) { onQuick(qExplain) }
+                if (pending.any { it.isImage }) QuickChip(stringResource(R.string.qa_images_pdf)) { onImagesToPdf() }
+            }
+        }
         Row(Modifier.padding(8.dp), verticalAlignment = Alignment.Bottom) {
             CircleButton(onClick = onPlus, background = cs.surfaceContainerHighest, size = 40.dp) {
                 Icon(Icons.Filled.Add, stringResource(R.string.pick_title_select), Modifier.size(22.dp))
+            }
+            Spacer(Modifier.width(6.dp))
+            Box {
+                CircleButton(onClick = { attachMenu = true }, background = cs.surfaceContainerHighest, size = 40.dp) {
+                    Icon(Icons.Outlined.AttachFile, stringResource(R.string.attach), Modifier.size(22.dp))
+                }
+                DropdownMenu(expanded = attachMenu, onDismissRequest = { attachMenu = false }) {
+                    DropdownMenuItem(text = { Text(stringResource(R.string.attach_photo)) }, onClick = {
+                        attachMenu = false
+                        onPickImage()
+                    })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.attach_file)) }, onClick = {
+                        attachMenu = false
+                        onPickFile()
+                    })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.attach_pdf_images)) }, onClick = {
+                        attachMenu = false
+                        onPickPdfImages()
+                    })
+                }
             }
             Box(
                 Modifier
@@ -549,13 +660,82 @@ private fun Composer(
                 generating -> CircleButton(onClick = onStop, background = cs.primary) {
                     Icon(Icons.Filled.Stop, stringResource(R.string.stop), Modifier.size(20.dp), tint = cs.onPrimary)
                 }
-                input.isNotBlank() -> CircleButton(onClick = onSend, background = cs.primary) {
+                input.isNotBlank() || pending.isNotEmpty() -> CircleButton(onClick = onSend, background = cs.primary) {
                     Icon(Icons.Filled.ArrowUpward, stringResource(R.string.send), Modifier.size(22.dp), tint = cs.onPrimary)
                 }
                 else -> CircleButton(onClick = onMic, background = cs.surfaceContainerHighest) {
                     Icon(Icons.Outlined.Mic, stringResource(R.string.voice_input), Modifier.size(22.dp))
                 }
             }
+        }
+        }
+    }
+}
+
+private class PdfJob(val text: String?, val images: List<Attachment>)
+
+@Composable
+private fun QuickChip(label: String, onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        color = cs.surfaceContainerHighest
+    ) {
+        Text(label, Modifier.padding(horizontal = 12.dp, vertical = 7.dp), style = MaterialTheme.typography.labelLarge)
+    }
+}
+
+@Composable
+private fun AttachThumb(a: Attachment, size: androidx.compose.ui.unit.Dp) {
+    val ctx = LocalContext.current
+    val cs = MaterialTheme.colorScheme
+    if (a.isImage) {
+        val bmp by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, a.path) {
+            value = withContext(Dispatchers.IO) {
+                (ctx.applicationContext as com.freellm.chat.FreeLlmApp).attachments.thumb(a, 200)?.asImageBitmap()
+            }
+        }
+        Box(
+            Modifier
+                .size(size)
+                .clip(RoundedCornerShape(12.dp))
+                .background(cs.surfaceContainerHighest)
+        ) {
+            bmp?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+        }
+    } else {
+        Row(
+            Modifier
+                .height(size)
+                .widthIn(max = 180.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(cs.surfaceContainerHighest)
+                .padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Outlined.Description, null, Modifier.size(20.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(a.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelMedium)
+        }
+    }
+}
+
+@Composable
+private fun PendingChip(a: Attachment, onRemove: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Box {
+        AttachThumb(a, 56.dp)
+        Box(
+            Modifier
+                .align(Alignment.TopEnd)
+                .size(20.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(cs.inverseSurface)
+                .clickable { onRemove() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Filled.Close, stringResource(R.string.remove), Modifier.size(14.dp), tint = cs.inverseOnSurface)
         }
     }
 }
@@ -712,7 +892,11 @@ private fun ConversationRow(
                     open = false
                     onExport()
                 })
-                DropdownMenuItem(text = { Text(stringResource(R.string.delete), color = cs.error) }, onClick = {
+                DropdownMenuItem(text = { Text(stringResource(R.string.save_pdf)) }, onClick = {
+                menu = false
+                onPdf(m)
+            })
+            DropdownMenuItem(text = { Text(stringResource(R.string.delete), color = cs.error) }, onClick = {
                     open = false
                     onDelete()
                 })
@@ -755,7 +939,9 @@ private fun MessageItem(
     onRegenerate: (MessageEntity) -> Unit,
     onSwitch: () -> Unit,
     onEdit: (MessageEntity) -> Unit,
-    onDelete: (MessageEntity) -> Unit
+    onDelete: (MessageEntity) -> Unit,
+    onPdf: (MessageEntity) -> Unit,
+    onSpeak: (MessageEntity) -> Unit
 ) {
     val cs = MaterialTheme.colorScheme
     val clip = LocalClipboardManager.current
@@ -786,6 +972,13 @@ private fun MessageItem(
     ) {
         if (isUser) {
             val dir = detectDirection(m.content) ?: LocalLayoutDirection.current
+            val atts = remember(m.attachments) { AttachmentCodec.decode(m.attachments) }
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+              if (atts.isNotEmpty()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                    atts.forEach { AttachThumb(it, 72.dp) }
+                }
+              }
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
                 CompositionLocalProvider(LocalLayoutDirection provides dir) {
                     Surface(
@@ -801,6 +994,7 @@ private fun MessageItem(
                     }
                 }
             }
+            }
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 MarkdownText(m.content)
@@ -808,6 +1002,8 @@ private fun MessageItem(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     ActionIcon(Icons.Outlined.ContentCopy, stringResource(R.string.copy)) { doCopy() }
                     ActionIcon(Icons.Outlined.Share, stringResource(R.string.share)) { doShare() }
+                    ActionIcon(Icons.Outlined.PictureAsPdf, stringResource(R.string.save_pdf)) { onPdf(m) }
+                    ActionIcon(Icons.AutoMirrored.Outlined.VolumeUp, stringResource(R.string.read_aloud)) { onSpeak(m) }
                     ActionIcon(Icons.Outlined.Refresh, stringResource(R.string.regenerate_other)) { onRegenerate(m) }
                     if (canSwitch) {
                         ActionIcon(Icons.Outlined.SwapHoriz, stringResource(R.string.switch_continue)) { onSwitch() }

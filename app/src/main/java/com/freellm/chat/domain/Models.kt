@@ -38,7 +38,7 @@ data class Catalog(
     val models: List<ModelDef> = emptyList()
 )
 
-data class ChatMsg(val role: String, val content: String)
+data class ChatMsg(val role: String, val content: String, val images: List<String> = emptyList())
 
 data class Target(
     val providerId: String,
@@ -69,7 +69,8 @@ data class RouteRequest(
     val maxTokens: Int? = null,
     val preferredKey: String? = null,
     val adaptive: Boolean = false,
-    val preferSpeed: Boolean = false
+    val preferSpeed: Boolean = false,
+    val needsVision: Boolean = false
 )
 
 sealed class RouteEvent {

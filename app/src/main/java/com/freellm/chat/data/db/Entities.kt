@@ -35,5 +35,6 @@ data class MessageEntity(
     val providerName: String? = null,
     val modelKey: String? = null,
     val notes: String? = null,
-    val createdAt: Long
+    val createdAt: Long,
+    val attachments: String? = null
 )

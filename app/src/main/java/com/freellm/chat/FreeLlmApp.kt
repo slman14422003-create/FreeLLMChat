@@ -1,6 +1,7 @@
 package com.freellm.chat
 
 import android.app.Application
+import com.freellm.chat.data.AttachmentStore
 import com.freellm.chat.data.CatalogRepository
 import com.freellm.chat.data.ChatRepository
 import com.freellm.chat.data.OpenAiClient
@@ -38,6 +39,7 @@ class FreeLlmApp : Application() {
     val client: OpenAiClient by lazy { OpenAiClient(http) }
     val router: Router by lazy { Router(client) }
     val catalog: CatalogRepository by lazy { CatalogRepository(this, http, BuildConfig.MODELS_URL) }
+    val attachments: AttachmentStore by lazy { AttachmentStore(this) }
     val db: AppDatabase by lazy { AppDatabase.create(this) }
     val chatRepo: ChatRepository by lazy { ChatRepository(db.dao()) }
     val manager: ProviderManager by lazy { ProviderManager(catalog, settings, secrets, client, router) }

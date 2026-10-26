@@ -141,4 +141,29 @@
     <string name="auto_resume_desc">إذا توقف الطلب في الوضع المتكيف يُعاد تلقائياً ويكمل نموذج آخر من نفس النقطة</string>
     <string name="token_saver">توفير التوكنس</string>
     <string name="token_saver_desc">يختصر الرسائل القديمة ويحدّ طول الردود القصيرة لتوفير الحصة المجانية</string>
+
+    <string name="attach">إرفاق</string>
+    <string name="attach_photo">صورة</string>
+    <string name="attach_file">ملف (PDF، Word، نص)</string>
+    <string name="attach_pdf_images">PDF كصور (للممسوح ضوئياً أو العربي)</string>
+    <string name="remove">إزالة</string>
+    <string name="attach_unsupported">تعذّر قراءة هذا الملف</string>
+    <string name="attach_no_text">لم أجد نصاً في الملف</string>
+    <string name="attach_scanned">الملف يبدو ممسوحاً ضوئياً، تم تحويل الصفحات (حتى 8) إلى صور</string>
+    <string name="default_prompt_image">اشرح هذه الصورة</string>
+    <string name="default_prompt_file">لخّص هذا الملف</string>
+    <string name="qa_translate">ترجمة</string>
+    <string name="qa_summarize">تلخيص</string>
+    <string name="qa_extract">استخراج النص</string>
+    <string name="qa_explain">شرح</string>
+    <string name="qa_images_pdf">صور ← PDF</string>
+    <string name="qa_translate_prompt">ترجم محتوى المرفق بالكامل إلى العربية (وإن كان بالعربية فترجمه إلى الإنجليزية) مع الحفاظ على التنسيق.</string>
+    <string name="qa_summarize_prompt">لخّص محتوى المرفق في نقاط واضحة ومرتبة.</string>
+    <string name="qa_extract_prompt">استخرج كل النص الموجود في المرفق كما هو حرفياً دون تعديل.</string>
+    <string name="qa_explain_prompt">اشرح محتوى المرفق بالتفصيل وبأسلوب مبسّط.</string>
+    <string name="save_pdf">حفظ كـ PDF</string>
+    <string name="pdf_saved">تم حفظ ملف PDF</string>
+    <string name="pdf_failed">فشل إنشاء PDF</string>
+    <string name="read_aloud">قراءة بصوت عالٍ</string>
+    <string name="vision_note">تحليل الصور: تم اختيار مودل يدعم الرؤية</string>
 </resources>

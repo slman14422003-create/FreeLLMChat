@@ -22,6 +22,7 @@ import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -46,7 +47,22 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
                 msgs.forEach { m ->
                     add(buildJsonObject {
                         put("role", m.role)
-                        put("content", m.content)
+                        if (m.images.isEmpty()) {
+                            put("content", m.content)
+                        } else {
+                            putJsonArray("content") {
+                                add(buildJsonObject {
+                                    put("type", "text")
+                                    put("text", m.content.ifBlank { " " })
+                                })
+                                m.images.forEach { u ->
+                                    add(buildJsonObject {
+                                        put("type", "image_url")
+                                        putJsonObject("image_url") { put("url", u) }
+                                    })
+                                }
+                            }
+                        }
                     })
                 }
             }

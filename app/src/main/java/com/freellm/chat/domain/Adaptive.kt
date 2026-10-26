@@ -54,7 +54,7 @@ object TokenSaver {
         var s = m.content
         if (m.role == "assistant") s = s.replace(fence, "[code omitted]")
         if (s.length > limit) s = s.take(limit).trimEnd() + "…"
-        return if (s == m.content) m else ChatMsg(m.role, s)
+        return if (s == m.content) m else m.copy(content = s)
     }
 
     fun compact(msgs: List<ChatMsg>, kind: TaskKind): Compacted {

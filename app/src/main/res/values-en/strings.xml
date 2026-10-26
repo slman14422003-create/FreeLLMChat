@@ -141,4 +141,29 @@
     <string name="auto_resume_desc">In adaptive mode a stopped request is retried and another model continues from the same point</string>
     <string name="token_saver">Token saver</string>
     <string name="token_saver_desc">Shortens old messages and caps short replies to save the free quota</string>
+
+    <string name="attach">Attach</string>
+    <string name="attach_photo">Photo</string>
+    <string name="attach_file">File (PDF, Word, text)</string>
+    <string name="attach_pdf_images">PDF as images (scanned or Arabic)</string>
+    <string name="remove">Remove</string>
+    <string name="attach_unsupported">Could not read this file</string>
+    <string name="attach_no_text">No text found in the file</string>
+    <string name="attach_scanned">The file looks scanned; pages (up to 8) were converted to images</string>
+    <string name="default_prompt_image">Describe this image</string>
+    <string name="default_prompt_file">Summarize this file</string>
+    <string name="qa_translate">Translate</string>
+    <string name="qa_summarize">Summarize</string>
+    <string name="qa_extract">Extract text</string>
+    <string name="qa_explain">Explain</string>
+    <string name="qa_images_pdf">Images → PDF</string>
+    <string name="qa_translate_prompt">Translate the full content of the attachment into Arabic (or into English if it is already Arabic), keeping the formatting.</string>
+    <string name="qa_summarize_prompt">Summarize the attachment in clear, organized bullet points.</string>
+    <string name="qa_extract_prompt">Extract all the text in the attachment verbatim, without changes.</string>
+    <string name="qa_explain_prompt">Explain the content of the attachment in detail, in simple terms.</string>
+    <string name="save_pdf">Save as PDF</string>
+    <string name="pdf_saved">PDF saved</string>
+    <string name="pdf_failed">Failed to create PDF</string>
+    <string name="read_aloud">Read aloud</string>
+    <string name="vision_note">Image analysis: a vision model was selected</string>
 </resources>

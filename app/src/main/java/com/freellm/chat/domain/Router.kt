@@ -124,12 +124,14 @@ class Health(private val config: RouterConfig) {
 object ContextTrimmer {
     fun estimate(s: String): Int = Math.ceil(s.length / 3.5).toInt() + 4
 
+    fun cost(m: ChatMsg): Int = estimate(m.content) + m.images.size * 1200
+
     fun trim(msgs: List<ChatMsg>, window: Int, reserve: Int, keepLast: Int = 1): List<ChatMsg> {
         val budget = window - reserve
         val system = msgs.filter { it.role == "system" }
         val rest = msgs.filter { it.role != "system" }.toMutableList()
-        val systemCost = system.sumOf { estimate(it.content) }
-        fun total(): Int = systemCost + rest.sumOf { estimate(it.content) }
+        val systemCost = system.sumOf { cost(it) }
+        fun total(): Int = systemCost + rest.sumOf { cost(it) }
         while (rest.size > keepLast && total() > budget) rest.removeAt(0)
         while (rest.size > keepLast && rest.first().role != "user") rest.removeAt(0)
         return system + rest
@@ -142,6 +144,8 @@ private const val MSG_NO_PROVIDER = "لا يوجد أي مزود مُعدّ. ا�
 private const val MSG_PINNED_MISSING = "المودل المثبّت غير متاح. تأكد من تفعيل مزوده أو اختر وضعاً آخر."
 private const val CONTINUE_PROMPT =
     "Continue your previous reply exactly where it stopped. Do not repeat anything and do not add an introduction. أكمل ردك السابق من حيث توقفت تماماً دون تكرار ودون مقدمة."
+private const val MSG_NO_VISION =
+    "لا يوجد مودل يدعم الصور بين المزودين المفعّلين. فعّل Gemini أو OpenRouter أو Z.ai من الإعدادات ← المزودون."
 private const val HOLD_CHARS = 48
 private const val TAIL_CHARS = 240
 
@@ -154,14 +158,15 @@ class Router(
     val stats = ModelStats()
 
     internal fun order(req: RouteRequest): List<Target> {
-        if (req.mode == ChatMode.PINNED) return req.candidates.filter { it.key == req.pinnedKey }
+        val pool = if (req.needsVision) req.candidates.filter { it.model.vision } else req.candidates
+        if (req.mode == ChatMode.PINNED) return pool.filter { it.key == req.pinnedKey }
         val wanted = when (req.mode) {
             ChatMode.FAST -> "fast"
             ChatMode.SMART -> "smart"
             ChatMode.CODE -> "code"
             else -> null
         }
-        return req.candidates.sortedWith(
+        return pool.sortedWith(
             compareBy<Target>(
                 { if (req.preferredKey != null && it.key == req.preferredKey) 0 else 1 },
                 { if (wanted != null && wanted in it.model.modes) 0 else 1 },
@@ -209,7 +214,12 @@ class Router(
         val pinned = req.mode == ChatMode.PINNED
         val ordered = order(req)
         if (ordered.isEmpty()) {
-            emit(RouteEvent.Failed(if (pinned) MSG_PINNED_MISSING else MSG_NO_PROVIDER, pinned))
+            val none = when {
+                req.needsVision && req.candidates.isNotEmpty() -> MSG_NO_VISION
+                pinned -> MSG_PINNED_MISSING
+                else -> MSG_NO_PROVIDER
+            }
+            emit(RouteEvent.Failed(none, pinned))
             return@flow
         }
         val partial = StringBuilder()

@@ -34,7 +34,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = appVersionCode
-        versionName = "1.1.0"
+        versionName = "1.2.0"
         buildConfigField("String", "MODELS_URL", "\"$modelsUrl\"")
         buildConfigField("String", "DEFAULT_PROXY", "\"https://freellm.slman2233445566y.workers.dev\"")
         resourceConfigurations += listOf("ar", "en")
@@ -123,6 +123,7 @@ dependencies {
     implementation(libs.androidx.security.crypto)
 
     implementation(libs.okhttp)
+    implementation(libs.pdfbox.android)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
 
