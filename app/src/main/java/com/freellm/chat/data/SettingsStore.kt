@@ -31,6 +31,8 @@ class SettingsStore(context: Context) {
         val AUTO_SWITCH = booleanPreferencesKey("auto_switch")
         val STYLE = stringPreferencesKey("reply_style")
         val INSTRUCTIONS = stringPreferencesKey("instructions")
+        val AUTO_RESUME = booleanPreferencesKey("auto_resume")
+        val TOKEN_SAVER = booleanPreferencesKey("token_saver")
     }
 
     private val data: Flow<Preferences> = ds.data.catch { emit(emptyPreferences()) }
@@ -42,11 +44,13 @@ class SettingsStore(context: Context) {
         .map { (it[K.ORDER] ?: "").split(",").filter { s -> s.isNotBlank() } }
         .distinctUntilChanged()
     val statuses: Flow<Map<String, String>> = data.map { decode(it[K.STATUSES]) }.distinctUntilChanged()
-    val selection: Flow<String> = data.map { it[K.SELECTION] ?: "AUTO" }.distinctUntilChanged()
+    val selection: Flow<String> = data.map { it[K.SELECTION] ?: "ADAPT" }.distinctUntilChanged()
 
     val proxyUrl: Flow<String> = data.map { it[K.PROXY]?.trim()?.takeIf { v -> v.isNotEmpty() } ?: BuildConfig.DEFAULT_PROXY }.distinctUntilChanged()
 
     val autoSwitch: Flow<Boolean> = data.map { it[K.AUTO_SWITCH] ?: true }.distinctUntilChanged()
+    val autoResume: Flow<Boolean> = data.map { it[K.AUTO_RESUME] ?: true }.distinctUntilChanged()
+    val tokenSaver: Flow<Boolean> = data.map { it[K.TOKEN_SAVER] ?: true }.distinctUntilChanged()
     val style: Flow<String> = data.map { it[K.STYLE] ?: "default" }.distinctUntilChanged()
     val instructions: Flow<String> = data.map { it[K.INSTRUCTIONS] ?: "" }.distinctUntilChanged()
 
@@ -101,5 +105,13 @@ class SettingsStore(context: Context) {
 
     suspend fun setInstructions(v: String) {
         ds.edit { it[K.INSTRUCTIONS] = v }
+    }
+
+    suspend fun setAutoResume(v: Boolean) {
+        ds.edit { it[K.AUTO_RESUME] = v }
+    }
+
+    suspend fun setTokenSaver(v: Boolean) {
+        ds.edit { it[K.TOKEN_SAVER] = v }
     }
 }

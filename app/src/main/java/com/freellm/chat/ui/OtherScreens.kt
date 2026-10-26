@@ -133,6 +133,8 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
     val theme by app.settings.theme.collectAsStateWithLifecycle(initialValue = "system")
     val proxy by app.settings.proxyUrl.collectAsStateWithLifecycle(initialValue = "")
     val autoSwitch by app.settings.autoSwitch.collectAsStateWithLifecycle(initialValue = true)
+    val autoResume by app.settings.autoResume.collectAsStateWithLifecycle(initialValue = true)
+    val tokenSaver by app.settings.tokenSaver.collectAsStateWithLifecycle(initialValue = true)
     val style by app.settings.style.collectAsStateWithLifecycle(initialValue = "default")
     val instructions by app.settings.instructions.collectAsStateWithLifecycle(initialValue = "")
     val providers by app.manager.providers.collectAsStateWithLifecycle(initialValue = emptyList())
@@ -326,6 +328,38 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
                         Switch(
                             checked = autoSwitch,
                             onCheckedChange = { scope.launch { app.settings.setAutoSwitch(it) } },
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = cs.tertiary,
+                                checkedThumbColor = androidx.compose.ui.graphics.Color.White
+                            )
+                        )
+                    }
+                )
+                SettingsRow(
+                    Icons.Outlined.Speed,
+                    stringResource(R.string.auto_resume),
+                    stringResource(R.string.auto_resume_desc),
+                    onClick = { scope.launch { app.settings.setAutoResume(!autoResume) } },
+                    trailing = {
+                        Switch(
+                            checked = autoResume,
+                            onCheckedChange = { scope.launch { app.settings.setAutoResume(it) } },
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = cs.tertiary,
+                                checkedThumbColor = androidx.compose.ui.graphics.Color.White
+                            )
+                        )
+                    }
+                )
+                SettingsRow(
+                    Icons.Outlined.AutoAwesome,
+                    stringResource(R.string.token_saver),
+                    stringResource(R.string.token_saver_desc),
+                    onClick = { scope.launch { app.settings.setTokenSaver(!tokenSaver) } },
+                    trailing = {
+                        Switch(
+                            checked = tokenSaver,
+                            onCheckedChange = { scope.launch { app.settings.setTokenSaver(it) } },
                             colors = SwitchDefaults.colors(
                                 checkedTrackColor = cs.tertiary,
                                 checkedThumbColor = androidx.compose.ui.graphics.Color.White

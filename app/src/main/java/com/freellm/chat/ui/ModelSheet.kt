@@ -86,6 +86,7 @@ fun ModelSheet(
     }
     val modes = if (purpose == PickPurpose.SELECT) {
         listOf(
+            "ADAPT" to R.string.mode_adaptive,
             "AUTO" to R.string.mode_auto,
             "FAST" to R.string.mode_fast,
             "SMART" to R.string.mode_smart,

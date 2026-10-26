@@ -116,6 +116,7 @@ private sealed class Picker {
 
 @Composable
 private fun selectionLabel(sel: String, targets: List<Target>): String = when {
+    sel == "ADAPT" -> stringResource(R.string.mode_adaptive)
     sel == "FAST" -> stringResource(R.string.mode_fast)
     sel == "SMART" -> stringResource(R.string.mode_smart)
     sel == "CODE" -> stringResource(R.string.mode_code)

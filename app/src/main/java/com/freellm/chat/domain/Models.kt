@@ -67,7 +67,9 @@ data class RouteRequest(
     val pinnedKey: String?,
     val candidates: List<Target>,
     val maxTokens: Int? = null,
-    val preferredKey: String? = null
+    val preferredKey: String? = null,
+    val adaptive: Boolean = false,
+    val preferSpeed: Boolean = false
 )
 
 sealed class RouteEvent {

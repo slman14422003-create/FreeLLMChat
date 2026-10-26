@@ -72,7 +72,7 @@ class RouterTest {
         assertEquals(partial + " and the rest", textOf(events))
         assertTrue(events.any { it is RouteEvent.Switched })
         val second = tr.calls[1].second
-        assertEquals("أكمل", second.last().content)
+        assertTrue(second.last().content.contains("أكمل"))
         assertEquals("assistant", second[second.size - 2].role)
         assertEquals(partial, second[second.size - 2].content)
         assertTrue(events.last() is RouteEvent.Done)

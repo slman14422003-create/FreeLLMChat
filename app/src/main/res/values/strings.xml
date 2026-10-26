@@ -128,4 +128,17 @@
     <string name="preferences_label">التفضيلات</string>
     <string name="models_count">%1$d مودل</string>
     <string name="google_ai_mode">البحث في Google AI Mode</string>
+    <string name="mode_adaptive">متكيف (ذكي)</string>
+    <string name="adaptive_note">وضع متكيف: %1$s</string>
+    <string name="kind_quick">سؤال سريع</string>
+    <string name="kind_code">برمجة</string>
+    <string name="kind_reason">تفكير وتحليل</string>
+    <string name="kind_write">كتابة وترجمة</string>
+    <string name="kind_general">عام</string>
+    <string name="tokens_saved">وُفّر ~%1$d توكن</string>
+    <string name="auto_resume_notice">توقف الرد، سيُكمله نموذج آخر تلقائياً (محاولة %1$d)</string>
+    <string name="auto_resume">إكمال تلقائي عند التوقف</string>
+    <string name="auto_resume_desc">إذا توقف الطلب في الوضع المتكيف يُعاد تلقائياً ويكمل نموذج آخر من نفس النقطة</string>
+    <string name="token_saver">توفير التوكنس</string>
+    <string name="token_saver_desc">يختصر الرسائل القديمة ويحدّ طول الردود القصيرة لتوفير الحصة المجانية</string>
 </resources>

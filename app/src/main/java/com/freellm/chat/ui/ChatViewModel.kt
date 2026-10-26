@@ -12,11 +12,17 @@ import com.freellm.chat.domain.ChatMode
 import com.freellm.chat.domain.ChatMsg
 import com.freellm.chat.domain.ModelHealth
 import com.freellm.chat.domain.RouteEvent
+import com.freellm.chat.domain.Overlap
 import com.freellm.chat.domain.RouteRequest
+import com.freellm.chat.domain.TaskClassifier
+import com.freellm.chat.domain.TaskKind
+import com.freellm.chat.domain.TokenSaver
 import com.freellm.chat.domain.Target
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -51,6 +57,8 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
     val stream = MutableStateFlow<StreamUi?>(null)
     val notice = MutableStateFlow<String?>(null)
     private var job: Job? = null
+    private var lastError: String? = null
+    private var lastPinned = false
 
     val conversations: StateFlow<List<ConversationEntity>> = query
         .flatMapLatest { repo.conversations(it) }
@@ -67,7 +75,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
     init {
         viewModelScope.launch {
             val saved = app.settings.selection.first()
-            selection.value = if (saved.startsWith("PIN:")) "AUTO" else saved
+            selection.value = if (saved.startsWith("PIN:")) "ADAPT" else saved
         }
     }
 
@@ -75,7 +83,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
 
     fun health(t: Target): ModelHealth = router.health.state(t, System.currentTimeMillis())
 
-    private fun nonPin(): String = selection.value.takeIf { !it.startsWith("PIN:") } ?: "AUTO"
+    private fun nonPin(): String = selection.value.takeIf { !it.startsWith("PIN:") } ?: "ADAPT"
 
     private fun modeOf(sel: String): ChatMode = when {
         sel.startsWith("PIN:") -> ChatMode.PINNED
@@ -124,7 +132,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         if (generating) return
         if (sel != null) select(sel)
         stream.value = null
-        start { generate(cid, null) }
+        start { runAdaptive(cid, null) }
     }
 
     /** Same as before: leave a failed pinned model and let the router pick another. */
@@ -132,7 +140,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         val cid = conversationId.value ?: return
         select("AUTO")
         stream.value = null
-        start { generate(cid, null) }
+        start { runAdaptive(cid, null) }
     }
 
     /**
@@ -148,9 +156,9 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
             stream.value = null
             if (last == null) return@launch
             if (last.role == "assistant") {
-                start { generate(cid, if (sel == null) last.modelKey else null, last) }
+                start { runAdaptive(cid, if (sel == null) last.modelKey else null, last) }
             } else {
-                start { generate(cid, null) }
+                start { runAdaptive(cid, null) }
             }
         }
     }
@@ -180,7 +188,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         if (sel != null) select(sel)
         start {
             repo.deleteFrom(cid, m.id)
-            generate(cid, if (sel == null) m.modelKey else null)
+            runAdaptive(cid, if (sel == null) m.modelKey else null)
         }
     }
 
@@ -194,7 +202,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
             repo.addMessage(
                 MessageEntity(conversationId = cid, role = "user", content = t, createdAt = System.currentTimeMillis())
             )
-            generate(cid, null)
+            runAdaptive(cid, null)
         }
     }
 
@@ -226,7 +234,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                     createdAt = System.currentTimeMillis()
                 )
             )
-            generate(cid, null)
+            runAdaptive(cid, null)
         }
     }
 
@@ -257,17 +265,49 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         return " "
     }
 
+    private suspend fun runAdaptive(cid: Long, exclude: String?, cont: MessageEntity? = null) {
+        lastError = null
+        generate(cid, exclude, cont)
+        if (selection.value != "ADAPT" || !app.settings.autoResume.first()) return
+        var tries = 0
+        try {
+            while (lastError != null && !lastPinned && tries < MAX_RESUME) {
+                tries++
+                notice.value = app.getString(R.string.auto_resume_notice, tries)
+                stream.value = StreamUi(active = true)
+                delay(RESUME_DELAY_MS * tries)
+                val last = repo.messagesOnce(cid).lastOrNull { it.role == "user" || it.role == "assistant" } ?: return
+                lastError = null
+                if (last.role == "assistant") generate(cid, null, last) else generate(cid, null)
+            }
+        } catch (e: CancellationException) {
+            stream.value = null
+            throw e
+        }
+    }
+
     private suspend fun generate(cid: Long, exclude: String?, cont: MessageEntity? = null) {
         val stored = repo.messagesOnce(cid)
             .filter { it.role == "user" || it.role == "assistant" }
             .let { l -> if (cont != null) l.filter { it.id <= cont.id } else l }
-        val history = stored.map { ChatMsg(it.role, it.content) }.toMutableList()
+        var history = stored.map { ChatMsg(it.role, it.content) }.toMutableList()
         val prefix = cont?.content.orEmpty()
         if (cont != null) history.add(ChatMsg("user", CONTINUE_PROMPT))
 
         val all = manager.activeTargets()
         val sel = selection.value
+        val adaptive = sel == "ADAPT"
+        val saver = app.settings.tokenSaver.first()
+        val lastUser = stored.lastOrNull { it.role == "user" }?.content.orEmpty()
+        val kind = TaskClassifier.classify(lastUser)
+        var saved = 0
+        if (saver) {
+            val c = TokenSaver.compact(history, kind)
+            history = c.messages.toMutableList()
+            saved = c.savedTokens
+        }
         var mode = modeOf(sel)
+        if (adaptive) mode = kind.mode
         var cands = all
         var preferred: String? = null
         if (exclude != null) {
@@ -279,16 +319,38 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
             preferred = sel.removePrefix("PIN:")
             mode = ChatMode.AUTO
         }
+        val hint = if (adaptive || saver) kind.hint else ""
+        val sys = listOf(systemPrompt(), hint).filter { it.isNotEmpty() }.joinToString("\n")
         val req = RouteRequest(
-            messages = listOf(ChatMsg("system", systemPrompt())) + history,
+            messages = listOf(ChatMsg("system", sys)) + history,
             mode = mode,
             pinnedKey = if (mode == ChatMode.PINNED) sel.removePrefix("PIN:") else null,
             candidates = cands,
-            preferredKey = preferred
+            preferredKey = preferred,
+            maxTokens = if (saver && kind == TaskKind.QUICK && cont == null) QUICK_MAX_TOKENS else null,
+            adaptive = adaptive,
+            preferSpeed = adaptive && kind == TaskKind.QUICK
         )
 
         val text = StringBuilder(prefix)
         val notes = mutableListOf<String>()
+        if (adaptive) {
+            val label = app.getString(
+                when (kind) {
+                    TaskKind.QUICK -> R.string.kind_quick
+                    TaskKind.CODE -> R.string.kind_code
+                    TaskKind.REASON -> R.string.kind_reason
+                    TaskKind.WRITE -> R.string.kind_write
+                    TaskKind.GENERAL -> R.string.kind_general
+                }
+            )
+            var note = app.getString(R.string.adaptive_note, label)
+            if (saved >= 40) note += " · " + app.getString(R.string.tokens_saved, saved)
+            notes.add(note)
+        }
+        val hold = StringBuilder()
+        var released = cont == null
+        val tail = prefix.takeLast(240)
         var target: Target? = null
         var error: String? = null
         var pinnedFailure = false
@@ -311,8 +373,17 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                         push(true)
                     }
                     is RouteEvent.Delta -> {
-                        if (cont != null && text.length == prefix.length) text.append(joinSep(prefix, ev.text))
-                        text.append(ev.text)
+                        if (released) {
+                            text.append(ev.text)
+                        } else {
+                            hold.append(ev.text)
+                            if (hold.length >= 48) {
+                                released = true
+                                val rest = Overlap.strip(tail, hold.toString())
+                                text.append(joinSep(prefix, rest)).append(rest)
+                                hold.setLength(0)
+                            }
+                        }
                         push()
                     }
                     is RouteEvent.Switched -> {
@@ -342,6 +413,10 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
             }
         } finally {
             withContext(NonCancellable) {
+                if (!released && hold.isNotEmpty()) {
+                    val rest = Overlap.strip(tail, hold.toString())
+                    text.append(joinSep(prefix, rest)).append(rest)
+                }
                 val finalText = text.toString()
                 val t = target
                 if (cont != null) {
@@ -376,12 +451,17 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                     )
                 }
                 val err = error
+                lastError = err
+                lastPinned = pinnedFailure
                 stream.value = if (err != null) StreamUi(error = err, pinnedFailure = pinnedFailure) else null
             }
         }
     }
 
     companion object {
+        private const val MAX_RESUME = 2
+        private const val RESUME_DELAY_MS = 15_000L
+        private const val QUICK_MAX_TOKENS = 1200
         private const val SYSTEM_PROMPT =
             "You are a helpful assistant. Reply in the same language as the user's last message."
         private const val CONTINUE_PROMPT =

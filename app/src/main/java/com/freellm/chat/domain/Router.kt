@@ -140,7 +140,10 @@ private class Chunk(val text: String?, val error: Throwable?)
 
 private const val MSG_NO_PROVIDER = "لا يوجد أي مزود مُعدّ. افتح الإعدادات ← المزودون وأضف مفتاح API مجانياً."
 private const val MSG_PINNED_MISSING = "المودل المثبّت غير متاح. تأكد من تفعيل مزوده أو اختر وضعاً آخر."
-private const val CONTINUE_PROMPT = "أكمل"
+private const val CONTINUE_PROMPT =
+    "Continue your previous reply exactly where it stopped. Do not repeat anything and do not add an introduction. أكمل ردك السابق من حيث توقفت تماماً دون تكرار ودون مقدمة."
+private const val HOLD_CHARS = 48
+private const val TAIL_CHARS = 240
 
 class Router(
     private val transport: ChatTransport,
@@ -148,6 +151,7 @@ class Router(
     private val clock: () -> Long = { System.currentTimeMillis() }
 ) {
     val health = Health(config)
+    val stats = ModelStats()
 
     internal fun order(req: RouteRequest): List<Target> {
         if (req.mode == ChatMode.PINNED) return req.candidates.filter { it.key == req.pinnedKey }
@@ -161,6 +165,8 @@ class Router(
             compareBy<Target>(
                 { if (req.preferredKey != null && it.key == req.preferredKey) 0 else 1 },
                 { if (wanted != null && wanted in it.model.modes) 0 else 1 },
+                { if (req.adaptive) stats.failTier(it.key) else 0 },
+                { if (req.adaptive && req.preferSpeed) stats.latencyBucket(it.key) else 0 },
                 { it.model.priority },
                 { it.providerRank }
             )
@@ -227,6 +233,25 @@ class Router(
             val msgs = buildMessages(req, t, partial.toString())
             var got = false
             var completed = false
+            val tail = if (partial.isNotEmpty()) partial.takeLast(TAIL_CHARS).toString() else ""
+            var holding = tail.isNotEmpty()
+            val hold = StringBuilder()
+            val began = clock()
+
+            suspend fun push(text: String) {
+                if (text.isEmpty()) return
+                if (!got) {
+                    got = true
+                    stats.onFirstToken(t.key, clock() - began)
+                    val prev = shown
+                    shown = t
+                    if (prev == null) emit(RouteEvent.Started(t))
+                    else if (prev != t) emit(RouteEvent.Switched(t))
+                }
+                partial.append(text)
+                emit(RouteEvent.Delta(text))
+            }
+
             try {
                 coroutineScope {
                     val ch = transport.stream(t, msgs, req.maxTokens)
@@ -242,17 +267,23 @@ class Router(
                             if (err != null) throw err
                             val text = c.text.orEmpty()
                             if (text.isNotEmpty()) {
-                                if (!got) {
-                                    got = true
-                                    val prev = shown
-                                    shown = t
-                                    if (prev == null) emit(RouteEvent.Started(t))
-                                    else if (prev != t) emit(RouteEvent.Switched(t))
+                                if (holding) {
+                                    hold.append(text)
+                                    if (hold.length >= HOLD_CHARS) {
+                                        holding = false
+                                        push(Overlap.strip(tail, hold.toString()))
+                                        hold.setLength(0)
+                                    }
+                                } else {
+                                    push(text)
                                 }
-                                partial.append(text)
-                                emit(RouteEvent.Delta(text))
                             }
                             r = ch.receiveCatching()
+                        }
+                        if (holding && hold.isNotEmpty()) {
+                            val rest = Overlap.strip(tail, hold.toString())
+                            if (rest.isNotEmpty()) push(rest) else got = true
+                            holding = false
                         }
                         if (!got) throw LlmException(ErrorKind.EMPTY)
                         completed = true
@@ -266,6 +297,7 @@ class Router(
                 val ex = classify(e)
                 reasons[t.providerName] = ex.kind.label()
                 health.onFailure(t, ex, clock())
+                stats.onFail(t.key)
                 val after = health.blockedUntil(t, clock())
                 if (after != null && after != Long.MAX_VALUE) soonest = min(soonest, after)
                 if (ex.kind == ErrorKind.AUTH) emit(RouteEvent.AuthFailed(t.providerId, ex.httpCode))
@@ -281,6 +313,7 @@ class Router(
             }
             if (completed) {
                 health.onSuccess(t)
+                stats.onOk(t.key)
                 emit(RouteEvent.Done(t))
                 return@flow
             }

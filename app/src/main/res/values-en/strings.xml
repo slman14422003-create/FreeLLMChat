@@ -128,4 +128,17 @@
     <string name="preferences_label">Preferences</string>
     <string name="models_count">%1$d models</string>
     <string name="google_ai_mode">Ask Google AI Mode</string>
+    <string name="mode_adaptive">Adaptive (smart)</string>
+    <string name="adaptive_note">Adaptive: %1$s</string>
+    <string name="kind_quick">Quick question</string>
+    <string name="kind_code">Coding</string>
+    <string name="kind_reason">Reasoning</string>
+    <string name="kind_write">Writing and translation</string>
+    <string name="kind_general">General</string>
+    <string name="tokens_saved">Saved ~%1$d tokens</string>
+    <string name="auto_resume_notice">The reply stopped. Another model will continue automatically (attempt %1$d)</string>
+    <string name="auto_resume">Auto-resume on stop</string>
+    <string name="auto_resume_desc">In adaptive mode a stopped request is retried and another model continues from the same point</string>
+    <string name="token_saver">Token saver</string>
+    <string name="token_saver_desc">Shortens old messages and caps short replies to save the free quota</string>
 </resources>
