@@ -6,12 +6,18 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
-val ksFile: String? = System.getenv("KEYSTORE_FILE")
-val hasKeystore: Boolean = !ksFile.isNullOrBlank() &&
-    File(ksFile).exists() &&
+// Signing: use CI secrets when provided, otherwise the keystore bundled in app/keystore.
+// Both give the same certificate chain on every build, so new APKs install over old ones.
+val bundledKs = File(projectDir, "keystore/freellm-release.jks")
+val envKs: String? = System.getenv("KEYSTORE_FILE")
+val useEnvKs: Boolean = !envKs.isNullOrBlank() && File(envKs).exists() &&
     !System.getenv("KEYSTORE_PASSWORD").isNullOrBlank() &&
     !System.getenv("KEY_ALIAS").isNullOrBlank() &&
     !System.getenv("KEY_PASSWORD").isNullOrBlank()
+val ksPath: String = if (useEnvKs) envKs!! else bundledKs.path
+val ksStorePass: String = if (useEnvKs) System.getenv("KEYSTORE_PASSWORD") else "IdBlIF6LaBytCqyMp71R"
+val ksAlias: String = if (useEnvKs) System.getenv("KEY_ALIAS") else "freellm"
+val ksKeyPass: String = if (useEnvKs) System.getenv("KEY_PASSWORD") else "IdBlIF6LaBytCqyMp71R"
 
 val modelsUrl: String = (project.findProperty("MODELS_URL") as String?)
     ?.takeIf { it.isNotBlank() }
@@ -35,13 +41,11 @@ android {
     }
 
     signingConfigs {
-        if (hasKeystore) {
-            create("release") {
-                storeFile = File(ksFile!!)
-                storePassword = System.getenv("KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("KEY_ALIAS")
-                keyPassword = System.getenv("KEY_PASSWORD")
-            }
+        create("release") {
+            storeFile = File(ksPath)
+            storePassword = ksStorePass
+            keyAlias = ksAlias
+            keyPassword = ksKeyPass
         }
     }
 
@@ -53,14 +57,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = if (hasKeystore) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            signingConfig = signingConfigs.getByName("release")
         }
         debug {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 

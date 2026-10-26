@@ -11,3 +11,4 @@
 *.jks
 *.keystore
 gradle-wrapper.jar
+!/app/keystore/freellm-release.jks
