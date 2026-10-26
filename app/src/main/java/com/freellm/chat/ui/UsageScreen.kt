@@ -1,5 +1,6 @@
 package com.freellm.chat.ui
 
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -76,6 +77,7 @@ fun UsageScreen(app: FreeLlmApp, onBack: () -> Unit) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            UsageArt(Modifier.fillMaxWidth().height(100.dp).appear(0))
             if (nearLimit) {
                 Text(stringResource(R.string.near_limit_warning), color = cs.error)
             }

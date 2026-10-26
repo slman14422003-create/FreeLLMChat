@@ -2,6 +2,7 @@
 
 package com.freellm.chat.ui
 
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -93,8 +94,10 @@ fun ProvidersScreen(app: FreeLlmApp, onBack: () -> Unit, onOpen: (String) -> Uni
         local = local.toMutableList().apply { add(to.index, removeAt(from.index)) }
     }
     Scaffold(topBar = { AppTopBar(stringResource(R.string.providers), onBack) }) { pad ->
+        androidx.compose.foundation.layout.Column(Modifier.padding(pad)) {
+        ProvidersArt(Modifier.fillMaxWidth().height(120.dp).appear(0))
         LazyColumn(
-            Modifier.padding(pad),
+            Modifier.weight(1f),
             state = lazyState,
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -140,6 +143,7 @@ fun ProvidersScreen(app: FreeLlmApp, onBack: () -> Unit, onOpen: (String) -> Uni
                     }
                 }
             }
+        }
         }
     }
 }
@@ -189,9 +193,10 @@ fun ProviderWizardScreen(app: FreeLlmApp, providerId: String, onBack: () -> Unit
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text(stringResource(R.string.setup_steps), style = MaterialTheme.typography.titleMedium)
+            KeysArt(Modifier.fillMaxWidth().height(130.dp).appear(0))
+            Text(stringResource(R.string.setup_steps), Modifier.appear(1), style = MaterialTheme.typography.titleMedium)
             def.steps.forEachIndexed { i, s ->
-                Row {
+                Row(Modifier.appear(i + 2)) {
                     Text("${i + 1}.", Modifier.width(28.dp), color = MaterialTheme.colorScheme.tertiary)
                     Text(s, Modifier.weight(1f))
                 }

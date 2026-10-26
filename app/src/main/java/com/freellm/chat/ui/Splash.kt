@@ -122,6 +122,16 @@ fun SplashOverlay(onFinished: () -> Unit) {
                 color = Color(0xFFEDEDED),
                 style = MaterialTheme.typography.headlineSmall
             )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Salman × Claude AI",
+                Modifier.graphicsLayer {
+                    alpha = title.value * 0.75f
+                    translationY = (1f - title.value) * 10f
+                },
+                color = Color(0xFF9AA3B2),
+                style = MaterialTheme.typography.labelLarge
+            )
         }
     }
 }

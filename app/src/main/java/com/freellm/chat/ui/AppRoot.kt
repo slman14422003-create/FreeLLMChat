@@ -2,6 +2,7 @@ package com.freellm.chat.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -37,10 +38,12 @@ fun AppRoot(app: FreeLlmApp) {
     FreeLlmTheme(theme) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Box(Modifier.fillMaxSize()) {
-                when (welcome) {
-                    null -> Unit
-                    false -> WelcomeScreen { scope.launch { app.settings.setWelcomeDone() } }
-                    true -> MainNav(app)
+                Crossfade(targetState = welcome, animationSpec = tween(500), label = "welcome") { w ->
+                    when (w) {
+                        null -> Unit
+                        false -> OnboardingScreen { scope.launch { app.settings.setWelcomeDone() } }
+                        true -> MainNav(app)
+                    }
                 }
                 if (splash) SplashOverlay { splash = false }
             }
@@ -51,11 +54,15 @@ fun AppRoot(app: FreeLlmApp) {
 @Composable
 private fun MainNav(app: FreeLlmApp) {
     var route by rememberSaveable { mutableStateOf("chat") }
+    var privacyFrom by rememberSaveable { mutableStateOf("settings") }
     val chatVm: ChatViewModel = viewModel(factory = VmFactory { ChatViewModel(app) })
 
     BackHandler(enabled = route != "chat") {
         route = when {
             route.startsWith("provider:") -> "providers"
+            route == "privacy" -> privacyFrom
+            route == "tour" -> "about"
+            route == "about" -> "settings"
             route == "providers" || route == "status" || route == "usage" || route == "brain" -> "settings"
             else -> "chat"
         }
@@ -88,8 +95,23 @@ private fun MainNav(app: FreeLlmApp) {
                 onProviders = { route = "providers" },
                 onStatus = { route = "status" },
                 onUsage = { route = "usage" },
-                onBrain = { route = "brain" }
+                onBrain = { route = "brain" },
+                onAbout = { route = "about" },
+                onPrivacy = {
+                    privacyFrom = "settings"
+                    route = "privacy"
+                }
             )
+            r == "about" -> AboutScreen(
+                onBack = { route = "settings" },
+                onTour = { route = "tour" },
+                onPrivacy = {
+                    privacyFrom = "about"
+                    route = "privacy"
+                }
+            )
+            r == "tour" -> OnboardingScreen { route = "about" }
+            r == "privacy" -> PrivacyScreen(onBack = { route = privacyFrom })
             r == "providers" -> ProvidersScreen(
                 app = app,
                 onBack = { route = "settings" },
@@ -111,6 +133,6 @@ private fun MainNav(app: FreeLlmApp) {
 private fun depthOf(r: String): Int = when {
     r == "chat" -> 0
     r == "settings" -> 1
-    r == "providers" || r == "status" || r == "usage" || r == "brain" -> 2
+    r == "providers" || r == "status" || r == "usage" || r == "brain" || r == "about" -> 2
     else -> 3
 }

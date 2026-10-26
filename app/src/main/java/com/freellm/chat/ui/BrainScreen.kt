@@ -1,5 +1,6 @@
 package com.freellm.chat.ui
 
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -110,6 +111,7 @@ fun BrainScreen(app: FreeLlmApp, onBack: () -> Unit) {
             contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            item(key = "art") { BrainArt(Modifier.fillMaxWidth().height(130.dp).appear(0)) }
             item(key = "facts") {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(stringResource(R.string.personal_facts), style = MaterialTheme.typography.titleMedium)

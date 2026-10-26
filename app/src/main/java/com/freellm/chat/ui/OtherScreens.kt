@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.SwapHoriz
@@ -68,41 +69,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun WelcomeScreen(onStart: () -> Unit) {
-    val cs = MaterialTheme.colorScheme
-    Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(28.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        StarBurst(size = 64.dp, spinning = true)
-        Spacer(Modifier.height(28.dp))
-        Text(
-            stringResource(R.string.welcome_title),
-            Modifier.appear(1),
-            style = MaterialTheme.typography.headlineSmall,
-            color = cs.onBackground
-        )
-        Spacer(Modifier.height(16.dp))
-        Text(stringResource(R.string.welcome_body), Modifier.appear(2), color = cs.onSurfaceVariant)
-        Spacer(Modifier.height(16.dp))
-        Text(stringResource(R.string.welcome_privacy), Modifier.appear(3), color = cs.secondary)
-        Spacer(Modifier.height(32.dp))
-        Button(
-            onClick = onStart,
-            modifier = Modifier
-                .appear(4)
-                .fillMaxWidth()
-                .height(52.dp),
-            shape = CircleShape
-        ) { Text(stringResource(R.string.start)) }
-    }
-}
-
-@Composable
 private fun ChoiceDialog(
     title: String,
     options: List<Pair<String, String>>,
@@ -134,7 +100,7 @@ private fun ChoiceDialog(
 }
 
 @Composable
-fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit, onStatus: () -> Unit, onUsage: () -> Unit, onBrain: () -> Unit) {
+fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit, onStatus: () -> Unit, onUsage: () -> Unit, onBrain: () -> Unit, onAbout: () -> Unit, onPrivacy: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     val theme by app.settings.theme.collectAsStateWithLifecycle(initialValue = "system")
     val proxy by app.settings.proxyUrl.collectAsStateWithLifecycle(initialValue = "")
@@ -515,9 +481,16 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
                     onClick = { dialog = "wipe" }
                 )
                 SettingsRow(
+                    Icons.Outlined.Lock,
+                    stringResource(R.string.privacy_title),
+                    stringResource(R.string.privacy_row_d),
+                    onClick = onPrivacy
+                )
+                SettingsRow(
                     Icons.Outlined.Info,
                     stringResource(R.string.about),
-                    stringResource(R.string.about_body) + "\n" + BuildConfig.VERSION_NAME
+                    stringResource(R.string.about_body) + " · " + BuildConfig.VERSION_NAME,
+                    onClick = onAbout
                 )
             }
             Spacer(Modifier.height(24.dp))
@@ -553,6 +526,8 @@ fun StatusScreen(app: FreeLlmApp, onBack: () -> Unit) {
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp)
             ) {
+                StatusArt(Modifier.fillMaxWidth().height(90.dp).appear(0))
+                Spacer(Modifier.height(8.dp))
                 SettingsGroup(Modifier.appear(6)) {
                     targets.forEach { t ->
                         val st = app.router.health.state(t, now)

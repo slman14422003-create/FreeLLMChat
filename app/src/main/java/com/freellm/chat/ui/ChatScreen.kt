@@ -605,8 +605,8 @@ private fun EmptyState(hasProviders: Boolean, onProviders: () -> Unit) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        StarBurst(size = 56.dp)
-        Spacer(Modifier.height(24.dp))
+        ChatHeroArt(dim = 56.dp, modifier = Modifier.appear(0))
+        Spacer(Modifier.height(8.dp))
         Text(greeting, style = MaterialTheme.typography.displaySmall, color = cs.onBackground)
         Spacer(Modifier.height(28.dp))
         Row(

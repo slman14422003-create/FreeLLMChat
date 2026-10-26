@@ -121,16 +121,35 @@ fun Modifier.bounceClick(onClick: () -> Unit): Modifier = composed {
         .clickable(interactionSource = src, indication = LocalIndication.current, onClick = onClick)
 }
 
-/** Staggered entrance: fade + rise, delayed by [index]. Plays once per composition. */
 fun Modifier.appear(index: Int = 0): Modifier = composed {
     val a = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
-        delay(index.coerceIn(0, 10) * 50L)
-        a.animateTo(1f, androidx.compose.animation.core.tween(420, easing = FastOutSlowInEasing))
+        delay(index.coerceIn(0, 10) * 55L)
+        a.animateTo(1f, spring(dampingRatio = 0.82f, stiffness = 170f))
     }
     graphicsLayer {
+        val v = a.value
+        alpha = v.coerceIn(0f, 1f)
+        translationY = (1f - v) * 30.dp.toPx()
+        val sc = 0.95f + 0.05f * v
+        scaleX = sc
+        scaleY = sc
+    }
+}
+
+fun Modifier.appearWhen(active: Boolean, index: Int = 0): Modifier = composed {
+    val a = animateFloatAsState(
+        targetValue = if (active) 1f else 0f,
+        animationSpec = tween(
+            durationMillis = if (active) 560 else 200,
+            delayMillis = if (active) 120 + index * 110 else 0,
+            easing = FastOutSlowInEasing
+        ),
+        label = "appearWhen"
+    )
+    graphicsLayer {
         alpha = a.value
-        translationY = (1f - a.value) * 28.dp.toPx()
+        translationY = (1f - a.value) * 26.dp.toPx()
     }
 }
 
