@@ -133,7 +133,10 @@ class ProviderManager(
             if (err == null) {
                 withContext(Dispatchers.IO) {
                     secrets.setApiKey(p.id, k)
-                    secrets.setBaseUrl(p.id, baseOverride.trim())
+                    secrets.setBaseUrl(
+                        p.id,
+                        baseOverride.trim().takeUnless { it.trimEnd('/') == p.baseUrl.trimEnd('/') }.orEmpty()
+                    )
                     secrets.setAccountId(p.id, accountId.trim())
                 }
                 settings.setEnabled(p.id, true)

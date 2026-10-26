@@ -130,6 +130,10 @@ fun ProviderWizardScreen(app: FreeLlmApp, providerId: String, onBack: () -> Unit
     var key by remember(providerId) { mutableStateOf("") }
     var show by remember(providerId) { mutableStateOf(false) }
     var base by remember(providerId) { mutableStateOf(app.manager.baseUrlOf(providerId)) }
+    androidx.compose.runtime.LaunchedEffect(ui?.def?.baseUrl) {
+        val d = ui?.def?.baseUrl
+        if (base.isBlank() && d != null) base = d
+    }
     var acct by remember(providerId) { mutableStateOf(app.manager.accountIdOf(providerId)) }
     var busy by remember(providerId) { mutableStateOf(false) }
     var result by remember(providerId) { mutableStateOf<String?>(null) }
