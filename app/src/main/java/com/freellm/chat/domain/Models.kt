@@ -48,7 +48,8 @@ data class Target(
     val apiKey: String,
     val model: ModelDef,
     val providerRank: Int = 0,
-    val perModelLimits: Boolean = false
+    val perModelLimits: Boolean = false,
+    val altBaseUrl: String = ""
 ) {
     val key: String get() = "$providerId/${model.id}"
     override fun toString(): String = "Target($key)"

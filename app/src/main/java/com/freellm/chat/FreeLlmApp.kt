@@ -14,6 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
+import okhttp3.Protocol
 import java.util.concurrent.TimeUnit
 
 class FreeLlmApp : Application() {
@@ -21,9 +22,11 @@ class FreeLlmApp : Application() {
 
     val http: OkHttpClient by lazy {
         OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
+            .connectTimeout(12, TimeUnit.SECONDS)
             .readTimeout(90, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
+            .protocols(listOf(Protocol.HTTP_1_1))
+            .retryOnConnectionFailure(true)
             .build()
     }
     val settings: SettingsStore by lazy { SettingsStore(this) }

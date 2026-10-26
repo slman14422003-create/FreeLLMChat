@@ -28,6 +28,7 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.SwapHoriz
+import androidx.compose.material.icons.outlined.VpnKey
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -130,6 +131,7 @@ private fun ChoiceDialog(
 fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit, onStatus: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     val theme by app.settings.theme.collectAsStateWithLifecycle(initialValue = "system")
+    val proxy by app.settings.proxyUrl.collectAsStateWithLifecycle(initialValue = "")
     val autoSwitch by app.settings.autoSwitch.collectAsStateWithLifecycle(initialValue = true)
     val style by app.settings.style.collectAsStateWithLifecycle(initialValue = "default")
     val instructions by app.settings.instructions.collectAsStateWithLifecycle(initialValue = "")
@@ -203,6 +205,36 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
                 confirmButton = {
                     TextButton(onClick = {
                         scope.launch { app.settings.setInstructions(text.trim()) }
+                        dialog = null
+                    }) { Text(stringResource(R.string.save)) }
+                },
+                dismissButton = { TextButton(onClick = { dialog = null }) { Text(stringResource(R.string.cancel)) } }
+            )
+        }
+        "proxy" -> {
+            var text by remember { mutableStateOf(proxy) }
+            AlertDialog(
+                onDismissRequest = { dialog = null },
+                title = { Text(stringResource(R.string.proxy_url)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedTextField(
+                            value = text,
+                            onValueChange = { text = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            placeholder = { Text("https://name.workers.dev") }
+                        )
+                        Text(
+                            stringResource(R.string.proxy_hint),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = cs.onSurfaceVariant
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        scope.launch { app.settings.setProxyUrl(text.trim()) }
                         dialog = null
                     }) { Text(stringResource(R.string.save)) }
                 },
@@ -328,6 +360,12 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
                     stringResource(R.string.language),
                     langOptions.firstOrNull { it.first == curLang }?.second,
                     onClick = { dialog = "lang" }
+                )
+                SettingsRow(
+                    Icons.Outlined.VpnKey,
+                    stringResource(R.string.proxy_url),
+                    proxy.ifBlank { stringResource(R.string.not_set) },
+                    onClick = { dialog = "proxy" }
                 )
             }
 

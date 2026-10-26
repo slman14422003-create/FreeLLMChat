@@ -1,6 +1,7 @@
 package com.freellm.chat.data
 
 import android.content.Context
+import com.freellm.chat.BuildConfig
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -26,6 +27,7 @@ class SettingsStore(context: Context) {
         val ORDER = stringPreferencesKey("order")
         val STATUSES = stringPreferencesKey("statuses")
         val SELECTION = stringPreferencesKey("selection")
+        val PROXY = stringPreferencesKey("proxy_url")
         val AUTO_SWITCH = booleanPreferencesKey("auto_switch")
         val STYLE = stringPreferencesKey("reply_style")
         val INSTRUCTIONS = stringPreferencesKey("instructions")
@@ -42,6 +44,7 @@ class SettingsStore(context: Context) {
     val statuses: Flow<Map<String, String>> = data.map { decode(it[K.STATUSES]) }.distinctUntilChanged()
     val selection: Flow<String> = data.map { it[K.SELECTION] ?: "AUTO" }.distinctUntilChanged()
 
+    val proxyUrl: Flow<String> = data.map { it[K.PROXY]?.trim()?.takeIf { v -> v.isNotEmpty() } ?: BuildConfig.DEFAULT_PROXY }.distinctUntilChanged()
 
     val autoSwitch: Flow<Boolean> = data.map { it[K.AUTO_SWITCH] ?: true }.distinctUntilChanged()
     val style: Flow<String> = data.map { it[K.STYLE] ?: "default" }.distinctUntilChanged()
@@ -78,6 +81,10 @@ class SettingsStore(context: Context) {
 
     suspend fun setOrder(list: List<String>) {
         ds.edit { it[K.ORDER] = list.joinToString(",") }
+    }
+
+    suspend fun setProxyUrl(v: String) {
+        ds.edit { it[K.PROXY] = v }
     }
 
     suspend fun setSelection(v: String) {

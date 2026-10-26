@@ -48,7 +48,7 @@
     <string name="key_saved_hint">المفتاح محفوظ — الصق مفتاحاً جديداً للاستبدال</string>
     <string name="show_key">إظهار</string>
     <string name="hide_key">إخفاء</string>
-    <string name="base_url_optional">Base URL (اختياري)</string>
+    <string name="base_url_optional">Base URL (اختياري، للمحجوبين عبر وسيط)</string>
     <string name="account_id">Account ID</string>
     <string name="test_key">اختبر المفتاح</string>
     <string name="testing">جارٍ الاختبار…</string>
@@ -72,6 +72,8 @@
     <string name="language">اللغة</string>
     <string name="lang_ar">العربية</string>
     <string name="lang_en">English</string>
+    <string name="proxy_url">رابط الوسيط (Cloudflare Worker)</string>
+    <string name="proxy_hint">للمناطق المحجوبة: يمرّ كل المزودين عبر هذا الرابط. اتركه فارغاً لعدم الاستخدام.</string>
     <string name="greeting_morning">صباح الخير</string>
     <string name="greeting_afternoon">طاب يومك</string>
     <string name="greeting_evening">مساء الخير</string>
