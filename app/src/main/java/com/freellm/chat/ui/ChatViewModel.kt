@@ -65,6 +65,8 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
     private var job: Job? = null
     private var lastError: String? = null
     private var lastPinned = false
+    private var skipLocalOnce = false
+    private val brain get() = app.brainStore.brain
 
     val conversations: StateFlow<List<ConversationEntity>> = query
         .flatMapLatest { repo.conversations(it) }
@@ -169,6 +171,31 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         }
     }
 
+    /** Thumbs up/down on an answer: good answers are trusted more, bad ones are forgotten by the local brain. */
+    fun rate(m: MessageEntity, good: Boolean) {
+        viewModelScope.launch {
+            val list = repo.messagesOnce(m.conversationId)
+            val idx = list.indexOfFirst { it.id == m.id }
+            val q = list.take(if (idx < 0) list.size else idx).lastOrNull { it.role == "user" }?.content ?: return@launch
+            if (good) {
+                brain.learn(q, m.content)?.let { brain.feedback(it.id, true) }
+                notice.value = app.getString(R.string.brain_thanks)
+            } else {
+                brain.forgetQuestion(q)
+                notice.value = app.getString(R.string.brain_forgot)
+            }
+            app.brainStore.save()
+        }
+    }
+
+    fun clearBrain() {
+        viewModelScope.launch {
+            brain.clear()
+            app.brainStore.save()
+            notice.value = app.getString(R.string.brain_cleared)
+        }
+    }
+
     fun rename(id: Long, title: String) {
         val t = title.trim()
         if (t.isEmpty()) return
@@ -192,6 +219,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         val cid = conversationId.value ?: return
         if (generating) return
         if (sel != null) select(sel)
+        skipLocalOnce = true
         start {
             repo.deleteFrom(cid, m.id)
             runAdaptive(cid, if (sel == null) m.modelKey else null)
@@ -417,6 +445,35 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         val saver = app.settings.tokenSaver.first()
         val lastUser = stored.lastOrNull { it.role == "user" }?.content.orEmpty()
         val kind = TaskClassifier.classify(lastUser)
+        val lastUserMsg = stored.lastOrNull { it.role == "user" }
+        val hasAtt = lastUserMsg?.let { AttachmentCodec.decode(it.attachments).isNotEmpty() } == true
+        val skipLocal = skipLocalOnce
+        skipLocalOnce = false
+        if (cont == null && exclude == null && !skipLocal && !hasAtt && stored.lastOrNull()?.role == "user" &&
+            app.settings.brainLocalFirst.first()
+        ) {
+            val hit = brain.best(lastUser, LOCAL_CONFIDENT)
+            if (hit != null) {
+                brain.markUsed(hit.entry.id)
+                repo.addMessage(
+                    MessageEntity(
+                        conversationId = cid,
+                        role = "assistant",
+                        content = hit.entry.answer,
+                        modelName = app.getString(R.string.local_brain_name),
+                        providerName = app.getString(R.string.local_brain_provider),
+                        modelKey = null,
+                        notes = app.getString(R.string.local_answer_note, (hit.similarity * 100).toInt()),
+                        createdAt = System.currentTimeMillis()
+                    )
+                )
+                lastError = null
+                lastPinned = false
+                stream.value = null
+                app.appScope.launch { app.brainStore.save() }
+                return
+            }
+        }
         var saved = 0
         if (saver) {
             val c = TokenSaver.compact(history, kind)
@@ -441,7 +498,15 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
             mode = ChatMode.AUTO
         }
         val hint = if (adaptive || saver) kind.hint else ""
-        val sys = listOf(systemPrompt(), hint).filter { it.isNotEmpty() }.joinToString("\n")
+        val deep = if (app.settings.deepThink.first() && kind != TaskKind.QUICK) DEEP_THINK_PROMPT else ""
+        val memory = if (cont == null && !hasAtt && app.settings.brainContext.first()) {
+            val m = brain.search(lastUser, 2, 0.5).filter { it.entry.answer.length <= 3000 }
+            if (m.isEmpty()) "" else buildString {
+                append("Earlier answers from this user's own history (reuse only if relevant; they may be outdated):")
+                m.forEach { append("\nQ: ").append(it.entry.question.take(200)).append("\nA: ").append(it.entry.answer.take(500)) }
+            }
+        } else ""
+        val sys = listOf(systemPrompt(), hint, deep, memory).filter { it.isNotEmpty() }.joinToString("\n")
         val req = RouteRequest(
             messages = listOf(ChatMsg("system", sys)) + history,
             mode = mode,
@@ -573,6 +638,29 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                         )
                     )
                 }
+                if (error != null && finalText.isBlank() && cont == null && !hasAtt) {
+                    val fb = brain.best(lastUser, LOCAL_FALLBACK)
+                    if (fb != null) {
+                        brain.markUsed(fb.entry.id)
+                        repo.addMessage(
+                            MessageEntity(
+                                conversationId = cid,
+                                role = "assistant",
+                                content = fb.entry.answer,
+                                modelName = app.getString(R.string.local_brain_name),
+                                providerName = app.getString(R.string.local_brain_provider),
+                                modelKey = null,
+                                notes = app.getString(R.string.local_fallback_note, (fb.similarity * 100).toInt()),
+                                createdAt = System.currentTimeMillis()
+                            )
+                        )
+                        error = null
+                    }
+                } else if (error == null && finalText.isNotBlank() && t != null && !hasAtt &&
+                    finalText.length > prefix.length && app.settings.brainLearn.first()
+                ) {
+                    if (brain.learn(lastUser, finalText) != null) app.brainStore.save()
+                }
                 val err = error
                 lastError = err
                 lastPinned = pinnedFailure
@@ -587,6 +675,10 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         private const val MAX_RESUME = 2
         private const val RESUME_DELAY_MS = 15_000L
         private const val QUICK_MAX_TOKENS = 1200
+        private const val LOCAL_CONFIDENT = 0.86
+        private const val LOCAL_FALLBACK = 0.40
+        private const val DEEP_THINK_PROMPT =
+            "Work through the problem carefully first, check your result for mistakes, then give a clear final answer."
         private const val SYSTEM_PROMPT =
             "You are a helpful assistant. Reply in the same language as the user's last message."
         private const val CONTINUE_PROMPT =

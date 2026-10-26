@@ -21,7 +21,8 @@ data class RouterConfig(
     val defaultCooldownMs: Long = 60_000,
     val maxCooldownMs: Long = 3_600_000,
     val failureThreshold: Int = 3,
-    val firstTokenTimeoutMs: Long = 60_000,
+    val firstTokenTimeoutMs: Long = 30_000,
+    val idleTimeoutMs: Long = 20_000,
     val restartBelowChars: Int = 20
 )
 
@@ -288,7 +289,9 @@ class Router(
                                     push(text)
                                 }
                             }
-                            r = ch.receiveCatching()
+                            // A stalled stream is treated like a hit limit: hand the partial text to the next model now.
+                            r = withTimeoutOrNull(config.idleTimeoutMs) { ch.receiveCatching() }
+                                ?: throw LlmException(ErrorKind.INTERRUPTED, message = "stream stalled")
                         }
                         if (holding && hold.isNotEmpty()) {
                             val rest = Overlap.strip(tail, hold.toString())

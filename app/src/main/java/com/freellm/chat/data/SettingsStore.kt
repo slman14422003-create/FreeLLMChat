@@ -33,6 +33,10 @@ class SettingsStore(context: Context) {
         val INSTRUCTIONS = stringPreferencesKey("instructions")
         val AUTO_RESUME = booleanPreferencesKey("auto_resume")
         val TOKEN_SAVER = booleanPreferencesKey("token_saver")
+        val BRAIN_LEARN = booleanPreferencesKey("brain_learn")
+        val BRAIN_LOCAL_FIRST = booleanPreferencesKey("brain_local_first")
+        val BRAIN_CONTEXT = booleanPreferencesKey("brain_context")
+        val DEEP_THINK = booleanPreferencesKey("deep_think")
     }
 
     private val data: Flow<Preferences> = ds.data.catch { emit(emptyPreferences()) }
@@ -51,6 +55,10 @@ class SettingsStore(context: Context) {
     val autoSwitch: Flow<Boolean> = data.map { it[K.AUTO_SWITCH] ?: true }.distinctUntilChanged()
     val autoResume: Flow<Boolean> = data.map { it[K.AUTO_RESUME] ?: true }.distinctUntilChanged()
     val tokenSaver: Flow<Boolean> = data.map { it[K.TOKEN_SAVER] ?: true }.distinctUntilChanged()
+    val brainLearn: Flow<Boolean> = data.map { it[K.BRAIN_LEARN] ?: true }.distinctUntilChanged()
+    val brainLocalFirst: Flow<Boolean> = data.map { it[K.BRAIN_LOCAL_FIRST] ?: true }.distinctUntilChanged()
+    val brainContext: Flow<Boolean> = data.map { it[K.BRAIN_CONTEXT] ?: true }.distinctUntilChanged()
+    val deepThink: Flow<Boolean> = data.map { it[K.DEEP_THINK] ?: false }.distinctUntilChanged()
     val style: Flow<String> = data.map { it[K.STYLE] ?: "default" }.distinctUntilChanged()
     val instructions: Flow<String> = data.map { it[K.INSTRUCTIONS] ?: "" }.distinctUntilChanged()
 
@@ -113,5 +121,21 @@ class SettingsStore(context: Context) {
 
     suspend fun setTokenSaver(v: Boolean) {
         ds.edit { it[K.TOKEN_SAVER] = v }
+    }
+
+    suspend fun setBrainLearn(v: Boolean) {
+        ds.edit { it[K.BRAIN_LEARN] = v }
+    }
+
+    suspend fun setBrainLocalFirst(v: Boolean) {
+        ds.edit { it[K.BRAIN_LOCAL_FIRST] = v }
+    }
+
+    suspend fun setBrainContext(v: Boolean) {
+        ds.edit { it[K.BRAIN_CONTEXT] = v }
+    }
+
+    suspend fun setDeepThink(v: Boolean) {
+        ds.edit { it[K.DEEP_THINK] = v }
     }
 }

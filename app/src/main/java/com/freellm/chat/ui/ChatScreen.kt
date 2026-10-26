@@ -89,6 +89,9 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.SwapHoriz
+import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material.icons.outlined.ThumbDown
+import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DrawerValue
@@ -347,7 +350,8 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                                     pdfJob = PdfJob(it.content, emptyList())
                                     savePdf.launch("chat.pdf")
                                 },
-                                onSpeak = { speaker.toggle(it.content) }
+                                onSpeak = { speaker.toggle(it.content) },
+                                onRate = { msg, good -> vm.rate(msg, good) }
                             )
                         }
                         if (s != null) {
@@ -1003,9 +1007,11 @@ private fun MessageItem(
     onEdit: (MessageEntity) -> Unit,
     onDelete: (MessageEntity) -> Unit,
     onPdf: (MessageEntity) -> Unit,
-    onSpeak: (MessageEntity) -> Unit
+    onSpeak: (MessageEntity) -> Unit,
+    onRate: (MessageEntity, Boolean) -> Unit = { _, _ -> }
 ) {
     val cs = MaterialTheme.colorScheme
+    var rated by remember(m.id) { mutableStateOf<Boolean?>(null) }
     val clip = LocalClipboardManager.current
     val ctx = LocalContext.current
     var menu by remember { mutableStateOf(false) }
@@ -1065,6 +1071,17 @@ private fun MessageItem(
                 m.notes?.split("\n")?.filter { it.isNotBlank() }?.forEach { NoteChip(it) }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     ActionIcon(Icons.Outlined.ContentCopy, stringResource(R.string.copy)) { doCopy() }
+                    ActionIcon(
+                        if (rated == true) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp,
+                        stringResource(R.string.rate_good)
+                    ) {
+                        rated = true
+                        onRate(m, true)
+                    }
+                    ActionIcon(Icons.Outlined.ThumbDown, stringResource(R.string.rate_bad)) {
+                        rated = false
+                        onRate(m, false)
+                    }
                     ActionIcon(Icons.Outlined.Share, stringResource(R.string.share)) { doShare() }
                     ActionIcon(Icons.Outlined.PictureAsPdf, stringResource(R.string.save_pdf)) { onPdf(m) }
                     ActionIcon(Icons.AutoMirrored.Outlined.VolumeUp, stringResource(R.string.read_aloud)) { onSpeak(m) }

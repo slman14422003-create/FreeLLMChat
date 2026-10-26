@@ -12,6 +12,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -32,12 +33,16 @@ fun AppRoot(app: FreeLlmApp) {
     val theme by app.settings.theme.collectAsStateWithLifecycle(initialValue = "dark")
     val welcome: Boolean? by app.settings.welcomeDone.collectAsStateWithLifecycle(initialValue = null)
     val scope = rememberCoroutineScope()
+    var splash by rememberSaveable { mutableStateOf(true) }
     FreeLlmTheme(theme) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            when (welcome) {
-                null -> Unit
-                false -> WelcomeScreen { scope.launch { app.settings.setWelcomeDone() } }
-                true -> MainNav(app)
+            Box(Modifier.fillMaxSize()) {
+                when (welcome) {
+                    null -> Unit
+                    false -> WelcomeScreen { scope.launch { app.settings.setWelcomeDone() } }
+                    true -> MainNav(app)
+                }
+                if (splash) SplashOverlay { splash = false }
             }
         }
     }

@@ -26,6 +26,7 @@ import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.VpnKey
@@ -137,6 +138,11 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
     val autoSwitch by app.settings.autoSwitch.collectAsStateWithLifecycle(initialValue = true)
     val autoResume by app.settings.autoResume.collectAsStateWithLifecycle(initialValue = true)
     val tokenSaver by app.settings.tokenSaver.collectAsStateWithLifecycle(initialValue = true)
+    val brainLearn by app.settings.brainLearn.collectAsStateWithLifecycle(initialValue = true)
+    val brainLocalFirst by app.settings.brainLocalFirst.collectAsStateWithLifecycle(initialValue = true)
+    val brainContext by app.settings.brainContext.collectAsStateWithLifecycle(initialValue = true)
+    val deepThink by app.settings.deepThink.collectAsStateWithLifecycle(initialValue = false)
+    var brainCount by remember { mutableStateOf(app.brainStore.brain.size()) }
     val style by app.settings.style.collectAsStateWithLifecycle(initialValue = "default")
     val instructions by app.settings.instructions.collectAsStateWithLifecycle(initialValue = "")
     val providers by app.manager.providers.collectAsStateWithLifecycle(initialValue = emptyList())
@@ -382,6 +388,84 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
                     stringResource(R.string.custom_instructions),
                     instructions.ifBlank { stringResource(R.string.not_set) },
                     onClick = { dialog = "instructions" }
+                )
+            }
+
+            SectionLabel(stringResource(R.string.brain_title))
+            SettingsGroup(Modifier.appear(4)) {
+                SettingsRow(
+                    Icons.Outlined.Psychology,
+                    stringResource(R.string.brain_learn),
+                    stringResource(R.string.brain_learn_desc),
+                    onClick = { scope.launch { app.settings.setBrainLearn(!brainLearn) } },
+                    trailing = {
+                        Switch(
+                            checked = brainLearn,
+                            onCheckedChange = { scope.launch { app.settings.setBrainLearn(it) } },
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = cs.tertiary,
+                                checkedThumbColor = androidx.compose.ui.graphics.Color.White
+                            )
+                        )
+                    }
+                )
+                SettingsRow(
+                    Icons.Outlined.Speed,
+                    stringResource(R.string.brain_local_first),
+                    stringResource(R.string.brain_local_first_desc),
+                    onClick = { scope.launch { app.settings.setBrainLocalFirst(!brainLocalFirst) } },
+                    trailing = {
+                        Switch(
+                            checked = brainLocalFirst,
+                            onCheckedChange = { scope.launch { app.settings.setBrainLocalFirst(it) } },
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = cs.tertiary,
+                                checkedThumbColor = androidx.compose.ui.graphics.Color.White
+                            )
+                        )
+                    }
+                )
+                SettingsRow(
+                    Icons.Outlined.AutoAwesome,
+                    stringResource(R.string.brain_context),
+                    stringResource(R.string.brain_context_desc),
+                    onClick = { scope.launch { app.settings.setBrainContext(!brainContext) } },
+                    trailing = {
+                        Switch(
+                            checked = brainContext,
+                            onCheckedChange = { scope.launch { app.settings.setBrainContext(it) } },
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = cs.tertiary,
+                                checkedThumbColor = androidx.compose.ui.graphics.Color.White
+                            )
+                        )
+                    }
+                )
+                SettingsRow(
+                    Icons.Outlined.Psychology,
+                    stringResource(R.string.deep_think),
+                    stringResource(R.string.deep_think_desc),
+                    onClick = { scope.launch { app.settings.setDeepThink(!deepThink) } },
+                    trailing = {
+                        Switch(
+                            checked = deepThink,
+                            onCheckedChange = { scope.launch { app.settings.setDeepThink(it) } },
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = cs.tertiary,
+                                checkedThumbColor = androidx.compose.ui.graphics.Color.White
+                            )
+                        )
+                    }
+                )
+                SettingsRow(
+                    Icons.Outlined.DeleteOutline,
+                    stringResource(R.string.brain_clear),
+                    stringResource(R.string.brain_stats, brainCount),
+                    onClick = {
+                        app.brainStore.brain.clear()
+                        scope.launch { app.brainStore.save() }
+                        brainCount = 0
+                    }
                 )
             }
 

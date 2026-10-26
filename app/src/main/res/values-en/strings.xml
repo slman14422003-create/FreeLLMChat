@@ -166,4 +166,24 @@
     <string name="pdf_failed">Failed to create PDF</string>
     <string name="read_aloud">Read aloud</string>
     <string name="vision_note">Image analysis: a vision model was selected</string>
+    <string name="local_brain_name">Local brain</string>
+    <string name="local_brain_provider">On device</string>
+    <string name="local_answer_note">Instant reply from your local memory · %1$d%% match</string>
+    <string name="local_fallback_note">No model was reachable, so this is the closest answer the local brain learned · %1$d%% match</string>
+    <string name="brain_thanks">The local brain learned this answer and will trust it more</string>
+    <string name="brain_forgot">The local brain forgot this answer</string>
+    <string name="brain_cleared">Local brain memory cleared</string>
+    <string name="brain_title">Local brain</string>
+    <string name="brain_learn">Learn from your chats</string>
+    <string name="brain_learn_desc">Saves each question and answer on this device only</string>
+    <string name="brain_local_first">Instant local replies</string>
+    <string name="brain_local_first_desc">Answers offline when you repeat a question it already knows</string>
+    <string name="brain_context">Memory-boosted answers</string>
+    <string name="brain_context_desc">Gives models similar past answers so replies are sharper and consistent</string>
+    <string name="deep_think">Deep thinking</string>
+    <string name="deep_think_desc">Asks the model to check its work before replying to hard questions</string>
+    <string name="brain_stats">The local brain has learned %1$d questions</string>
+    <string name="brain_clear">Clear local brain memory</string>
+    <string name="rate_good">Good answer</string>
+    <string name="rate_bad">Bad answer</string>
 </resources>

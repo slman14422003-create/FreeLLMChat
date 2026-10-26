@@ -34,7 +34,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = appVersionCode
-        versionName = "1.3.0"
+        versionName = "1.4.0"
         buildConfigField("String", "MODELS_URL", "\"$modelsUrl\"")
         buildConfigField("String", "DEFAULT_PROXY", "\"https://freellm.slman2233445566y.workers.dev\"")
         resourceConfigurations += listOf("ar", "en")

@@ -166,4 +166,24 @@
     <string name="pdf_failed">فشل إنشاء PDF</string>
     <string name="read_aloud">قراءة بصوت عالٍ</string>
     <string name="vision_note">تحليل الصور: تم اختيار مودل يدعم الرؤية</string>
+    <string name="local_brain_name">العقل المحلي</string>
+    <string name="local_brain_provider">على الجهاز</string>
+    <string name="local_answer_note">رد فوري من ذاكرتك المحلية · تطابق %1$d٪</string>
+    <string name="local_fallback_note">تعذّر الوصول لأي مودل، فهذا أقرب جواب تعلّمه العقل المحلي · تطابق %1$d٪</string>
+    <string name="brain_thanks">تعلّم العقل المحلي هذا الجواب وسيثق به أكثر</string>
+    <string name="brain_forgot">نسي العقل المحلي هذا الجواب</string>
+    <string name="brain_cleared">تم مسح ذاكرة العقل المحلي</string>
+    <string name="brain_title">العقل المحلي</string>
+    <string name="brain_learn">التعلّم من محادثاتك</string>
+    <string name="brain_learn_desc">يحفظ كل سؤال وجواب على جهازك فقط ليتعلم منه</string>
+    <string name="brain_local_first">الرد المحلي الفوري</string>
+    <string name="brain_local_first_desc">يجيب فوراً من دون إنترنت عند تكرار سؤال معروف</string>
+    <string name="brain_context">تقوية الذكاء بالذاكرة</string>
+    <string name="brain_context_desc">يعطي المودل أجوبة سابقة مشابهة ليكون رده أدق ومتسقاً</string>
+    <string name="deep_think">التفكير العميق</string>
+    <string name="deep_think_desc">يطلب من المودل التحقق من نتيجته قبل الرد في الأسئلة الصعبة</string>
+    <string name="brain_stats">ما تعلّمه العقل المحلي: %1$d سؤال</string>
+    <string name="brain_clear">مسح ذاكرة العقل المحلي</string>
+    <string name="rate_good">إجابة جيدة</string>
+    <string name="rate_bad">إجابة سيئة</string>
 </resources>
