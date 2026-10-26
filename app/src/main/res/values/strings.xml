@@ -46,6 +46,8 @@
     <string name="open_key_page">افتح صفحة إنشاء المفتاح</string>
     <string name="api_key">مفتاح API</string>
     <string name="api_key_optional">مفتاح API (اختياري لرفع الحدود)</string>
+    <string name="multi_key_hint">يمكنك لصق عدة مفاتيح مفصولة بفاصلة، ويتبدّل التطبيق بينها تلقائياً عند بلوغ الحد</string>
+    <string name="model_id">اسم المودل (Model ID)</string>
     <string name="avoid_training">تجنّب المزودين الذين يدرّبون على بياناتي</string>
     <string name="avoid_training_desc">يستبعد المودلات التي قد تُستخدم محادثاتها لتحسين المنتجات</string>
     <string name="key_saved_hint">المفتاح محفوظ — الصق مفتاحاً جديداً للاستبدال</string>

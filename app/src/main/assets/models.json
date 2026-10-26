@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "providers": [
     {
       "id": "gemini",
@@ -101,26 +101,6 @@
       ]
     },
     {
-      "id": "mistral",
-      "name": "Mistral AI",
-      "baseUrl": "https://api.mistral.ai/v1",
-      "keyUrl": "https://console.mistral.ai/api-keys",
-      "available": true,
-      "steps": [
-        "افتح صفحة المفاتيح بالزر أدناه.",
-        "أنشئ حساباً أو سجّل الدخول (قد يُطلب تأكيد رقم هاتف).",
-        "فعّل الوضع المجاني إن طُلب منك اختيار خطة.",
-        "اضغط إنشاء مفتاح جديد ثم انسخه.",
-        "ألصقه في الحقل أدناه ثم اضغط اختبر المفتاح."
-      ],
-      "warnings": [
-        "لا يطلب بطاقة دفع.",
-        "في الوضع المجاني قد تُستخدم محادثاتك لتدريب نماذج Mistral ما لم تُلغِ ذلك من إعدادات الحساب.",
-        "الحد التقريبي: طلب واحد في الثانية."
-      ],
-      "sharedLimits": true
-    },
-    {
       "id": "groq",
       "name": "Groq",
       "baseUrl": "https://api.groq.com/openai/v1",
@@ -139,25 +119,6 @@
         "الحد التقريبي: 30 طلباً في الدقيقة و1000 طلب يومياً لكل مودل."
       ],
       "perModelLimits": true
-    },
-    {
-      "id": "nvidia",
-      "name": "NVIDIA NIM",
-      "baseUrl": "https://integrate.api.nvidia.com/v1",
-      "keyUrl": "https://build.nvidia.com/explore/discover",
-      "available": true,
-      "steps": [
-        "افتح صفحة المودلات بالزر أدناه.",
-        "سجّل الدخول بحساب NVIDIA أو أنشئ حساباً.",
-        "اختر أي مودل ثم اضغط Get API Key.",
-        "انسخ المفتاح (يبدأ بـ nvapi-).",
-        "ألصقه في الحقل أدناه ثم اضغط اختبر المفتاح."
-      ],
-      "warnings": [
-        "يتطلب عضوية NVIDIA Developer Program وقد يُطلب تأكيد رقم هاتف.",
-        "الحد التقريبي: 40 طلباً في الدقيقة."
-      ],
-      "sharedLimits": true
     },
     {
       "id": "kilo",
@@ -212,6 +173,25 @@
       ],
       "keyless": true,
       "sharedLimits": true
+    },
+    {
+      "id": "custom",
+      "name": "مزود مخصّص (Ollama / LM Studio)",
+      "baseUrl": "",
+      "keyUrl": "",
+      "available": true,
+      "keyless": true,
+      "custom": true,
+      "steps": [
+        "شغّل خادماً متوافقاً مع OpenAI على شبكتك أو على الإنترنت (Ollama أو LM Studio أو أي بوابة).",
+        "اكتب عنوان الخادم الأساسي مثل http://192.168.1.10:11434/v1 في حقل العنوان.",
+        "اكتب اسم المودل كما يظهر في الخادم تماماً.",
+        "اترك المفتاح فارغاً إن لم يكن مطلوباً ثم اضغط اختبر."
+      ],
+      "warnings": [
+        "الاتصال بهذا المزود مباشر ولا يمر عبر الـWorker.",
+        "استخدم http فقط على شبكة تثق بها."
+      ]
     }
   ],
   "models": [
@@ -289,34 +269,6 @@
       "rpd": 1000
     },
     {
-      "id": "mistral-medium-3-5",
-      "provider": "mistral",
-      "displayName": "Mistral Medium 3.5",
-      "priority": 12,
-      "contextWindow": 256000,
-      "modes": [
-        "smart"
-      ],
-      "vision": true,
-      "reasoning": false,
-      "trainsOnData": true,
-      "rpm": 60
-    },
-    {
-      "id": "mistral-large-2512",
-      "provider": "mistral",
-      "displayName": "Mistral Large 3",
-      "priority": 14,
-      "contextWindow": 256000,
-      "modes": [
-        "smart"
-      ],
-      "vision": true,
-      "reasoning": false,
-      "trainsOnData": true,
-      "rpm": 60
-    },
-    {
       "id": "nvidia/nemotron-3-super-120b-a12b:free",
       "provider": "openrouter",
       "displayName": "Nemotron 3 Super 120B",
@@ -342,20 +294,6 @@
       "vision": true,
       "reasoning": true,
       "trainsOnData": true
-    },
-    {
-      "id": "codestral-2508",
-      "provider": "mistral",
-      "displayName": "Codestral",
-      "priority": 20,
-      "contextWindow": 128000,
-      "modes": [
-        "code"
-      ],
-      "vision": false,
-      "reasoning": false,
-      "trainsOnData": true,
-      "rpm": 60
     },
     {
       "id": "glm-4.5-flash",
@@ -397,21 +335,6 @@
       "rpmo": 1000
     },
     {
-      "id": "mistral-small-2603",
-      "provider": "mistral",
-      "displayName": "Mistral Small 4",
-      "priority": 31,
-      "contextWindow": 256000,
-      "modes": [
-        "fast",
-        "smart"
-      ],
-      "vision": true,
-      "reasoning": false,
-      "trainsOnData": true,
-      "rpm": 60
-    },
-    {
       "id": "thinkingmachines/inkling:free",
       "provider": "openrouter",
       "displayName": "Inkling",
@@ -436,21 +359,6 @@
       "vision": true,
       "trainsOnData": true,
       "rpm": 20
-    },
-    {
-      "id": "nvidia/nemotron-3-ultra-550b-a55b",
-      "provider": "nvidia",
-      "displayName": "Nemotron 3 Ultra (NVIDIA)",
-      "priority": 36,
-      "contextWindow": 1000000,
-      "modes": [
-        "smart"
-      ],
-      "vision": false,
-      "reasoning": false,
-      "trainsOnData": false,
-      "rpm": 40,
-      "rpd": 10000
     },
     {
       "id": "openai/gpt-oss-20b",
@@ -479,21 +387,6 @@
       "vision": true,
       "trainsOnData": true,
       "rpm": 20
-    },
-    {
-      "id": "google/gemma-4-31b-it",
-      "provider": "nvidia",
-      "displayName": "Gemma 4 31B (NVIDIA)",
-      "priority": 44,
-      "contextWindow": 262000,
-      "modes": [
-        "fast"
-      ],
-      "vision": true,
-      "reasoning": false,
-      "trainsOnData": false,
-      "rpm": 40,
-      "rpd": 10000
     },
     {
       "id": "thinkingmachines/inkling-small:free",
@@ -767,21 +660,6 @@
       "rpmo": 1000
     },
     {
-      "id": "openai/gpt-oss-20b",
-      "provider": "nvidia",
-      "displayName": "GPT-OSS 20B (NVIDIA)",
-      "priority": 109,
-      "contextWindow": 131000,
-      "modes": [
-        "fast"
-      ],
-      "vision": false,
-      "reasoning": true,
-      "trainsOnData": false,
-      "rpm": 40,
-      "rpd": 10000
-    },
-    {
       "id": "@cf/meta/llama-4-scout-17b-16e-instruct",
       "provider": "cloudflare",
       "displayName": "@cf/meta/llama-4-scout-17b-16e-instruct",
@@ -836,20 +714,6 @@
       "vision": true,
       "reasoning": false,
       "trainsOnData": true
-    },
-    {
-      "id": "ministral-8b-2512",
-      "provider": "mistral",
-      "displayName": "Ministral 3 8B",
-      "priority": 200,
-      "contextWindow": 256000,
-      "modes": [
-        "fast"
-      ],
-      "vision": true,
-      "reasoning": false,
-      "trainsOnData": true,
-      "rpm": 60
     },
     {
       "id": "mistral-Nemo-Instruct-2407",
@@ -934,20 +798,6 @@
       "reasoning": false,
       "trainsOnData": false,
       "rpm": 2
-    },
-    {
-      "id": "ministral-3b-2512",
-      "provider": "mistral",
-      "displayName": "Ministral 3 3B",
-      "priority": 201,
-      "contextWindow": 256000,
-      "modes": [
-        "fast"
-      ],
-      "vision": true,
-      "reasoning": false,
-      "trainsOnData": true,
-      "rpm": 60
     },
     {
       "id": "nemotron-3-nano:30b",

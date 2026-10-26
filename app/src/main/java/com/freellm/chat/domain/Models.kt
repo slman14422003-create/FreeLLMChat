@@ -16,7 +16,8 @@ data class ProviderDef(
     val needsAccountId: Boolean = false,
     val perModelLimits: Boolean = false,
     val keyless: Boolean = false,
-    val sharedLimits: Boolean = false
+    val sharedLimits: Boolean = false,
+    val custom: Boolean = false
 )
 
 @Serializable

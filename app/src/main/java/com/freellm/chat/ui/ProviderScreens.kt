@@ -136,6 +136,7 @@ fun ProviderWizardScreen(app: FreeLlmApp, providerId: String, onBack: () -> Unit
         if (base.isBlank() && d != null) base = d
     }
     var acct by remember(providerId) { mutableStateOf(app.manager.accountIdOf(providerId)) }
+    var modelId by remember(providerId) { mutableStateOf(app.manager.modelIdOf(providerId)) }
     var busy by remember(providerId) { mutableStateOf(false) }
     var result by remember(providerId) { mutableStateOf<String?>(null) }
     var ok by remember(providerId) { mutableStateOf(false) }
@@ -185,6 +186,7 @@ fun ProviderWizardScreen(app: FreeLlmApp, providerId: String, onBack: () -> Unit
                 singleLine = true,
                 label = { Text(stringResource(if (def.keyless) R.string.api_key_optional else R.string.api_key)) },
                 placeholder = { if (ui.hasKey) Text(stringResource(R.string.key_saved_hint)) },
+                supportingText = { if (!def.custom) Text(stringResource(R.string.multi_key_hint)) },
                 visualTransformation = if (show) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 trailingIcon = {
@@ -211,21 +213,30 @@ fun ProviderWizardScreen(app: FreeLlmApp, providerId: String, onBack: () -> Unit
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { Text(stringResource(R.string.base_url_optional)) },
-                placeholder = { Text(def.baseUrl) }
+                placeholder = { Text(if (def.custom) "http://192.168.1.10:11434/v1" else def.baseUrl) }
             )
+            if (def.custom) {
+                OutlinedTextField(
+                    value = modelId,
+                    onValueChange = { modelId = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.model_id)) }
+                )
+            }
             Button(
                 onClick = {
                     scope.launch {
                         busy = true
                         result = null
-                        val err = app.manager.testAndSave(def, key, base, acct)
+                        val err = app.manager.testAndSave(def, key, base, acct, modelId)
                         busy = false
                         ok = err == null
                         result = if (err == null) okText else err.arabic()
                         if (err == null) key = ""
                     }
                 },
-                enabled = !busy && (key.isNotBlank() || def.keyless),
+                enabled = !busy && (key.isNotBlank() || def.keyless) && (!def.custom || (base.isNotBlank() && modelId.isNotBlank())),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 if (busy) {

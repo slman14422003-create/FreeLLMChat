@@ -51,7 +51,9 @@ class ProviderManager(
             .sortedBy { p -> order.indexOf(p.id).let { if (it < 0) Int.MAX_VALUE else it } }
         sorted.map { p ->
             val has = !secrets.apiKey(p.id).isNullOrBlank()
+            val configured = !p.custom || (!secrets.baseUrl(p.id).isNullOrBlank() && !secrets.modelId(p.id).isNullOrBlank())
             val status = when {
+                !configured -> ProviderStatus.NOT_CONFIGURED
                 !has && !p.keyless -> ProviderStatus.NOT_CONFIGURED
                 statuses[p.id] == "fail" -> ProviderStatus.FAILED
                 else -> ProviderStatus.READY
@@ -81,6 +83,7 @@ class ProviderManager(
     }
 
     private fun baseFor(p: ProviderDef, custom: String?, proxy: String, accountId: String): Pair<String, String> {
+        if (p.custom) return custom.orEmpty().trim().trimEnd('/') to ""
         val c = custom.orEmpty().trim().trimEnd('/')
         val px = proxy.trim().trimEnd('/')
         val hasProxy = px.isNotEmpty()
@@ -110,55 +113,86 @@ class ProviderManager(
         cat.providers
             .filter { it.available && it.id in enabled && statuses[it.id] != "fail" }
             .flatMap { p ->
-                val key = secrets.apiKey(p.id).orEmpty()
-                if (key.isBlank() && !p.keyless) {
+                val keys = secrets.apiKey(p.id).orEmpty().split('\n').map { it.trim() }.filter { it.isNotEmpty() }
+                if (keys.isEmpty() && !p.keyless) {
                     emptyList()
                 } else {
                     val rank = order.indexOf(p.id).let { if (it < 0) 99 else it }
                     val (base, alt) = baseFor(p, secrets.baseUrl(p.id), proxy, secrets.accountId(p.id).orEmpty())
-                    cat.models
-                        .filter { it.provider == p.id && !expired(it, today) && !(avoid && it.trainsOnData) }
-                        .map { m -> Target(p.id, p.name, base, p.headers, key, m, rank, p.perModelLimits, alt, p.sharedLimits) }
+                    val pool = if (p.custom) {
+                        val mid = secrets.modelId(p.id).orEmpty()
+                        if (mid.isBlank() || base.isBlank()) emptyList() else listOf(customModel(p, mid))
+                    } else {
+                        cat.models.filter { it.provider == p.id && !expired(it, today) && !(avoid && it.trainsOnData) }
+                    }
+                    keys.ifEmpty { listOf("") }.flatMapIndexed { i, key ->
+                        val pid = if (i == 0) p.id else p.id + "#" + (i + 1)
+                        pool.map { m -> Target(pid, p.name, base, p.headers, key, m, rank, p.perModelLimits, alt, p.sharedLimits) }
+                    }
                 }
             }
+    }
+
+    private fun customModel(p: ProviderDef, id: String) = ModelDef(
+        id = id,
+        provider = p.id,
+        displayName = id,
+        priority = 95,
+        contextWindow = 32000,
+        modes = listOf("fast", "smart", "code")
+    )
+
+    private suspend fun probe(p: ProviderDef, base: String, alt: String, key: String, models: List<ModelDef>): LlmException? {
+        var last: LlmException? = null
+        for (m in models) {
+            val err = client.test(Target(p.id, p.name, base, p.headers, key, m, altBaseUrl = alt))
+            if (err == null || err.kind == ErrorKind.RATE_LIMIT) return null
+            last = err
+            if (err.kind != ErrorKind.NOT_FOUND && err.kind != ErrorKind.SERVER) break
+        }
+        return last
     }
 
     suspend fun testAndSave(
         p: ProviderDef,
         key: String,
         baseOverride: String,
-        accountId: String
+        accountId: String,
+        modelId: String = ""
     ): LlmException? {
-        val k = key.trim()
-        if (k.isEmpty() && !p.keyless) return LlmException(ErrorKind.AUTH, 401, message = "empty key")
+        val keys = key.split(Regex("[\\s,;]+")).filter { it.isNotBlank() }.distinct()
+        if (keys.isEmpty() && !p.keyless) return LlmException(ErrorKind.AUTH, 401, message = "empty key")
         val proxy = settings.proxyUrl.first()
         val (base, alt) = baseFor(p, baseOverride, proxy, accountId)
-        val models = catalog.catalog.value.models
-            .filter { it.provider == p.id }
-            .sortedBy { it.priority }
-            .take(4)
-        if (models.isEmpty()) return LlmException(ErrorKind.NOT_FOUND, 404, message = "no models")
-        var last: LlmException? = null
-        var accepted = false
-        for (m in models) {
-            val err = client.test(Target(p.id, p.name, base, p.headers, k, m, altBaseUrl = alt))
-            if (err == null || err.kind == ErrorKind.RATE_LIMIT) {
-                accepted = true
-                break
-            }
-            last = err
-            if (err.kind != ErrorKind.NOT_FOUND && err.kind != ErrorKind.SERVER) break
+        val models = if (p.custom) {
+            val mid = modelId.trim()
+            if (base.isBlank() || mid.isEmpty()) return LlmException(ErrorKind.BAD_REQUEST, message = "base url and model id required")
+            listOf(customModel(p, mid))
+        } else {
+            catalog.catalog.value.models
+                .filter { it.provider == p.id }
+                .sortedBy { it.priority }
+                .take(4)
         }
-        if (accepted) {
+        if (models.isEmpty()) return LlmException(ErrorKind.NOT_FOUND, 404, message = "no models")
+        val good = ArrayList<String>()
+        var last: LlmException? = null
+        for (k in keys.ifEmpty { listOf("") }) {
+            val err = probe(p, base, alt, k, models)
+            if (err == null) good.add(k) else last = err
+        }
+        if (good.isNotEmpty()) {
             withContext(Dispatchers.IO) {
-                secrets.setApiKey(p.id, k)
+                secrets.setApiKey(p.id, good.joinToString("\n"))
                 secrets.setBaseUrl(
                     p.id,
                     baseOverride.trim().takeUnless { it.trimEnd('/') == p.baseUrl.trimEnd('/') }.orEmpty()
                 )
                 secrets.setAccountId(p.id, accountId.trim())
+                if (p.custom) secrets.setModelId(p.id, modelId.trim())
             }
             settings.setEnabled(p.id, true)
+            settings.setKeylessOff(p.id, false)
             settings.setStatus(p.id, "ok")
             router.health.clearProvider(p.id)
             return null
@@ -205,5 +239,6 @@ class ProviderManager(
     }
 
     fun baseUrlOf(id: String): String = secrets.baseUrl(id).orEmpty()
+    fun modelIdOf(id: String): String = secrets.modelId(id).orEmpty()
     fun accountIdOf(id: String): String = secrets.accountId(id).orEmpty()
 }

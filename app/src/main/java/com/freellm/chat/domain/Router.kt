@@ -105,9 +105,10 @@ class Health(private val config: RouterConfig) {
 
     @Synchronized
     fun clearProvider(id: String) {
-        authFailed.remove(id)
-        providerUntil.remove(id)
-        providerBackoff.remove(id)
+        fun mine(k: String): Boolean = k == id || k.startsWith("$id#")
+        authFailed.removeAll { mine(it) }
+        providerUntil.keys.removeAll { mine(it) }
+        providerBackoff.keys.removeAll { mine(it) }
     }
 
     @Synchronized

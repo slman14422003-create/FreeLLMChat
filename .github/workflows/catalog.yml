@@ -23,9 +23,7 @@ jobs:
       KEY_CLOUDFLARE: ${{ secrets.KEY_CLOUDFLARE }}
       KEY_COHERE: ${{ secrets.KEY_COHERE }}
       KEY_ZAI: ${{ secrets.KEY_ZAI }}
-      KEY_MISTRAL: ${{ secrets.KEY_MISTRAL }}
       KEY_GROQ: ${{ secrets.KEY_GROQ }}
-      KEY_NVIDIA: ${{ secrets.KEY_NVIDIA }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

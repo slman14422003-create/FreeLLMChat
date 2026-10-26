@@ -77,7 +77,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList<MessageEntity>())
 
     val targets: StateFlow<List<Target>> = manager.providers
-        .map { manager.activeTargets() }
+        .map { manager.activeTargets().filter { t -> '#' !in t.providerId } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList<Target>())
 
     init {
@@ -586,7 +586,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                     }
                     is RouteEvent.AuthFailed -> {
                         val name = all.firstOrNull { it.providerId == ev.providerId }?.providerName ?: ev.providerId
-                        manager.markFailed(ev.providerId)
+                        if ('#' !in ev.providerId) manager.markFailed(ev.providerId)
                         notice.value = app.getString(R.string.provider_disabled_notice, name)
                     }
                     is RouteEvent.Done -> {

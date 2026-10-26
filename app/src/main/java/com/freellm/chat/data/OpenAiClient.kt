@@ -73,7 +73,7 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
             .url(endpoint(base))
             .header("Accept", "application/json")
         if (t.apiKey.isNotBlank()) b.header("Authorization", "Bearer ${t.apiKey}")
-        if (t.providerId == "gemini") b.header("x-goog-api-key", t.apiKey)
+        if (t.providerId.substringBefore('#') == "gemini") b.header("x-goog-api-key", t.apiKey)
         t.headers.forEach { (k, v) -> b.header(k, v) }
         return b.post(bodyJson.toRequestBody(mediaJson)).build()
     }

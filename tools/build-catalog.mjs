@@ -69,6 +69,11 @@ for (const m of cfg.seedModels) {
   if (!models.has(k)) models.set(k, { ...m });
 }
 
+for (const id of cfg.remove || []) {
+  providers.delete(id);
+  for (const [k, m] of [...models]) if (m.provider === id) models.delete(k);
+}
+
 const deadKeys = new Set(health.dead || []);
 for (const k of deadKeys) models.delete(k);
 

@@ -42,13 +42,15 @@ class SecretStore(context: Context) {
     fun apiKey(id: String): String? = prefs.getString("key_$id", null)
     fun accountId(id: String): String? = prefs.getString("acct_$id", null)
     fun baseUrl(id: String): String? = prefs.getString("base_$id", null)
+    fun modelId(id: String): String? = prefs.getString("model_$id", null)
 
     fun setApiKey(id: String, v: String?) = put("key_$id", v)
     fun setAccountId(id: String, v: String?) = put("acct_$id", v)
     fun setBaseUrl(id: String, v: String?) = put("base_$id", v)
+    fun setModelId(id: String, v: String?) = put("model_$id", v)
 
     fun clear(id: String) {
-        prefs.edit().remove("key_$id").remove("acct_$id").remove("base_$id").apply()
+        prefs.edit().remove("key_$id").remove("acct_$id").remove("base_$id").remove("model_$id").apply()
         _changes.value = _changes.value + 1
     }
 
