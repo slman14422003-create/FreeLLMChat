@@ -52,9 +52,9 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
             }
         }.toString()
 
-    private fun request(t: Target, base: String, bodyJson: String): Request {
+    private fun request(t: Target, bodyJson: String): Request {
         val b = Request.Builder()
-            .url(endpoint(base))
+            .url(endpoint(t.baseUrl))
             .header("Authorization", "Bearer ${t.apiKey}")
             .header("Accept", "application/json")
         t.headers.forEach { (k, v) -> b.header(k, v) }
@@ -104,35 +104,9 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
         null
     }
 
-    private fun bases(t: Target): List<String> =
-        listOf(t.baseUrl) + listOfNotNull(t.altBaseUrl.takeIf { it.isNotBlank() && it != t.baseUrl })
-
-    private fun retryable(e: LlmException): Boolean = when (e.kind) {
-        ErrorKind.TIMEOUT, ErrorKind.NETWORK -> true
-        ErrorKind.AUTH -> e.httpCode == 403
-        ErrorKind.SERVER -> e.httpCode in listOf(502, 503, 504) || e.httpCode in 520..530
-        else -> false
-    }
-
     override fun stream(target: Target, messages: List<ChatMsg>, maxTokens: Int?): Flow<String> = flow {
-        val all = bases(target)
-        for ((i, base) in all.withIndex()) {
-            var emitted = false
-            try {
-                streamOnce(target, base, messages, maxTokens).collect {
-                    emitted = true
-                    emit(it)
-                }
-                return@flow
-            } catch (e: LlmException) {
-                if (emitted || i == all.lastIndex || !retryable(e)) throw e
-            }
-        }
-    }.flowOn(Dispatchers.IO)
-
-    private fun streamOnce(target: Target, base: String, messages: List<ChatMsg>, maxTokens: Int?): Flow<String> = flow {
         val req = try {
-            request(target, base, body(target, messages, true, maxTokens))
+            request(target, body(target, messages, true, maxTokens))
         } catch (e: IllegalArgumentException) {
             throw LlmException(ErrorKind.BAD_REQUEST, message = "invalid url or key format")
         }
@@ -188,22 +162,10 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
         }
     }.flowOn(Dispatchers.IO)
 
-    suspend fun test(target: Target): LlmException? {
-        val all = bases(target)
-        var last: LlmException? = null
-        for ((i, base) in all.withIndex()) {
-            val err = testOnce(target, base) ?: return null
-            last = err
-            if (i == all.lastIndex || !retryable(err)) break
-        }
-        return last
-    }
-
-    private suspend fun testOnce(target: Target, base: String): LlmException? = withContext(Dispatchers.IO) {
+    suspend fun test(target: Target): LlmException? = withContext(Dispatchers.IO) {
         val req = try {
             request(
                 target,
-                base,
                 body(target, listOf(ChatMsg("user", "hi")), false, 5)
             )
         } catch (e: IllegalArgumentException) {
