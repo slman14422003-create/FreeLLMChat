@@ -213,4 +213,6 @@
     <string name="restore_merge">دمج</string>
     <string name="restore_replace">استبدال</string>
     <string name="restore_done">تمت الاستعادة</string>
+    <string name="all_providers_enabled">كل المزودين مفعّلون</string>
+    <string name="more">المزيد</string>
 </resources>

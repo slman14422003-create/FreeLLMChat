@@ -19,7 +19,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.DeleteOutline
@@ -274,48 +277,40 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Account-style card
-            Row(
-                Modifier
-                    .appear(0)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(cs.surfaceContainerHigh)
-                    .padding(horizontal = 20.dp, vertical = 18.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.free_account), style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        stringResource(R.string.free_account_sub),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = cs.onSurfaceVariant
-                    )
-                }
-                Text(
-                    stringResource(R.string.plan_free),
+            val allEnabled = providers.isNotEmpty() && providers.all { it.enabled }
+            if (allEnabled) {
+                Row(
                     Modifier
+                        .appear(0)
                         .clip(CircleShape)
-                        .background(cs.primary)
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    color = cs.onPrimary,
-                    style = MaterialTheme.typography.labelLarge
-                )
-            }
-            // Upgrade-style card
-            Column(
-                Modifier
-                    .appear(1)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(cs.surfaceContainerHigh)
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(stringResource(R.string.want_more), style = MaterialTheme.typography.titleLarge)
-                Text(stringResource(R.string.want_more_body), color = cs.onSurfaceVariant)
-                Spacer(Modifier.height(8.dp))
-                Button(onClick = onProviders, shape = CircleShape) { Text(stringResource(R.string.add_provider)) }
+                        .background(cs.surfaceContainerHigh)
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.CheckCircle,
+                        null,
+                        Modifier.size(20.dp),
+                        tint = androidx.compose.ui.graphics.Color(0xFF34C759)
+                    )
+                    Text(stringResource(R.string.all_providers_enabled), style = MaterialTheme.typography.labelLarge)
+                }
+            } else {
+                Column(
+                    Modifier
+                        .appear(0)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(cs.surfaceContainerHigh)
+                        .padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(stringResource(R.string.want_more), style = MaterialTheme.typography.titleLarge)
+                    Text(stringResource(R.string.want_more_body), color = cs.onSurfaceVariant)
+                    Spacer(Modifier.height(8.dp))
+                    Button(onClick = onProviders, shape = CircleShape) { Text(stringResource(R.string.add_provider)) }
+                }
             }
 
             SettingsGroup(Modifier.appear(2)) {

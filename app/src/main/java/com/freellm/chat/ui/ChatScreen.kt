@@ -985,18 +985,13 @@ private fun ActionIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, de
 
 @Composable
 private fun NoteChip(text: String) {
-    val cs = MaterialTheme.colorScheme
-    Row(
-        Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(cs.surfaceContainerHigh)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(Icons.Outlined.SwapHoriz, null, Modifier.size(14.dp), tint = cs.tertiary)
-        Spacer(Modifier.width(6.dp))
-        Text(text, style = MaterialTheme.typography.labelSmall, color = cs.onSurfaceVariant)
-    }
+    Text(
+        text,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+    )
 }
 
 @Composable
@@ -1017,6 +1012,8 @@ private fun MessageItem(
     val clip = LocalClipboardManager.current
     val ctx = LocalContext.current
     var menu by remember { mutableStateOf(false) }
+    var more by remember { mutableStateOf(false) }
+    val isLocal = m.modelName == stringResource(R.string.local_brain_name)
     val isUser = m.role == "user"
     val copiedMsg = stringResource(R.string.copied)
     val doCopy = {
@@ -1070,35 +1067,70 @@ private fun MessageItem(
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 MarkdownText(m.content)
-                m.notes?.split("\n")?.filter { it.isNotBlank() }?.forEach { NoteChip(it) }
+                if (!isLocal) {
+                    m.notes?.split("\n")?.filter { it.isNotBlank() }?.take(1)?.forEach { NoteChip(it) }
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     ActionIcon(Icons.Outlined.ContentCopy, stringResource(R.string.copy)) { doCopy() }
-                    ActionIcon(
-                        if (rated == true) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp,
-                        stringResource(R.string.rate_good)
-                    ) {
-                        rated = true
-                        onRate(m, true)
-                    }
-                    ActionIcon(Icons.Outlined.ThumbDown, stringResource(R.string.rate_bad)) {
-                        rated = false
-                        onRate(m, false)
-                    }
-                    ActionIcon(Icons.Outlined.Share, stringResource(R.string.share)) { doShare() }
-                    ActionIcon(Icons.Outlined.PictureAsPdf, stringResource(R.string.save_pdf)) { onPdf(m) }
                     ActionIcon(Icons.AutoMirrored.Outlined.VolumeUp, stringResource(R.string.read_aloud)) { onSpeak(m) }
                     ActionIcon(Icons.Outlined.Refresh, stringResource(R.string.regenerate_other)) { onRegenerate(m) }
-                    if (canSwitch) {
-                        ActionIcon(Icons.Outlined.SwapHoriz, stringResource(R.string.switch_continue)) { onSwitch() }
+                    Box {
+                        ActionIcon(Icons.Filled.MoreVert, stringResource(R.string.more)) { more = true }
+                        DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.rate_good)) },
+                                leadingIcon = { Icon(if (rated == true) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp, null) },
+                                onClick = {
+                                    more = false
+                                    rated = true
+                                    onRate(m, true)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.rate_bad)) },
+                                leadingIcon = { Icon(Icons.Outlined.ThumbDown, null) },
+                                onClick = {
+                                    more = false
+                                    rated = false
+                                    onRate(m, false)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.share)) },
+                                leadingIcon = { Icon(Icons.Outlined.Share, null) },
+                                onClick = {
+                                    more = false
+                                    doShare()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.save_pdf)) },
+                                leadingIcon = { Icon(Icons.Outlined.PictureAsPdf, null) },
+                                onClick = {
+                                    more = false
+                                    onPdf(m)
+                                }
+                            )
+                            if (canSwitch) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.switch_continue)) },
+                                    leadingIcon = { Icon(Icons.Outlined.SwapHoriz, null) },
+                                    onClick = {
+                                        more = false
+                                        onSwitch()
+                                    }
+                                )
+                            }
+                        }
                     }
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        listOfNotNull(m.modelName, m.providerName).joinToString(" · "),
+                        m.modelName ?: "",
                         Modifier.weight(1f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.labelSmall,
-                        color = cs.onSurfaceVariant
+                        color = cs.onSurfaceVariant.copy(alpha = 0.8f)
                     )
                 }
             }
@@ -1178,7 +1210,7 @@ private fun StreamItem(
             }
         }
         if (s.active && s.text.isNotEmpty()) StarBurst(size = 18.dp, spinning = true)
-        s.notes.forEach { NoteChip(it) }
+        s.notes.take(1).forEach { NoteChip(it) }
         val t = s.target
         if (t != null && s.active) {
             Text(

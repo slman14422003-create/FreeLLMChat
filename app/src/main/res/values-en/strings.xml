@@ -213,4 +213,6 @@
     <string name="restore_merge">Merge</string>
     <string name="restore_replace">Replace</string>
     <string name="restore_done">Restore complete</string>
+    <string name="all_providers_enabled">All providers are enabled</string>
+    <string name="more">More</string>
 </resources>
