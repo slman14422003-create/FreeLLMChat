@@ -26,6 +26,7 @@ class SettingsStore(context: Context) {
         val ORDER = stringPreferencesKey("order")
         val STATUSES = stringPreferencesKey("statuses")
         val SELECTION = stringPreferencesKey("selection")
+        val PROXY = stringPreferencesKey("proxy_url")
     }
 
     private val data: Flow<Preferences> = ds.data.catch { emit(emptyPreferences()) }
@@ -38,6 +39,8 @@ class SettingsStore(context: Context) {
         .distinctUntilChanged()
     val statuses: Flow<Map<String, String>> = data.map { decode(it[K.STATUSES]) }.distinctUntilChanged()
     val selection: Flow<String> = data.map { it[K.SELECTION] ?: "AUTO" }.distinctUntilChanged()
+
+    val proxyUrl: Flow<String> = data.map { it[K.PROXY] ?: "" }.distinctUntilChanged()
 
     private fun decode(s: String?): Map<String, String> =
         (s ?: "").split(",").mapNotNull { e ->
@@ -70,6 +73,10 @@ class SettingsStore(context: Context) {
 
     suspend fun setOrder(list: List<String>) {
         ds.edit { it[K.ORDER] = list.joinToString(",") }
+    }
+
+    suspend fun setProxyUrl(v: String) {
+        ds.edit { it[K.PROXY] = v }
     }
 
     suspend fun setSelection(v: String) {

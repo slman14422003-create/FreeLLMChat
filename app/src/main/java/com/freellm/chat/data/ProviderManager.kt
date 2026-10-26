@@ -60,9 +60,22 @@ class ProviderManager(
         }
     }
 
-    private fun resolveBase(p: ProviderDef): String {
+    private fun proxied(p: ProviderDef, proxy: String): String {
+        val path = try {
+            java.net.URI(p.baseUrl).path.orEmpty().trimEnd('/')
+        } catch (e: Exception) {
+            ""
+        }
+        return proxy.trim().trimEnd('/') + "/" + p.id + path
+    }
+
+    private fun resolveBase(p: ProviderDef, proxy: String): String {
         val custom = secrets.baseUrl(p.id)
-        val base = if (custom.isNullOrBlank()) p.baseUrl else custom
+        val base = when {
+            !custom.isNullOrBlank() -> custom
+            proxy.isNotBlank() && !p.needsAccountId -> proxied(p, proxy)
+            else -> p.baseUrl
+        }
         return base.replace("{ACCOUNT_ID}", secrets.accountId(p.id).orEmpty())
     }
 
@@ -72,6 +85,7 @@ class ProviderManager(
         val order = settings.order.first()
         val statuses = settings.statuses.first()
         val today = LocalDate.now()
+        val proxy = settings.proxyUrl.first()
         cat.providers
             .filter { it.available && it.id in enabled && statuses[it.id] != "fail" }
             .flatMap { p ->
@@ -80,7 +94,7 @@ class ProviderManager(
                     emptyList()
                 } else {
                     val rank = order.indexOf(p.id).let { if (it < 0) 99 else it }
-                    val base = resolveBase(p)
+                    val base = resolveBase(p, proxy)
                     cat.models
                         .filter { it.provider == p.id && !expired(it, today) }
                         .map { m -> Target(p.id, p.name, base, p.headers, key, m, rank, p.perModelLimits) }
@@ -96,8 +110,12 @@ class ProviderManager(
     ): LlmException? {
         val k = key.trim()
         if (k.isEmpty()) return LlmException(ErrorKind.AUTH, 401, message = "empty key")
-        val base = (if (baseOverride.isBlank()) p.baseUrl else baseOverride.trim())
-            .replace("{ACCOUNT_ID}", accountId.trim())
+        val proxy = settings.proxyUrl.first()
+        val base = when {
+            baseOverride.isNotBlank() -> baseOverride.trim()
+            proxy.isNotBlank() && !p.needsAccountId -> proxied(p, proxy)
+            else -> p.baseUrl
+        }.replace("{ACCOUNT_ID}", accountId.trim())
         val models = catalog.catalog.value.models
             .filter { it.provider == p.id }
             .sortedBy { it.priority }

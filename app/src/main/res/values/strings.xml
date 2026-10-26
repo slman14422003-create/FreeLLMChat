@@ -69,4 +69,9 @@
     <string name="no_models">لا توجد مودلات. فعّل مزوداً أولاً.</string>
     <string name="provider_disabled_notice">تم تعطيل %1$s لأن المفتاح مرفوض</string>
     <string name="untitled">محادثة</string>
+    <string name="language">اللغة</string>
+    <string name="lang_ar">العربية</string>
+    <string name="lang_en">English</string>
+    <string name="proxy_url">رابط الوسيط (Cloudflare Worker)</string>
+    <string name="proxy_hint">للمناطق المحجوبة: يمرّ كل المزودين عبر هذا الرابط. اتركه فارغاً لعدم الاستخدام.</string>
 </resources>

@@ -2,6 +2,8 @@
 
 package com.freellm.chat.ui
 
+import android.app.Activity
+import android.content.Context
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -21,6 +23,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -34,6 +37,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -72,6 +76,12 @@ fun WelcomeScreen(onStart: () -> Unit) {
 fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit, onStatus: () -> Unit) {
     val theme by app.settings.theme.collectAsStateWithLifecycle(initialValue = "system")
     val scope = rememberCoroutineScope()
+    val ctx = LocalContext.current
+    val proxy by app.settings.proxyUrl.collectAsStateWithLifecycle(initialValue = "")
+    var proxyText by remember(proxy) { mutableStateOf(proxy) }
+    val curLang = remember {
+        ctx.getSharedPreferences("ui_prefs", Context.MODE_PRIVATE).getString("lang", "ar") ?: "ar"
+    }
     Scaffold(topBar = { AppTopBar(stringResource(R.string.settings), onBack) }) { pad ->
         Column(
             Modifier
@@ -109,6 +119,60 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
                     Text(stringResource(label))
                 }
             }
+            HorizontalDivider()
+            Text(
+                stringResource(R.string.language),
+                Modifier.padding(top = 8.dp, start = 16.dp),
+                style = MaterialTheme.typography.titleMedium
+            )
+            listOf(
+                "ar" to R.string.lang_ar,
+                "en" to R.string.lang_en,
+                "system" to R.string.theme_system
+            ).forEach { (k, label) ->
+                val pick = {
+                    ctx.getSharedPreferences("ui_prefs", Context.MODE_PRIVATE).edit().putString("lang", k).apply()
+                    (ctx as? Activity)?.recreate()
+                    Unit
+                }
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { pick() },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(selected = curLang == k, onClick = { pick() })
+                    Text(stringResource(label))
+                }
+            }
+            HorizontalDivider()
+            Text(
+                stringResource(R.string.proxy_url),
+                Modifier.padding(top = 8.dp, start = 16.dp),
+                style = MaterialTheme.typography.titleMedium
+            )
+            OutlinedTextField(
+                value = proxyText,
+                onValueChange = { proxyText = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                singleLine = true,
+                placeholder = { Text("https://name.workers.dev") }
+            )
+            Text(
+                stringResource(R.string.proxy_hint),
+                Modifier.padding(horizontal = 16.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Button(
+                onClick = { scope.launch { app.settings.setProxyUrl(proxyText.trim()) } },
+                enabled = proxyText.trim() != proxy,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+            ) { Text(stringResource(R.string.save)) }
             HorizontalDivider()
             Text(
                 stringResource(R.string.about),

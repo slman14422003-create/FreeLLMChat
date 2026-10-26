@@ -360,8 +360,7 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                                 Button(onClick = onProviders) { Text(stringResource(R.string.setup_provider)) }
                             }
                         }
-                    }
-                    LazyColumn(
+                    } else LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
