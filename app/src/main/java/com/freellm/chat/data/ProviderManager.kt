@@ -116,7 +116,7 @@ class ProviderManager(
         val models = catalog.catalog.value.models
             .filter { it.provider == p.id }
             .sortedBy { it.priority }
-            .take(3)
+            .take(4)
         if (models.isEmpty()) return LlmException(ErrorKind.NOT_FOUND, 404, message = "no models")
         var last: LlmException? = null
         for (m in models) {
@@ -133,7 +133,7 @@ class ProviderManager(
                 return null
             }
             last = err
-            if (err.kind != ErrorKind.NOT_FOUND) break
+            if (err.kind != ErrorKind.NOT_FOUND && err.kind != ErrorKind.SERVER) break
         }
         val hasOld = withContext(Dispatchers.IO) { !secrets.apiKey(p.id).isNullOrBlank() }
         if (hasOld) settings.setStatus(p.id, "fail")
