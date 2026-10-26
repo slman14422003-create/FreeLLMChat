@@ -85,7 +85,7 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
 
     private fun mapIo(e: IOException): LlmException =
         if (e is SocketTimeoutException) LlmException(ErrorKind.TIMEOUT, message = "timeout")
-        else LlmException(ErrorKind.NETWORK, message = "network")
+        else LlmException(ErrorKind.NETWORK, message = e.javaClass.simpleName + ": " + e.message.orEmpty().take(80))
 
     private fun parseChunk(data: String): Parsed? = try {
         val obj = json.parseToJsonElement(data) as JsonObject

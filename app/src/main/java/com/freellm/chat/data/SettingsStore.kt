@@ -1,6 +1,7 @@
 package com.freellm.chat.data
 
 import android.content.Context
+import com.freellm.chat.BuildConfig
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -40,7 +41,7 @@ class SettingsStore(context: Context) {
     val statuses: Flow<Map<String, String>> = data.map { decode(it[K.STATUSES]) }.distinctUntilChanged()
     val selection: Flow<String> = data.map { it[K.SELECTION] ?: "AUTO" }.distinctUntilChanged()
 
-    val proxyUrl: Flow<String> = data.map { it[K.PROXY] ?: "" }.distinctUntilChanged()
+    val proxyUrl: Flow<String> = data.map { it[K.PROXY] ?: BuildConfig.DEFAULT_PROXY }.distinctUntilChanged()
 
     private fun decode(s: String?): Map<String, String> =
         (s ?: "").split(",").mapNotNull { e ->

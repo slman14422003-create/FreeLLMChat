@@ -30,6 +30,7 @@ android {
         versionCode = appVersionCode
         versionName = "1.0.0"
         buildConfigField("String", "MODELS_URL", "\"$modelsUrl\"")
+        buildConfigField("String", "DEFAULT_PROXY", "\"https://freellm.slman2233445566y.workers.dev\"")
         resourceConfigurations += listOf("ar", "en")
     }
 

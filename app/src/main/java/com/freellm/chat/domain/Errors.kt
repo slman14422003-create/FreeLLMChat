@@ -32,7 +32,7 @@ fun LlmException.arabic(): String = when (kind) {
     ErrorKind.PAYMENT -> "المزود يطلب رصيداً أو انتهى السقف المجاني (402)."
     ErrorKind.NOT_FOUND -> "الرابط أو المودل غير موجود (404). تحقق من Base URL."
     ErrorKind.TIMEOUT -> "انتهت مهلة الاتصال. تحقق من الإنترنت أو جرّب وسيطاً."
-    ErrorKind.NETWORK -> "تعذّر الاتصال بالشبكة. تحقق من الإنترنت أو من حجب المزود في بلدك."
+    ErrorKind.NETWORK -> "تعذّر الاتصال بالشبكة. تحقق من الإنترنت أو من حجب المزود في بلدك. (${message.orEmpty()})"
     ErrorKind.SERVER -> "خطأ من خادم المزود. جرّب لاحقاً. ${message.orEmpty()}".trim()
     ErrorKind.BAD_REQUEST -> "رفض المزود الطلب (400). ${message.orEmpty()}".trim()
     ErrorKind.EMPTY -> "رد المزود فارغ."

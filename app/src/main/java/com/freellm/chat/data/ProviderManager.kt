@@ -66,15 +66,19 @@ class ProviderManager(
         return proxy.trim().trimEnd('/') + "/" + p.id + (if (path == "/") "" else path)
     }
 
-    private fun resolveBase(p: ProviderDef, proxy: String): String {
-        val custom = secrets.baseUrl(p.id)
-        val base = when {
-            !custom.isNullOrBlank() -> custom
-            proxy.isNotBlank() -> proxied(p, proxy)
-            else -> p.baseUrl
+    private fun baseFor(p: ProviderDef, custom: String?, proxy: String): String {
+        val c = custom.orEmpty().trim()
+        val isDefault = c.isEmpty() || c.trimEnd('/') == p.baseUrl.trimEnd('/')
+        return when {
+            proxy.isNotBlank() && isDefault -> proxied(p, proxy)
+            c.isEmpty() -> p.baseUrl
+            c.substringAfter("://", "").substringAfter("/", "").trim('/').isEmpty() -> proxied(p, c)
+            else -> c
         }
-        return base.replace("{ACCOUNT_ID}", secrets.accountId(p.id).orEmpty())
     }
+
+    private fun resolveBase(p: ProviderDef, proxy: String): String =
+        baseFor(p, secrets.baseUrl(p.id), proxy).replace("{ACCOUNT_ID}", secrets.accountId(p.id).orEmpty())
 
     suspend fun activeTargets(): List<Target> = withContext(Dispatchers.Default) {
         val cat = catalog.catalog.value
@@ -108,11 +112,7 @@ class ProviderManager(
         val k = key.trim()
         if (k.isEmpty()) return LlmException(ErrorKind.AUTH, 401, message = "empty key")
         val proxy = settings.proxyUrl.first()
-        val base = when {
-            baseOverride.isNotBlank() -> baseOverride.trim()
-            proxy.isNotBlank() -> proxied(p, proxy)
-            else -> p.baseUrl
-        }.replace("{ACCOUNT_ID}", accountId.trim())
+        val base = baseFor(p, baseOverride, proxy).replace("{ACCOUNT_ID}", accountId.trim())
         val models = catalog.catalog.value.models
             .filter { it.provider == p.id }
             .sortedBy { it.priority }
