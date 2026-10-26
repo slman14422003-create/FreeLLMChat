@@ -44,11 +44,11 @@ class LocalBrainTest {
 
     @Test fun capacityEvictsLowestScore() {
         val b = LocalBrain(capacity = 3)
-        val keep = b.learn("question number alpha", "a")!!
+        val keep = b.learn("question number alpha", "answer alpha")!!
         b.feedback(keep.id, true)
-        b.learn("question number beta", "b")
-        b.learn("question number gamma", "c")
-        b.learn("question number delta", "d")
+        b.learn("question number beta", "answer beta")
+        b.learn("question number gamma", "answer gamma")
+        b.learn("question number delta", "answer delta")
         assertEquals(3, b.size())
         assertTrue(b.all().any { it.id == keep.id })
     }
