@@ -4,29 +4,42 @@ package com.freellm.chat.ui
 
 import android.app.Activity
 import android.content.Context
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Cloud
+import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.Speed
+import androidx.compose.material.icons.outlined.SwapHoriz
+import androidx.compose.material.icons.outlined.VpnKey
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -37,6 +50,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -51,6 +65,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun WelcomeScreen(onStart: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
     Column(
         Modifier
             .fillMaxSize()
@@ -59,137 +74,322 @@ fun WelcomeScreen(onStart: () -> Unit) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(stringResource(R.string.welcome_title), style = MaterialTheme.typography.titleLarge)
-        Spacer(Modifier.height(16.dp))
-        Text(stringResource(R.string.welcome_body))
-        Spacer(Modifier.height(16.dp))
-        Text(
-            stringResource(R.string.welcome_privacy),
-            color = MaterialTheme.colorScheme.secondary
-        )
+        StarBurst(size = 64.dp)
         Spacer(Modifier.height(28.dp))
-        Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.start)) }
+        Text(
+            stringResource(R.string.welcome_title),
+            style = MaterialTheme.typography.headlineSmall,
+            color = cs.onBackground
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(stringResource(R.string.welcome_body), color = cs.onSurfaceVariant)
+        Spacer(Modifier.height(16.dp))
+        Text(stringResource(R.string.welcome_privacy), color = cs.secondary)
+        Spacer(Modifier.height(32.dp))
+        Button(
+            onClick = onStart,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
+            shape = CircleShape
+        ) { Text(stringResource(R.string.start)) }
     }
 }
 
 @Composable
+private fun ChoiceDialog(
+    title: String,
+    options: List<Pair<String, String>>,
+    selected: String,
+    onPick: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+        title = { Text(title) },
+        text = {
+            Column {
+                options.forEach { (key, label) ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { onPick(key) },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = selected == key, onClick = { onPick(key) })
+                        Text(label)
+                    }
+                }
+            }
+        }
+    )
+}
+
+@Composable
 fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit, onStatus: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
     val theme by app.settings.theme.collectAsStateWithLifecycle(initialValue = "system")
+    val proxy by app.settings.proxyUrl.collectAsStateWithLifecycle(initialValue = "")
+    val autoSwitch by app.settings.autoSwitch.collectAsStateWithLifecycle(initialValue = true)
+    val style by app.settings.style.collectAsStateWithLifecycle(initialValue = "default")
+    val instructions by app.settings.instructions.collectAsStateWithLifecycle(initialValue = "")
+    val providers by app.manager.providers.collectAsStateWithLifecycle(initialValue = emptyList())
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
-    val proxy by app.settings.proxyUrl.collectAsStateWithLifecycle(initialValue = "")
-    var proxyText by remember(proxy) { mutableStateOf(proxy) }
     val curLang = remember {
         ctx.getSharedPreferences("ui_prefs", Context.MODE_PRIVATE).getString("lang", "ar") ?: "ar"
     }
-    Scaffold(topBar = { AppTopBar(stringResource(R.string.settings), onBack) }) { pad ->
+    var dialog by remember { mutableStateOf<String?>(null) }
+
+    val themeOptions = listOf(
+        "system" to stringResource(R.string.theme_system),
+        "light" to stringResource(R.string.theme_light),
+        "dark" to stringResource(R.string.theme_dark)
+    )
+    val langOptions = listOf(
+        "ar" to stringResource(R.string.lang_ar),
+        "en" to stringResource(R.string.lang_en),
+        "system" to stringResource(R.string.theme_system)
+    )
+    val styleOptions = listOf(
+        "default" to stringResource(R.string.style_default),
+        "concise" to stringResource(R.string.style_concise),
+        "detailed" to stringResource(R.string.style_detailed),
+        "teacher" to stringResource(R.string.style_teacher)
+    )
+    val activeCount = providers.count { it.enabled }
+
+    when (dialog) {
+        "theme" -> ChoiceDialog(
+            stringResource(R.string.theme), themeOptions, theme,
+            onPick = {
+                scope.launch { app.settings.setTheme(it) }
+                dialog = null
+            },
+            onDismiss = { dialog = null }
+        )
+        "lang" -> ChoiceDialog(
+            stringResource(R.string.language), langOptions, curLang,
+            onPick = {
+                ctx.getSharedPreferences("ui_prefs", Context.MODE_PRIVATE).edit().putString("lang", it).apply()
+                dialog = null
+                (ctx as? Activity)?.recreate()
+            },
+            onDismiss = { dialog = null }
+        )
+        "style" -> ChoiceDialog(
+            stringResource(R.string.response_style), styleOptions, style,
+            onPick = {
+                scope.launch { app.settings.setStyle(it) }
+                dialog = null
+            },
+            onDismiss = { dialog = null }
+        )
+        "instructions" -> {
+            var text by remember { mutableStateOf(instructions) }
+            AlertDialog(
+                onDismissRequest = { dialog = null },
+                title = { Text(stringResource(R.string.custom_instructions)) },
+                text = {
+                    OutlinedTextField(
+                        value = text,
+                        onValueChange = { text = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 3,
+                        maxLines = 8,
+                        placeholder = { Text(stringResource(R.string.custom_instructions_hint)) }
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        scope.launch { app.settings.setInstructions(text.trim()) }
+                        dialog = null
+                    }) { Text(stringResource(R.string.save)) }
+                },
+                dismissButton = { TextButton(onClick = { dialog = null }) { Text(stringResource(R.string.cancel)) } }
+            )
+        }
+        "proxy" -> {
+            var text by remember { mutableStateOf(proxy) }
+            AlertDialog(
+                onDismissRequest = { dialog = null },
+                title = { Text(stringResource(R.string.proxy_url)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedTextField(
+                            value = text,
+                            onValueChange = { text = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            placeholder = { Text("https://name.workers.dev") }
+                        )
+                        Text(
+                            stringResource(R.string.proxy_hint),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = cs.onSurfaceVariant
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        scope.launch { app.settings.setProxyUrl(text.trim()) }
+                        dialog = null
+                    }) { Text(stringResource(R.string.save)) }
+                },
+                dismissButton = { TextButton(onClick = { dialog = null }) { Text(stringResource(R.string.cancel)) } }
+            )
+        }
+        "wipe" -> AlertDialog(
+            onDismissRequest = { dialog = null },
+            title = { Text(stringResource(R.string.delete_all_chats)) },
+            text = { Text(stringResource(R.string.delete_all_confirm)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch { app.chatRepo.deleteAll() }
+                    dialog = null
+                }) { Text(stringResource(R.string.delete), color = cs.error) }
+            },
+            dismissButton = { TextButton(onClick = { dialog = null }) { Text(stringResource(R.string.cancel)) } }
+        )
+    }
+
+    Scaffold(containerColor = cs.background, topBar = { AppTopBar(stringResource(R.string.settings), onBack) }) { pad ->
         Column(
             Modifier
                 .padding(pad)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.providers)) },
-                modifier = Modifier.clickable(onClick = onProviders)
-            )
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.model_status)) },
-                modifier = Modifier.clickable(onClick = onStatus)
-            )
-            HorizontalDivider()
-            Text(
-                stringResource(R.string.theme),
-                Modifier.padding(top = 8.dp, start = 16.dp),
-                style = MaterialTheme.typography.titleMedium
-            )
-            listOf(
-                "system" to R.string.theme_system,
-                "light" to R.string.theme_light,
-                "dark" to R.string.theme_dark
-            ).forEach { (k, label) ->
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { scope.launch { app.settings.setTheme(k) } },
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RadioButton(selected = theme == k, onClick = { scope.launch { app.settings.setTheme(k) } })
-                    Text(stringResource(label))
-                }
-            }
-            HorizontalDivider()
-            Text(
-                stringResource(R.string.language),
-                Modifier.padding(top = 8.dp, start = 16.dp),
-                style = MaterialTheme.typography.titleMedium
-            )
-            listOf(
-                "ar" to R.string.lang_ar,
-                "en" to R.string.lang_en,
-                "system" to R.string.theme_system
-            ).forEach { (k, label) ->
-                val pick = {
-                    ctx.getSharedPreferences("ui_prefs", Context.MODE_PRIVATE).edit().putString("lang", k).apply()
-                    (ctx as? Activity)?.recreate()
-                    Unit
-                }
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { pick() },
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RadioButton(selected = curLang == k, onClick = { pick() })
-                    Text(stringResource(label))
-                }
-            }
-            HorizontalDivider()
-            Text(
-                stringResource(R.string.proxy_url),
-                Modifier.padding(top = 8.dp, start = 16.dp),
-                style = MaterialTheme.typography.titleMedium
-            )
-            OutlinedTextField(
-                value = proxyText,
-                onValueChange = { proxyText = it },
-                modifier = Modifier
+            // Account-style card
+            Row(
+                Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                singleLine = true,
-                placeholder = { Text("https://name.workers.dev") }
-            )
-            Text(
-                stringResource(R.string.proxy_hint),
-                Modifier.padding(horizontal = 16.dp),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Button(
-                onClick = { scope.launch { app.settings.setProxyUrl(proxyText.trim()) } },
-                enabled = proxyText.trim() != proxy,
-                modifier = Modifier
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(cs.surfaceContainerHigh)
+                    .padding(horizontal = 20.dp, vertical = 18.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.free_account), style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        stringResource(R.string.free_account_sub),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = cs.onSurfaceVariant
+                    )
+                }
+                Text(
+                    stringResource(R.string.plan_free),
+                    Modifier
+                        .clip(CircleShape)
+                        .background(cs.primary)
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    color = cs.onPrimary,
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
+            // Upgrade-style card
+            Column(
+                Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-            ) { Text(stringResource(R.string.save)) }
-            HorizontalDivider()
-            Text(
-                stringResource(R.string.about),
-                Modifier.padding(top = 8.dp, start = 16.dp),
-                style = MaterialTheme.typography.titleMedium
-            )
-            Text(
-                stringResource(R.string.about_body) + "\n" + BuildConfig.VERSION_NAME,
-                Modifier.padding(start = 16.dp, end = 16.dp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(cs.surfaceContainerHigh)
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(stringResource(R.string.want_more), style = MaterialTheme.typography.titleLarge)
+                Text(stringResource(R.string.want_more_body), color = cs.onSurfaceVariant)
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = onProviders, shape = CircleShape) { Text(stringResource(R.string.add_provider)) }
+            }
+
+            SettingsGroup {
+                SettingsRow(
+                    Icons.Outlined.Cloud,
+                    stringResource(R.string.providers),
+                    stringResource(R.string.providers_active, activeCount),
+                    onClick = onProviders
+                )
+                SettingsRow(Icons.Outlined.Speed, stringResource(R.string.model_status), onClick = onStatus)
+            }
+
+            SectionLabel(stringResource(R.string.preferences_label))
+            SettingsGroup {
+                SettingsRow(
+                    Icons.Outlined.SwapHoriz,
+                    stringResource(R.string.auto_switch),
+                    stringResource(R.string.auto_switch_desc),
+                    onClick = { scope.launch { app.settings.setAutoSwitch(!autoSwitch) } },
+                    trailing = {
+                        Switch(
+                            checked = autoSwitch,
+                            onCheckedChange = { scope.launch { app.settings.setAutoSwitch(it) } },
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = cs.tertiary,
+                                checkedThumbColor = androidx.compose.ui.graphics.Color.White
+                            )
+                        )
+                    }
+                )
+                SettingsRow(
+                    Icons.Outlined.AutoAwesome,
+                    stringResource(R.string.response_style),
+                    styleOptions.firstOrNull { it.first == style }?.second,
+                    onClick = { dialog = "style" }
+                )
+                SettingsRow(
+                    Icons.Outlined.Edit,
+                    stringResource(R.string.custom_instructions),
+                    instructions.ifBlank { stringResource(R.string.not_set) },
+                    onClick = { dialog = "instructions" }
+                )
+            }
+
+            SectionLabel(stringResource(R.string.app_label))
+            SettingsGroup {
+                SettingsRow(
+                    Icons.Outlined.DarkMode,
+                    stringResource(R.string.theme),
+                    themeOptions.firstOrNull { it.first == theme }?.second,
+                    onClick = { dialog = "theme" }
+                )
+                SettingsRow(
+                    Icons.Outlined.Language,
+                    stringResource(R.string.language),
+                    langOptions.firstOrNull { it.first == curLang }?.second,
+                    onClick = { dialog = "lang" }
+                )
+                SettingsRow(
+                    Icons.Outlined.VpnKey,
+                    stringResource(R.string.proxy_url),
+                    proxy.ifBlank { stringResource(R.string.not_set) },
+                    onClick = { dialog = "proxy" }
+                )
+            }
+
+            SectionLabel(stringResource(R.string.data_label))
+            SettingsGroup {
+                SettingsRow(
+                    Icons.Outlined.DeleteOutline,
+                    stringResource(R.string.delete_all_chats),
+                    onClick = { dialog = "wipe" }
+                )
+                SettingsRow(
+                    Icons.Outlined.Info,
+                    stringResource(R.string.about),
+                    stringResource(R.string.about_body) + "\n" + BuildConfig.VERSION_NAME
+                )
+            }
+            Spacer(Modifier.height(24.dp))
         }
     }
 }
 
 @Composable
 fun StatusScreen(app: FreeLlmApp, onBack: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
     var targets by remember { mutableStateOf<List<Target>>(emptyList()) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -199,33 +399,57 @@ fun StatusScreen(app: FreeLlmApp, onBack: () -> Unit) {
             delay(1000)
         }
     }
-    Scaffold(topBar = { AppTopBar(stringResource(R.string.model_status), onBack) }) { pad ->
+    Scaffold(containerColor = cs.background, topBar = { AppTopBar(stringResource(R.string.model_status), onBack) }) { pad ->
         if (targets.isEmpty()) {
-            Text(stringResource(R.string.no_models), Modifier.padding(pad).padding(16.dp))
+            Text(
+                stringResource(R.string.no_models),
+                Modifier
+                    .padding(pad)
+                    .padding(24.dp),
+                color = cs.onSurfaceVariant
+            )
         } else {
-            LazyColumn(Modifier.padding(pad), contentPadding = PaddingValues(16.dp)) {
-                items(targets, key = { it.key }) { t ->
-                    val st = app.router.health.state(t, now)
-                    val label: String
-                    val color = when (st) {
-                        is ModelHealth.Ready -> MaterialTheme.colorScheme.primary
-                        is ModelHealth.Cooling -> MaterialTheme.colorScheme.secondary
-                        else -> MaterialTheme.colorScheme.error
+            Column(
+                Modifier
+                    .padding(pad)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+            ) {
+                SettingsGroup {
+                    targets.forEach { t ->
+                        val st = app.router.health.state(t, now)
+                        val color = when (st) {
+                            is ModelHealth.Ready -> cs.tertiary
+                            is ModelHealth.Cooling -> cs.secondary
+                            else -> cs.error
+                        }
+                        val label = when (st) {
+                            is ModelHealth.Ready -> stringResource(R.string.status_ready)
+                            is ModelHealth.Cooling ->
+                                stringResource(R.string.status_cooling, maxOf(0L, (st.untilMs - now) / 1000).toInt())
+                            is ModelHealth.Dead -> stringResource(R.string.status_dead)
+                            is ModelHealth.ProviderDown -> stringResource(R.string.status_disabled)
+                        }
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .background(cs.surfaceContainerHigh)
+                                .padding(horizontal = 20.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(t.model.displayName, style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    t.providerName,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = cs.onSurfaceVariant
+                                )
+                            }
+                            Text(label, color = color, style = MaterialTheme.typography.labelLarge)
+                        }
                     }
-                    label = when (st) {
-                        is ModelHealth.Ready -> stringResource(R.string.status_ready)
-                        is ModelHealth.Cooling ->
-                            stringResource(R.string.status_cooling, maxOf(0L, (st.untilMs - now) / 1000).toInt())
-                        is ModelHealth.Dead -> stringResource(R.string.status_dead)
-                        is ModelHealth.ProviderDown -> stringResource(R.string.status_disabled)
-                    }
-                    ListItem(
-                        headlineContent = { Text(t.model.displayName) },
-                        supportingContent = { Text(t.providerName) },
-                        trailingContent = { Text(label, color = color) }
-                    )
-                    HorizontalDivider()
                 }
+                Spacer(Modifier.height(24.dp))
             }
         }
     }

@@ -49,4 +49,20 @@ interface ChatDao {
 
     @Query("DELETE FROM messages WHERE conversationId = :cid AND id >= :fromId")
     suspend fun deleteFrom(cid: Long, fromId: Long)
+
+    @Query(
+        "UPDATE messages SET content = :content, modelName = :modelName, providerName = :providerName, " +
+            "modelKey = :modelKey, notes = :notes WHERE id = :id"
+    )
+    suspend fun updateAssistant(
+        id: Long,
+        content: String,
+        modelName: String?,
+        providerName: String?,
+        modelKey: String?,
+        notes: String?
+    )
+
+    @Query("DELETE FROM conversations")
+    suspend fun deleteAllConversations()
 }

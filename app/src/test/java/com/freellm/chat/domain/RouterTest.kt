@@ -142,4 +142,18 @@ class RouterTest {
         assertEquals("fine", textOf(events))
         assertEquals(listOf(b.key), tr.calls.map { it.first })
     }
+
+    @Test
+    fun preferredModelGoesFirstButFallsBack() = runTest {
+        val a = tgt("a", "m1", 1)
+        val b = tgt("b", "m2", 2)
+        val tr = FakeTransport { t, _, _ ->
+            if (t.providerId == "b") flow<String> { throw LlmException(ErrorKind.RATE_LIMIT, 429, 30) }
+            else flow<String> { emit("from-a") }
+        }
+        val router = Router(tr, clock = { 0L })
+        val events = router.stream(req(a, b).copy(preferredKey = b.key)).toList()
+        assertEquals(listOf(b.key, a.key), tr.calls.map { it.first })
+        assertEquals("from-a", textOf(events))
+    }
 }

@@ -28,6 +28,9 @@ class SettingsStore(context: Context) {
         val STATUSES = stringPreferencesKey("statuses")
         val SELECTION = stringPreferencesKey("selection")
         val PROXY = stringPreferencesKey("proxy_url")
+        val AUTO_SWITCH = booleanPreferencesKey("auto_switch")
+        val STYLE = stringPreferencesKey("reply_style")
+        val INSTRUCTIONS = stringPreferencesKey("instructions")
     }
 
     private val data: Flow<Preferences> = ds.data.catch { emit(emptyPreferences()) }
@@ -42,6 +45,10 @@ class SettingsStore(context: Context) {
     val selection: Flow<String> = data.map { it[K.SELECTION] ?: "AUTO" }.distinctUntilChanged()
 
     val proxyUrl: Flow<String> = data.map { it[K.PROXY] ?: BuildConfig.DEFAULT_PROXY }.distinctUntilChanged()
+
+    val autoSwitch: Flow<Boolean> = data.map { it[K.AUTO_SWITCH] ?: true }.distinctUntilChanged()
+    val style: Flow<String> = data.map { it[K.STYLE] ?: "default" }.distinctUntilChanged()
+    val instructions: Flow<String> = data.map { it[K.INSTRUCTIONS] ?: "" }.distinctUntilChanged()
 
     private fun decode(s: String?): Map<String, String> =
         (s ?: "").split(",").mapNotNull { e ->
@@ -82,5 +89,17 @@ class SettingsStore(context: Context) {
 
     suspend fun setSelection(v: String) {
         ds.edit { it[K.SELECTION] = v }
+    }
+
+    suspend fun setAutoSwitch(v: Boolean) {
+        ds.edit { it[K.AUTO_SWITCH] = v }
+    }
+
+    suspend fun setStyle(v: String) {
+        ds.edit { it[K.STYLE] = v }
+    }
+
+    suspend fun setInstructions(v: String) {
+        ds.edit { it[K.INSTRUCTIONS] = v }
     }
 }

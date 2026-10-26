@@ -65,7 +65,8 @@ data class RouteRequest(
     val mode: ChatMode,
     val pinnedKey: String?,
     val candidates: List<Target>,
-    val maxTokens: Int? = null
+    val maxTokens: Int? = null,
+    val preferredKey: String? = null
 )
 
 sealed class RouteEvent {

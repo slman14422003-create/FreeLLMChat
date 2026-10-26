@@ -194,8 +194,8 @@ private fun highlight(code: String, c: CodeColors): AnnotatedString = buildAnnot
 @Composable
 private fun InlineText(text: String, style: TextStyle, modifier: Modifier = Modifier) {
     val cs = MaterialTheme.colorScheme
-    val annotated = remember(text, cs.primary, cs.surfaceVariant) {
-        inlineMd(text, cs.surfaceVariant, cs.primary)
+    val annotated = remember(text, cs.tertiary, cs.surfaceVariant) {
+        inlineMd(text, cs.surfaceVariant, cs.tertiary)
     }
     val hasLink = annotated.getStringAnnotations("URL", 0, annotated.length).isNotEmpty()
     if (hasLink) {

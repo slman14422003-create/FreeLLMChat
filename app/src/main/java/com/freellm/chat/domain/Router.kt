@@ -159,6 +159,7 @@ class Router(
         }
         return req.candidates.sortedWith(
             compareBy<Target>(
+                { if (req.preferredKey != null && it.key == req.preferredKey) 0 else 1 },
                 { if (wanted != null && wanted in it.model.modes) 0 else 1 },
                 { it.model.priority },
                 { it.providerRank }

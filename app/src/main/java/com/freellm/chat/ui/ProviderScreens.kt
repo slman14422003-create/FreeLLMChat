@@ -2,6 +2,7 @@
 
 package com.freellm.chat.ui
 
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -69,7 +70,7 @@ private fun statusLabel(s: ProviderStatus): String = when (s) {
 @Composable
 private fun statusColor(s: ProviderStatus): Color = when (s) {
     ProviderStatus.NOT_CONFIGURED -> MaterialTheme.colorScheme.onSurfaceVariant
-    ProviderStatus.READY -> MaterialTheme.colorScheme.primary
+    ProviderStatus.READY -> MaterialTheme.colorScheme.tertiary
     ProviderStatus.FAILED -> MaterialTheme.colorScheme.error
 }
 
@@ -87,7 +88,7 @@ fun ProvidersScreen(app: FreeLlmApp, onBack: () -> Unit, onOpen: (String) -> Uni
                 Card(
                     onClick = { onOpen(ui.def.id) },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh), shape = RoundedCornerShape(24.dp)
                 ) {
                     Row(
                         Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
@@ -151,7 +152,7 @@ fun ProviderWizardScreen(app: FreeLlmApp, providerId: String, onBack: () -> Unit
             Text(stringResource(R.string.setup_steps), style = MaterialTheme.typography.titleMedium)
             def.steps.forEachIndexed { i, s ->
                 Row {
-                    Text("${i + 1}.", Modifier.width(28.dp), color = MaterialTheme.colorScheme.primary)
+                    Text("${i + 1}.", Modifier.width(28.dp), color = MaterialTheme.colorScheme.tertiary)
                     Text(s, Modifier.weight(1f))
                 }
             }
@@ -164,7 +165,7 @@ fun ProviderWizardScreen(app: FreeLlmApp, providerId: String, onBack: () -> Unit
             if (def.warnings.isNotEmpty()) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh), shape = RoundedCornerShape(24.dp)
                 ) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(stringResource(R.string.notes), style = MaterialTheme.typography.titleMedium)
@@ -234,7 +235,7 @@ fun ProviderWizardScreen(app: FreeLlmApp, providerId: String, onBack: () -> Unit
             if (res != null) {
                 Text(
                     res,
-                    color = if (ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                    color = if (ok) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error
                 )
             }
             if (ui.hasKey) {

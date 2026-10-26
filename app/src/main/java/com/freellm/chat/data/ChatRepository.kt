@@ -38,6 +38,17 @@ class ChatRepository(private val dao: ChatDao) {
 
     suspend fun deleteFrom(cid: Long, fromId: Long) = dao.deleteFrom(cid, fromId)
 
+    suspend fun updateAssistant(
+        id: Long,
+        content: String,
+        modelName: String?,
+        providerName: String?,
+        modelKey: String?,
+        notes: String?
+    ) = dao.updateAssistant(id, content, modelName, providerName, modelKey, notes)
+
+    suspend fun deleteAll() = dao.deleteAllConversations()
+
     suspend fun exportMarkdown(id: Long): String {
         val c = dao.conversation(id)
         val ms = dao.messagesOnce(id)
