@@ -27,7 +27,7 @@ fun ErrorKind.label(): String = when (this) {
 fun LlmException.arabic(): String = when (kind) {
     ErrorKind.AUTH ->
         if (httpCode == 401) "المفتاح غير صحيح (401). تأكد من نسخه كاملاً."
-        else "الوصول مرفوض (403): قد تكون منطقتك محجوبة أو المفتاح بلا صلاحية. جرّب حقل Base URL مع وسيط."
+        else "الوصول مرفوض (403): قد تكون منطقتك محجوبة أو المفتاح بلا صلاحية. جرّب حقل Base URL مع وسيط. ${message.orEmpty()}".trim()
     ErrorKind.RATE_LIMIT -> "تم تجاوز الحد المجاني حالياً (429). جرّب بعد قليل."
     ErrorKind.PAYMENT -> "المزود يطلب رصيداً أو انتهى السقف المجاني (402)."
     ErrorKind.NOT_FOUND -> "الرابط أو المودل غير موجود (404). تحقق من Base URL."

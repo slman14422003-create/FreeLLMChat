@@ -52,6 +52,26 @@ export default {
     if (env.SECRET) {
       if (parts.shift() !== env.SECRET) return new Response("Not found", { status: 404 });
     }
+    if (parts[0] === "_debug") {
+      const probe = async (u) => {
+        try {
+          const r = await fetch(u, { headers: { "user-agent": "freellm-debug" } });
+          return { status: r.status, body: (await r.text()).slice(0, 220) };
+        } catch (e) {
+          return { error: String(e) };
+        }
+      };
+      const info = {
+        colo: request.cf && request.cf.colo,
+        country: request.cf && request.cf.country,
+        placement: request.headers.get("cf-placement"),
+        groq: await probe("https://api.groq.com/openai/v1/models"),
+        gemini: await probe("https://generativelanguage.googleapis.com/v1beta/openai/models"),
+      };
+      return new Response(JSON.stringify(info, null, 2), {
+        headers: { "content-type": "application/json; charset=utf-8" },
+      });
+    }
     const id = parts.shift();
     const base = UPSTREAMS[id];
     if (!base) return new Response("Not found", { status: 404 });
@@ -89,6 +109,7 @@ export default {
     const out = new Headers(upstream.headers);
     out.set("Access-Control-Allow-Origin", "*");
     out.set("Cache-Control", "no-store");
+    out.set("x-worker-colo", String((request.cf && request.cf.colo) || ""));
     out.set("X-Accel-Buffering", "no");
     return new Response(upstream.body, {
       status: upstream.status,
