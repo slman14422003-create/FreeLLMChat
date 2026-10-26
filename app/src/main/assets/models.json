@@ -1,0 +1,181 @@
+{
+  "version": 1,
+  "providers": [
+    {
+      "id": "groq",
+      "name": "Groq",
+      "baseUrl": "https://api.groq.com/openai/v1",
+      "keyUrl": "https://console.groq.com/keys",
+      "available": true,
+      "steps": [
+        "افتح صفحة المفاتيح بالزر أدناه.",
+        "سجّل الدخول بحساب Google أو GitHub أو بالبريد.",
+        "اضغط Create API Key وأعطه أي اسم.",
+        "انسخ المفتاح فوراً لأنه لن يظهر مرة أخرى.",
+        "ألصقه في الحقل أدناه ثم اضغط اختبر المفتاح."
+      ],
+      "warnings": [
+        "لا يطلب بطاقة بنكية ولا رقم هاتف عادةً.",
+        "قد يحجب بعض الدول؛ إن ظهر خطأ 403 جرّب حقل Base URL مع وسيط.",
+        "الحد المجاني تقريباً: 30 طلباً في الدقيقة وبضعة آلاف طلب يومياً حسب المودل.",
+        "قد تُعالج المحادثات وفق سياسة المزود؛ لا تكتب معلومات حساسة."
+      ]
+    },
+    {
+      "id": "gemini",
+      "name": "Google Gemini",
+      "baseUrl": "https://generativelanguage.googleapis.com/v1beta/openai/",
+      "keyUrl": "https://aistudio.google.com/app/apikey",
+      "available": true,
+      "steps": [
+        "افتح صفحة المفاتيح بالزر أدناه.",
+        "سجّل الدخول بحساب Google.",
+        "اضغط Create API key واختر مشروعاً أو أنشئ مشروعاً جديداً.",
+        "انسخ المفتاح.",
+        "ألصقه في الحقل أدناه ثم اضغط اختبر المفتاح."
+      ],
+      "warnings": [
+        "لا يطلب بطاقة ولا رقم هاتف عادةً.",
+        "غير متاح في بعض الدول.",
+        "في الباقة المجانية قد تُستخدم محادثاتك لتحسين منتجات Google.",
+        "الحد المجاني تقريباً: من عشرات إلى مئات الطلبات يومياً حسب المودل."
+      ]
+    },
+    {
+      "id": "openrouter",
+      "name": "OpenRouter",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "keyUrl": "https://openrouter.ai/settings/keys",
+      "available": true,
+      "perModelLimits": true,
+      "headers": { "X-Title": "FreeLLM Chat" },
+      "steps": [
+        "افتح صفحة المفاتيح بالزر أدناه.",
+        "سجّل الدخول بحساب Google أو GitHub.",
+        "اضغط Create Key وأعطه اسماً.",
+        "انسخ المفتاح.",
+        "ألصقه في الحقل أدناه ثم اضغط اختبر المفتاح."
+      ],
+      "warnings": [
+        "لا يطلب بطاقة للمودلات المجانية (التي تنتهي بـ :free).",
+        "الحد المجاني تقريباً: 20 طلباً في الدقيقة و50 طلباً يومياً، ويرتفع إلى 1000 يومياً بعد شحن 10 دولارات.",
+        "بعض المودلات المجانية تسجّل المحادثات وقد تستخدمها للتدريب.",
+        "المودلات المجانية تتغير وتختفي كثيراً."
+      ]
+    },
+    {
+      "id": "cerebras",
+      "name": "Cerebras",
+      "baseUrl": "https://api.cerebras.ai/v1",
+      "keyUrl": "https://cloud.cerebras.ai/",
+      "available": true,
+      "steps": [
+        "افتح الموقع بالزر أدناه.",
+        "سجّل بالبريد أو بحساب Google وأكّد بريدك.",
+        "من القائمة اختر API Keys.",
+        "اضغط Create وانسخ المفتاح.",
+        "ألصقه في الحقل أدناه ثم اضغط اختبر المفتاح."
+      ],
+      "warnings": [
+        "لا يطلب بطاقة عادةً.",
+        "قد يحجب بعض الدول.",
+        "الحد المجاني تقريباً: عدد محدود من الطلبات في الدقيقة وحد يومي بملايين التوكنز."
+      ]
+    },
+    {
+      "id": "mistral",
+      "name": "Mistral",
+      "baseUrl": "https://api.mistral.ai/v1",
+      "keyUrl": "https://console.mistral.ai/api-keys",
+      "available": true,
+      "steps": [
+        "افتح صفحة المفاتيح بالزر أدناه.",
+        "سجّل حساباً واختر خطة Experiment المجانية.",
+        "أكّد رقم هاتفك إن طُلب منك.",
+        "اضغط Create new key وانسخ المفتاح.",
+        "ألصقه في الحقل أدناه ثم اضغط اختبر المفتاح."
+      ],
+      "warnings": [
+        "يطلب رقم هاتف للتحقق في الغالب.",
+        "لا يطلب بطاقة في خطة Experiment.",
+        "في الخطة المجانية قد تُستخدم المحادثات لتحسين النماذج.",
+        "الحد المجاني تقريباً: طلب واحد في الثانية وسقف شهري بالتوكنز."
+      ]
+    },
+    {
+      "id": "nvidia",
+      "name": "NVIDIA NIM",
+      "baseUrl": "https://integrate.api.nvidia.com/v1",
+      "keyUrl": "https://build.nvidia.com/settings/api-keys",
+      "available": false,
+      "steps": [
+        "افتح الصفحة بالزر أدناه.",
+        "سجّل حساباً وأكّد رقم الهاتف.",
+        "أنشئ مفتاحاً وانسخه.",
+        "ألصقه في الحقل أدناه."
+      ],
+      "warnings": [
+        "يطلب رقم هاتف.",
+        "الحد المجاني تقريباً: 40 طلباً في الدقيقة."
+      ]
+    },
+    {
+      "id": "cloudflare",
+      "name": "Cloudflare Workers AI",
+      "baseUrl": "https://api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}/ai/v1",
+      "keyUrl": "https://dash.cloudflare.com/profile/api-tokens",
+      "available": false,
+      "needsAccountId": true,
+      "steps": [
+        "افتح الصفحة بالزر أدناه.",
+        "أنشئ API Token بصلاحية Workers AI.",
+        "انسخ Account ID من لوحة التحكم.",
+        "ألصق المفتاح و Account ID في الحقول أدناه."
+      ],
+      "warnings": [
+        "حصة مجانية يومية محدودة."
+      ]
+    },
+    {
+      "id": "ollama",
+      "name": "Ollama Cloud",
+      "baseUrl": "https://ollama.com/v1",
+      "keyUrl": "https://ollama.com/settings/keys",
+      "available": false,
+      "steps": [
+        "افتح الصفحة بالزر أدناه.",
+        "سجّل الدخول وأنشئ مفتاحاً.",
+        "ألصقه في الحقل أدناه."
+      ],
+      "warnings": [
+        "حد مجاني محدود."
+      ]
+    }
+  ],
+  "models": [
+    { "id": "openai/gpt-oss-120b", "provider": "groq", "displayName": "GPT-OSS 120B (Groq)", "priority": 1, "contextWindow": 131072, "modes": ["smart", "code"], "reasoning": true },
+    { "id": "gpt-oss-120b", "provider": "cerebras", "displayName": "GPT-OSS 120B (Cerebras)", "priority": 2, "contextWindow": 65536, "modes": ["fast", "smart", "code"], "reasoning": true },
+    { "id": "gemini-flash-latest", "provider": "gemini", "displayName": "Gemini Flash", "priority": 3, "contextWindow": 1000000, "modes": ["fast", "smart"], "vision": true, "reasoning": true, "trainsOnData": true },
+    { "id": "nvidia/nemotron-3-ultra-550b-a55b:free", "provider": "openrouter", "displayName": "Nemotron 3 Ultra 550B", "priority": 4, "contextWindow": 131072, "modes": ["smart"], "reasoning": true, "trainsOnData": true },
+    { "id": "zai-glm-4.7", "provider": "cerebras", "displayName": "GLM 4.7 (Cerebras)", "priority": 5, "contextWindow": 131072, "modes": ["smart", "code"], "reasoning": true },
+    { "id": "nvidia/nemotron-3-super-120b-a12b:free", "provider": "openrouter", "displayName": "Nemotron 3 Super 120B", "priority": 6, "contextWindow": 131072, "modes": ["smart"], "reasoning": true, "trainsOnData": true },
+    { "id": "qwen/qwen3-coder:free", "provider": "openrouter", "displayName": "Qwen3 Coder", "priority": 7, "contextWindow": 262144, "modes": ["code"], "trainsOnData": true },
+    { "id": "llama-3.3-70b-versatile", "provider": "groq", "displayName": "Llama 3.3 70B (Groq)", "priority": 8, "contextWindow": 131072, "modes": ["fast", "smart"] },
+    { "id": "mistral-large-latest", "provider": "mistral", "displayName": "Mistral Large", "priority": 9, "contextWindow": 128000, "modes": ["smart", "code"], "vision": true, "trainsOnData": true },
+    { "id": "thinkingmachines/inkling:free", "provider": "openrouter", "displayName": "Inkling", "priority": 10, "contextWindow": 131072, "modes": ["smart"], "trainsOnData": true },
+    { "id": "nvidia/nemotron-3.5-super-vl:free", "provider": "openrouter", "displayName": "Nemotron 3.5 Super VL", "priority": 11, "contextWindow": 131072, "modes": ["smart"], "vision": true, "trainsOnData": true },
+    { "id": "google/gemma-4-31b-it:free", "provider": "openrouter", "displayName": "Gemma 4 31B", "priority": 12, "contextWindow": 131072, "modes": ["fast"], "vision": true, "trainsOnData": true },
+    { "id": "qwen/qwen3-next-80b-a3b-instruct:free", "provider": "openrouter", "displayName": "Qwen3 Next 80B", "priority": 13, "contextWindow": 131072, "modes": ["fast", "smart"], "trainsOnData": true },
+    { "id": "nousresearch/hermes-3-llama-3.1-405b:free", "provider": "openrouter", "displayName": "Hermes 3 405B", "priority": 14, "contextWindow": 131072, "modes": ["smart"], "trainsOnData": true },
+    { "id": "mistral-small-latest", "provider": "mistral", "displayName": "Mistral Small", "priority": 15, "contextWindow": 128000, "modes": ["fast"], "vision": true, "trainsOnData": true },
+    { "id": "openai/gpt-oss-20b", "provider": "groq", "displayName": "GPT-OSS 20B (Groq)", "priority": 16, "contextWindow": 131072, "modes": ["fast"], "reasoning": true },
+    { "id": "thinkingmachines/inkling-small:free", "provider": "openrouter", "displayName": "Inkling Small", "priority": 17, "contextWindow": 131072, "modes": ["fast"], "trainsOnData": true },
+    { "id": "meta-llama/llama-3.3-70b-instruct:free", "provider": "openrouter", "displayName": "Llama 3.3 70B", "priority": 18, "contextWindow": 131072, "modes": ["fast", "smart"], "trainsOnData": true },
+    { "id": "open-mistral-nemo", "provider": "mistral", "displayName": "Mistral Nemo", "priority": 19, "contextWindow": 128000, "modes": ["fast"], "trainsOnData": true },
+    { "id": "gemini-2.5-flash", "provider": "gemini", "displayName": "Gemini 2.5 Flash", "priority": 20, "contextWindow": 1000000, "modes": ["fast", "smart"], "vision": true, "reasoning": true, "trainsOnData": true },
+    { "id": "openrouter/free", "provider": "openrouter", "displayName": "OpenRouter Free (احتياط)", "priority": 99, "contextWindow": 32768, "modes": [], "trainsOnData": true },
+    { "id": "meta/llama-3.3-70b-instruct", "provider": "nvidia", "displayName": "Llama 3.3 70B (NVIDIA)", "priority": 30, "contextWindow": 131072, "modes": ["smart"] },
+    { "id": "@cf/meta/llama-3.3-70b-instruct-fp8-fast", "provider": "cloudflare", "displayName": "Llama 3.3 70B (Cloudflare)", "priority": 31, "contextWindow": 24000, "modes": ["fast"] },
+    { "id": "gpt-oss:120b", "provider": "ollama", "displayName": "GPT-OSS 120B (Ollama)", "priority": 32, "contextWindow": 131072, "modes": ["smart"] }
+  ]
+}
