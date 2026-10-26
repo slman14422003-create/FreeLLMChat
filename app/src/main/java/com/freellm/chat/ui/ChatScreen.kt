@@ -833,6 +833,12 @@ private fun MessageItem(
                     menu = false
                     onEdit(m)
                 })
+                DropdownMenuItem(text = { Text(stringResource(R.string.google_ai_mode)) }, onClick = {
+                    menu = false
+                    val q = java.net.URLEncoder.encode(m.content, "UTF-8")
+                    val i = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.google.com/search?udm=50&q=" + q))
+                    runCatching { ctx.startActivity(i) }
+                })
             } else {
                 DropdownMenuItem(text = { Text(stringResource(R.string.regenerate_other)) }, onClick = {
                     menu = false

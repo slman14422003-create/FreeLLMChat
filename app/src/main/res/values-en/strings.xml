@@ -127,4 +127,5 @@
     <string name="app_label">App</string>
     <string name="preferences_label">Preferences</string>
     <string name="models_count">%1$d models</string>
+    <string name="google_ai_mode">Ask Google AI Mode</string>
 </resources>

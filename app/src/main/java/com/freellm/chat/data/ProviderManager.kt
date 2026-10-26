@@ -128,24 +128,29 @@ class ProviderManager(
             .take(4)
         if (models.isEmpty()) return LlmException(ErrorKind.NOT_FOUND, 404, message = "no models")
         var last: LlmException? = null
+        var accepted = false
         for (m in models) {
             val err = client.test(Target(p.id, p.name, base, p.headers, k, m, altBaseUrl = alt))
-            if (err == null) {
-                withContext(Dispatchers.IO) {
-                    secrets.setApiKey(p.id, k)
-                    secrets.setBaseUrl(
-                        p.id,
-                        baseOverride.trim().takeUnless { it.trimEnd('/') == p.baseUrl.trimEnd('/') }.orEmpty()
-                    )
-                    secrets.setAccountId(p.id, accountId.trim())
-                }
-                settings.setEnabled(p.id, true)
-                settings.setStatus(p.id, "ok")
-                router.health.clearProvider(p.id)
-                return null
+            if (err == null || err.kind == ErrorKind.RATE_LIMIT) {
+                accepted = true
+                break
             }
             last = err
             if (err.kind != ErrorKind.NOT_FOUND && err.kind != ErrorKind.SERVER) break
+        }
+        if (accepted) {
+            withContext(Dispatchers.IO) {
+                secrets.setApiKey(p.id, k)
+                secrets.setBaseUrl(
+                    p.id,
+                    baseOverride.trim().takeUnless { it.trimEnd('/') == p.baseUrl.trimEnd('/') }.orEmpty()
+                )
+                secrets.setAccountId(p.id, accountId.trim())
+            }
+            settings.setEnabled(p.id, true)
+            settings.setStatus(p.id, "ok")
+            router.health.clearProvider(p.id)
+            return null
         }
         val hasOld = withContext(Dispatchers.IO) { !secrets.apiKey(p.id).isNullOrBlank() }
         if (hasOld) settings.setStatus(p.id, "fail")

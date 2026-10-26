@@ -127,4 +127,5 @@
     <string name="app_label">التطبيق</string>
     <string name="preferences_label">التفضيلات</string>
     <string name="models_count">%1$d مودل</string>
+    <string name="google_ai_mode">البحث في Google AI Mode</string>
 </resources>
