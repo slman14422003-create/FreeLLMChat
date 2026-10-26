@@ -32,6 +32,10 @@ class ChatRepository(private val dao: ChatDao) {
 
     suspend fun setPinned(id: Long, pinned: String?) = dao.setPinned(id, pinned)
 
+    suspend fun setStarred(id: Long, on: Boolean) = dao.setStarred(id, on)
+
+    suspend fun setInstructions(id: Long, text: String?) = dao.setInstructions(id, text?.trim()?.ifEmpty { null })
+
     suspend fun deleteConversation(id: Long) = dao.deleteConversation(id)
 
     suspend fun deleteMessage(id: Long) = dao.deleteMessage(id)

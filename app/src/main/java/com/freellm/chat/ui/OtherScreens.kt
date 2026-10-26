@@ -134,7 +134,7 @@ private fun ChoiceDialog(
 }
 
 @Composable
-fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit, onStatus: () -> Unit) {
+fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit, onStatus: () -> Unit, onUsage: () -> Unit, onBrain: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     val theme by app.settings.theme.collectAsStateWithLifecycle(initialValue = "system")
     val proxy by app.settings.proxyUrl.collectAsStateWithLifecycle(initialValue = "")
@@ -321,9 +321,11 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
                     onClick = onProviders
                 )
                 SettingsRow(Icons.Outlined.Speed, stringResource(R.string.model_status), onClick = onStatus)
+                SettingsRow(Icons.Outlined.Info, stringResource(R.string.usage_title), onClick = onUsage)
             }
 
             BackupSection(app, Modifier.appear(3))
+            SecuritySection(app, Modifier.appear(3))
             SectionLabel(stringResource(R.string.preferences_label))
             SettingsGroup(Modifier.appear(3)) {
                 SettingsRow(
@@ -470,6 +472,7 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
                         )
                     }
                 )
+                SettingsRow(Icons.Outlined.Psychology, stringResource(R.string.brain_manage), onClick = onBrain)
                 SettingsRow(
                     Icons.Outlined.DeleteOutline,
                     stringResource(R.string.brain_clear),

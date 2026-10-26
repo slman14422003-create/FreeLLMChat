@@ -149,13 +149,15 @@ private const val CONTINUE_PROMPT =
 private const val MSG_NO_VISION =
     "لا يوجد مودل يدعم الصور بين المزودين المفعّلين. فعّل Gemini أو OpenRouter أو Z.ai من الإعدادات ← المزودون."
 private const val HOLD_CHARS = 48
+private const val QUALITY_CHECK_BELOW = 200
 private const val TAIL_CHARS = 240
 
 class Router(
     private val transport: ChatTransport,
     private val config: RouterConfig = RouterConfig(),
     private val clock: () -> Long = { System.currentTimeMillis() },
-    val limiter: UsageLimiter = UsageLimiter()
+    val limiter: UsageLimiter = UsageLimiter(),
+    val failLog: FailureLog = FailureLog()
 ) {
     val health = Health(config)
     val stats = ModelStats()
@@ -174,6 +176,7 @@ class Router(
                 { if (req.preferredKey != null && it.key == req.preferredKey) 0 else 1 },
                 { if (wanted != null && wanted in it.model.modes) 0 else 1 },
                 { if (req.adaptive) stats.failTier(it.key) else 0 },
+                { -req.rating(it.key).coerceIn(-3, 3) },
                 { if (req.adaptive && req.preferSpeed) stats.latencyBucket(it.key) else 0 },
                 { it.model.priority },
                 { it.providerRank }
@@ -229,6 +232,7 @@ class Router(
         val reasons = LinkedHashMap<String, String>()
         var shown: Target? = null
         var soonest = Long.MAX_VALUE
+        var qualityRetried = false
 
         for (t in ordered) {
             if (!pinned) {
@@ -310,6 +314,15 @@ class Router(
                             holding = false
                         }
                         if (!got) throw LlmException(ErrorKind.EMPTY)
+                        if (!pinned && !qualityRetried && partial.length < QUALITY_CHECK_BELOW &&
+                            OutputQuality.isPoor(partial.toString()) &&
+                            ordered.dropWhile { it != t }.drop(1).any {
+                                health.blockedUntil(it, clock()) == null && limiter.blockedUntil(it, clock()) == null
+                            }
+                        ) {
+                            qualityRetried = true
+                            throw LlmException(ErrorKind.EMPTY, message = "poor output")
+                        }
                         completed = true
                     } finally {
                         ch.cancel()
@@ -320,6 +333,7 @@ class Router(
             } catch (e: Throwable) {
                 val ex = classify(e)
                 reasons[t.providerName] = ex.kind.label()
+                failLog.add(clock(), t.providerName, ex.kind.label())
                 health.onFailure(t, ex, clock())
                 stats.onFail(t.key)
                 val after = health.blockedUntil(t, clock())
@@ -329,7 +343,7 @@ class Router(
                     emit(RouteEvent.Failed(failureMessage(reasons, soonest, clock()), true))
                     return@flow
                 }
-                if (got && partial.length < config.restartBelowChars) {
+                if (got && (partial.length < config.restartBelowChars || ex.message == "poor output")) {
                     partial.clear()
                     emit(RouteEvent.Restart)
                 }

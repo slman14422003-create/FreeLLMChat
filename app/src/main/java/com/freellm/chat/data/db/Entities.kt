@@ -1,5 +1,6 @@
 package com.freellm.chat.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -11,7 +12,9 @@ data class ConversationEntity(
     val title: String,
     val createdAt: Long,
     val updatedAt: Long,
-    val pinnedModel: String? = null
+    val pinnedModel: String? = null,
+    @ColumnInfo(defaultValue = "0") val starred: Boolean = false,
+    val instructions: String? = null
 )
 
 @Entity(

@@ -32,6 +32,7 @@ class SettingsStore(context: Context) {
         val AUTO_SWITCH = booleanPreferencesKey("auto_switch")
         val STYLE = stringPreferencesKey("reply_style")
         val INSTRUCTIONS = stringPreferencesKey("instructions")
+        val FACTS = stringPreferencesKey("personal_facts")
         val AUTO_RESUME = booleanPreferencesKey("auto_resume")
         val TOKEN_SAVER = booleanPreferencesKey("token_saver")
         val BRAIN_LEARN = booleanPreferencesKey("brain_learn")
@@ -65,6 +66,7 @@ class SettingsStore(context: Context) {
     val keylessOff: Flow<Set<String>> = data.map { it[K.KEYLESS_OFF] ?: emptySet() }.distinctUntilChanged()
     val deepThink: Flow<Boolean> = data.map { it[K.DEEP_THINK] ?: false }.distinctUntilChanged()
     val style: Flow<String> = data.map { it[K.STYLE] ?: "default" }.distinctUntilChanged()
+    val facts: Flow<String> = data.map { it[K.FACTS] ?: "" }.distinctUntilChanged()
     val instructions: Flow<String> = data.map { it[K.INSTRUCTIONS] ?: "" }.distinctUntilChanged()
 
     private fun decode(s: String?): Map<String, String> =
@@ -114,6 +116,10 @@ class SettingsStore(context: Context) {
 
     suspend fun setStyle(v: String) {
         ds.edit { it[K.STYLE] = v }
+    }
+
+    suspend fun setFacts(v: String) {
+        ds.edit { it[K.FACTS] = v }
     }
 
     suspend fun setInstructions(v: String) {

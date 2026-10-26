@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Android cannot express IP ranges here, so cleartext is permitted at platform level
+         and LanGuard (OkHttp interceptor) rejects http to anything outside private LAN ranges. -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

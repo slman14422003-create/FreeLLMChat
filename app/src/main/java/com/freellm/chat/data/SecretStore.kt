@@ -44,6 +44,9 @@ class SecretStore(context: Context) {
     fun baseUrl(id: String): String? = prefs.getString("base_$id", null)
     fun modelId(id: String): String? = prefs.getString("model_$id", null)
 
+    fun extra(k: String): String? = prefs.getString("x_$k", null)
+    fun setExtra(k: String, v: String?) = put("x_$k", v)
+
     fun setApiKey(id: String, v: String?) = put("key_$id", v)
     fun setAccountId(id: String, v: String?) = put("acct_$id", v)
     fun setBaseUrl(id: String, v: String?) = put("base_$id", v)
@@ -55,7 +58,7 @@ class SecretStore(context: Context) {
     }
 
     fun exportAll(): Map<String, String> =
-        prefs.all.mapNotNull { (k, v) -> (v as? String)?.let { k to it } }.toMap()
+        prefs.all.filterKeys { !it.startsWith("x_") }.mapNotNull { (k, v) -> (v as? String)?.let { k to it } }.toMap()
 
     fun importAll(data: Map<String, String>, replace: Boolean) {
         val e = prefs.edit()

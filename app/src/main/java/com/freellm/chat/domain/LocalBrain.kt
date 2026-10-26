@@ -78,6 +78,25 @@ class LocalBrain(initial: List<BrainEntry> = emptyList(), private val capacity: 
     }
 
     @Synchronized
+    fun remove(id: Long): Boolean {
+        val removed = entries.removeAll { it.id == id }
+        if (removed) dirty = true
+        return removed
+    }
+
+    @Synchronized
+    fun update(id: Long, question: String, answer: String): Boolean {
+        val q = question.trim()
+        val a = answer.trim()
+        if (q.length < 3 || a.isEmpty()) return false
+        val i = entries.indexOfFirst { it.id == id }
+        if (i < 0) return false
+        entries[i] = entries[i].copy(question = q, answer = a)
+        dirty = true
+        return true
+    }
+
+    @Synchronized
     fun clear() {
         entries.clear()
         dirty = true

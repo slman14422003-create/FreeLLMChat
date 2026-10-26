@@ -36,14 +36,18 @@ class FreeLlmApp : Application() {
             .protocols(listOf(Protocol.HTTP_1_1))
             .retryOnConnectionFailure(true)
             .dns(Ipv4FirstDns)
+            .addInterceptor(com.freellm.chat.data.LanGuard.interceptor)
             .build()
     }
     val settings: SettingsStore by lazy { SettingsStore(this) }
     val secrets: SecretStore by lazy { SecretStore(this) }
     val backup: BackupManager by lazy { BackupManager(this, secrets, settings) }
+    val autoBackup: com.freellm.chat.data.AutoBackup by lazy { com.freellm.chat.data.AutoBackup(this, backup, secrets, local) }
     val client: OpenAiClient by lazy { OpenAiClient(http) }
+    val local: com.freellm.chat.data.LocalPrefs by lazy { com.freellm.chat.data.LocalPrefs(this) }
     val usage: UsagePrefs by lazy { UsagePrefs(this) }
-    val router: Router by lazy { Router(client, limiter = UsageLimiter(usage)) }
+    val ratings: com.freellm.chat.data.ModelRatings by lazy { com.freellm.chat.data.ModelRatings(usage) }
+    val router: Router by lazy { Router(client, limiter = UsageLimiter(usage), failLog = com.freellm.chat.domain.FailureLog(usage)) }
     val catalog: CatalogRepository by lazy { CatalogRepository(this, http, BuildConfig.MODELS_URL) }
     val attachments: AttachmentStore by lazy { AttachmentStore(this) }
     val brainStore: BrainStore by lazy { BrainStore(this) }

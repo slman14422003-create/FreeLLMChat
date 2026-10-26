@@ -27,7 +27,8 @@
     "llm7": 2,
     "cohere": 1,
     "zai": 0,
-    "cloudflare": 3
+    "cloudflare": 3,
+    "github": 3
   },
   "trainsOnData": [
     "gemini",
@@ -134,6 +135,27 @@
       "sharedLimits": true
     },
     {
+      "id": "github",
+      "name": "GitHub Models",
+      "baseUrl": "https://models.github.ai/inference",
+      "keyUrl": "https://github.com/settings/personal-access-tokens/new",
+      "available": true,
+      "perModelLimits": true,
+      "steps": [
+        "افتح صفحة إنشاء التوكن بالزر أدناه وسجّل الدخول إلى GitHub.",
+        "أعطِ التوكن اسماً (Fine-grained personal access token) واختر مدة انتهاء قصيرة.",
+        "في قسم Permissions ← Account permissions اختر Models: Read-only.",
+        "اضغط Generate token وانسخ التوكن.",
+        "ألصقه في الحقل أدناه ثم اضغط اختبر المفتاح."
+      ],
+      "warnings": [
+        "مجاني بحدود يومية ودقيقية تختلف حسب المودل وخطة حسابك؛ راجع توثيق GitHub Models الرسمي للأرقام الحالية.",
+        "حجم الطلب والرد محدود في الباقة المجانية، لذلك يستخدم التطبيق نافذة سياق صغيرة معهم.",
+        "تُرسل محادثاتك إلى GitHub ومطوّر المودل؛ راجع شروط GitHub Models قبل إرسال بيانات حساسة.",
+        "لا تمنح التوكن أي صلاحية غير Models: Read."
+      ]
+    },
+    {
       "id": "custom",
       "name": "مزود مخصّص (Ollama / LM Studio)",
       "baseUrl": "",
@@ -150,6 +172,27 @@
       "warnings": [
         "الاتصال بهذا المزود مباشر ولا يمر عبر الـWorker.",
         "استخدم http فقط على شبكة تثق بها."
+      ]
+    },
+    {
+      "id": "ollama",
+      "name": "Ollama (محلي / LAN)",
+      "baseUrl": "",
+      "keyUrl": "",
+      "available": true,
+      "keyless": true,
+      "custom": true,
+      "steps": [
+        "ثبّت Ollama على حاسوبك وحمّل مودلاً مثل: ollama pull llama3.2",
+        "على الحاسوب اضبط OLLAMA_HOST=0.0.0.0 ثم أعد تشغيل Ollama حتى يقبل اتصالات الشبكة.",
+        "اسمح بالمنفذ 11434 في جدار الحماية (Firewall) للشبكة الخاصة فقط.",
+        "اكتب العنوان مثل http://192.168.1.10:11434/v1 ثم اضغط اختبار الاتصال.",
+        "اضغط اكتشاف المودلات واختر المودلات، ثم اضغط اختبر المفتاح للحفظ."
+      ],
+      "warnings": [
+        "بلا مفتاح وبلا حد يومي؛ السرعة تعتمد على جهازك.",
+        "http مسموح فقط لعناوين الشبكة المحلية (192.168.x.x و10.x.x.x و172.16-31.x.x وlocalhost).",
+        "الهاتف والحاسوب يجب أن يكونا على نفس الشبكة."
       ]
     }
   ],
@@ -338,6 +381,69 @@
       "vision": false,
       "reasoning": false,
       "trainsOnData": false
+    },
+    {
+      "id": "openai/gpt-4.1",
+      "provider": "github",
+      "displayName": "GPT-4.1 (GitHub)",
+      "priority": 21,
+      "contextWindow": 8000,
+      "modes": [
+        "smart",
+        "code"
+      ],
+      "vision": true,
+      "reasoning": false,
+      "trainsOnData": false,
+      "rpm": 10,
+      "rpd": 50
+    },
+    {
+      "id": "openai/gpt-4.1-mini",
+      "provider": "github",
+      "displayName": "GPT-4.1 mini (GitHub)",
+      "priority": 24,
+      "contextWindow": 8000,
+      "modes": [
+        "fast",
+        "smart"
+      ],
+      "vision": true,
+      "reasoning": false,
+      "trainsOnData": false,
+      "rpm": 15,
+      "rpd": 150
+    },
+    {
+      "id": "meta/llama-3.3-70b-instruct",
+      "provider": "github",
+      "displayName": "Llama 3.3 70B (GitHub)",
+      "priority": 33,
+      "contextWindow": 8000,
+      "modes": [
+        "fast",
+        "smart"
+      ],
+      "vision": false,
+      "reasoning": false,
+      "trainsOnData": false,
+      "rpm": 10,
+      "rpd": 50
+    },
+    {
+      "id": "deepseek/deepseek-r1",
+      "provider": "github",
+      "displayName": "DeepSeek R1 (GitHub)",
+      "priority": 36,
+      "contextWindow": 4000,
+      "modes": [
+        "smart"
+      ],
+      "vision": false,
+      "reasoning": true,
+      "trainsOnData": false,
+      "rpm": 1,
+      "rpd": 8
     }
   ],
   "dropLimits": {

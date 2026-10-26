@@ -7,13 +7,13 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ChatDao {
-    @Query("SELECT * FROM conversations ORDER BY updatedAt DESC")
+    @Query("SELECT * FROM conversations ORDER BY starred DESC, updatedAt DESC")
     fun all(): Flow<List<ConversationEntity>>
 
     @Query(
         "SELECT * FROM conversations WHERE title LIKE '%' || :q || '%' " +
             "OR id IN (SELECT conversationId FROM messages WHERE content LIKE '%' || :q || '%') " +
-            "ORDER BY updatedAt DESC"
+            "ORDER BY starred DESC, updatedAt DESC"
     )
     fun search(q: String): Flow<List<ConversationEntity>>
 
@@ -28,6 +28,12 @@ interface ChatDao {
 
     @Query("UPDATE conversations SET pinnedModel = :pinned WHERE id = :id")
     suspend fun setPinned(id: Long, pinned: String?)
+
+    @Query("UPDATE conversations SET starred = :on WHERE id = :id")
+    suspend fun setStarred(id: Long, on: Boolean)
+
+    @Query("UPDATE conversations SET instructions = :text WHERE id = :id")
+    suspend fun setInstructions(id: Long, text: String?)
 
     @Query("UPDATE conversations SET updatedAt = :t WHERE id = :id")
     suspend fun touch(id: Long, t: Long)

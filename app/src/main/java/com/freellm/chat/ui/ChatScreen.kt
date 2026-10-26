@@ -32,6 +32,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Description
@@ -185,6 +187,14 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
     var renaming by remember { mutableStateOf<ConversationEntity?>(null) }
     var editing by remember { mutableStateOf<MessageEntity?>(null) }
     var input by rememberSaveable { mutableStateOf("") }
+    var instrFor by remember { mutableStateOf<ConversationEntity?>(null) }
+    var templatesOpen by remember { mutableStateOf(false) }
+    val localPrefs = remember { (ctx.applicationContext as com.freellm.chat.FreeLlmApp).local }
+    LaunchedEffect(Unit) { if (input.isBlank()) input = localPrefs.draft() }
+    LaunchedEffect(input) {
+        kotlinx.coroutines.delay(400)
+        localPrefs.saveDraft(input)
+    }
     val s = stream
     val generating = s?.active == true
     val pendingReq = s == null && messages.lastOrNull()?.role == "user"
@@ -251,6 +261,74 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
         )
     }
 
+    val ins = instrFor
+    if (ins != null) {
+        var text by remember(ins.id) { mutableStateOf(ins.instructions.orEmpty()) }
+        AlertDialog(
+            onDismissRequest = { instrFor = null },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.setConversationInstructions(ins.id, text)
+                    instrFor = null
+                }) { Text(stringResource(R.string.save)) }
+            },
+            dismissButton = { TextButton(onClick = { instrFor = null }) { Text(stringResource(R.string.cancel)) } },
+            title = { Text(stringResource(R.string.convo_instructions)) },
+            text = {
+                OutlinedTextField(
+                    text, { text = it }, maxLines = 8, modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text(stringResource(R.string.convo_instructions_hint)) }
+                )
+            }
+        )
+    }
+
+    if (templatesOpen) {
+        var list by remember { mutableStateOf(localPrefs.templates()) }
+        var draftTpl by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { templatesOpen = false },
+            confirmButton = { TextButton(onClick = { templatesOpen = false }) { Text(stringResource(R.string.ok)) } },
+            title = { Text(stringResource(R.string.templates)) },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    list.forEachIndexed { i, t ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                t,
+                                Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        input = if (input.isBlank()) t else input.trimEnd() + "\n" + t
+                                        templatesOpen = false
+                                    }
+                                    .padding(vertical = 10.dp),
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            TextButton(onClick = {
+                                list = list.filterIndexed { j, _ -> j != i }
+                                localPrefs.saveTemplates(list)
+                            }) { Text(stringResource(R.string.delete), color = cs.error) }
+                        }
+                    }
+                    OutlinedTextField(
+                        draftTpl, { draftTpl = it }, maxLines = 4, modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text(stringResource(R.string.template_hint)) }
+                    )
+                    TextButton(
+                        onClick = {
+                            list = list + draftTpl.trim()
+                            localPrefs.saveTemplates(list)
+                            draftTpl = ""
+                        },
+                        enabled = draftTpl.isNotBlank()
+                    ) { Text(stringResource(R.string.add_template)) }
+                }
+            }
+        )
+    }
+
     val ed = editing
     if (ed != null) {
         var text by remember(ed.id) { mutableStateOf(ed.content) }
@@ -285,6 +363,9 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                     scope.launch { drawerState.close() }
                 },
                 onRename = { renaming = it },
+                onStar = { vm.toggleStar(it) },
+                onInstructions = { instrFor = it },
+                onTemplates = { templatesOpen = true },
                 onDelete = { vm.delete(it.id) },
                 onExport = { c ->
                     vm.export(c.id) { text ->
@@ -437,6 +518,7 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
             selection = selection,
             targets = targets,
             health = { vm.health(it) },
+            latency = { vm.latency(it) },
             onPick = { code ->
                 when (p) {
                     is Picker.Mode, is Picker.Model -> vm.select(code)
@@ -820,6 +902,9 @@ private fun ChatDrawer(
     onNew: () -> Unit,
     onOpen: (Long) -> Unit,
     onRename: (ConversationEntity) -> Unit,
+    onStar: (ConversationEntity) -> Unit,
+    onInstructions: (ConversationEntity) -> Unit,
+    onTemplates: () -> Unit,
     onDelete: (ConversationEntity) -> Unit,
     onExport: (ConversationEntity) -> Unit,
     onSettings: () -> Unit
@@ -869,6 +954,18 @@ private fun ChatDrawer(
                 Spacer(Modifier.width(14.dp))
                 Text(stringResource(R.string.new_chat), style = MaterialTheme.typography.bodyLarge)
             }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .clickable(onClick = onTemplates)
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Outlined.Edit, null, Modifier.size(22.dp))
+                Spacer(Modifier.width(14.dp))
+                Text(stringResource(R.string.templates), style = MaterialTheme.typography.bodyLarge)
+            }
             Text(
                 stringResource(R.string.chats_label),
                 Modifier.padding(start = 12.dp, top = 14.dp, bottom = 6.dp),
@@ -882,6 +979,8 @@ private fun ChatDrawer(
                         selected = c.id == selectedId,
                         onOpen = { onOpen(c.id) },
                         onRename = { onRename(c) },
+                        onStar = { onStar(c) },
+                        onInstructions = { onInstructions(c) },
                         onDelete = { onDelete(c) },
                         onExport = { onExport(c) }
                     )
@@ -923,6 +1022,8 @@ private fun ConversationRow(
     selected: Boolean,
     onOpen: () -> Unit,
     onRename: () -> Unit,
+    onStar: () -> Unit,
+    onInstructions: () -> Unit,
     onDelete: () -> Unit,
     onExport: () -> Unit
 ) {
@@ -937,6 +1038,10 @@ private fun ConversationRow(
             .padding(start = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (c.starred) {
+            Icon(Icons.Filled.PushPin, null, Modifier.size(14.dp), tint = cs.tertiary)
+            Spacer(Modifier.width(6.dp))
+        }
         Text(
             c.title,
             Modifier
@@ -955,6 +1060,14 @@ private fun ConversationRow(
                 contentAlignment = Alignment.Center
             ) { Icon(Icons.Filled.MoreVert, null, Modifier.size(18.dp), tint = cs.onSurfaceVariant) }
             DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                DropdownMenuItem(text = { Text(stringResource(if (c.starred) R.string.unpin_chat else R.string.pin_chat)) }, onClick = {
+                    open = false
+                    onStar()
+                })
+                DropdownMenuItem(text = { Text(stringResource(R.string.convo_instructions)) }, onClick = {
+                    open = false
+                    onInstructions()
+                })
                 DropdownMenuItem(text = { Text(stringResource(R.string.rename)) }, onClick = {
                     open = false
                     onRename()

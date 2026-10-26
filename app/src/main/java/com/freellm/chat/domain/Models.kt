@@ -78,7 +78,8 @@ data class RouteRequest(
     val preferredKey: String? = null,
     val adaptive: Boolean = false,
     val preferSpeed: Boolean = false,
-    val needsVision: Boolean = false
+    val needsVision: Boolean = false,
+    val rating: (String) -> Int = { 0 }
 )
 
 sealed class RouteEvent {

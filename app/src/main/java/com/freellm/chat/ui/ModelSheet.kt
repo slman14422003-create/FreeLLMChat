@@ -68,6 +68,7 @@ fun ModelSheet(
     selection: String,
     targets: List<Target>,
     health: (Target) -> ModelHealth,
+    latency: (Target) -> Long? = { null },
     onPick: (String) -> Unit,
     onPrivacy: () -> Unit,
     onProviders: () -> Unit,
@@ -104,6 +105,7 @@ fun ModelSheet(
         it.model.displayName.contains(q, ignoreCase = true) || it.providerName.contains(q, ignoreCase = true)
     }
     val grouped = shown.groupBy { it.providerName }
+    val fastestKey = shown.mapNotNull { t -> latency(t)?.let { t.key to it } }.minByOrNull { it.second }?.first
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -181,6 +183,9 @@ fun ModelSheet(
                             add(ctxLabel(t.model.contextWindow))
                             if (t.model.vision) add(stringResource(R.string.tag_vision))
                             if (t.model.reasoning) add(stringResource(R.string.tag_reasoning))
+                            latency(t)?.let { ms ->
+                                add((if (t.key == fastestKey) "⚡ " else "") + ms + " ms")
+                            }
                         }.joinToString(" · ")
                         val status: String? = when (h) {
                             is ModelHealth.Cooling ->

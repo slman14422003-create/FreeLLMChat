@@ -58,6 +58,7 @@ fun BackupSection(app: FreeLlmApp, modifier: Modifier = Modifier) {
     val badMsg = stringResource(R.string.backup_bad_file)
     val failMsg = stringResource(R.string.backup_failed)
     val gateTitle = stringResource(R.string.backup_auth_title)
+    if (step != BackupStep.None) SecureWindow()
 
     fun toast(m: String) = Toast.makeText(ctx, m, Toast.LENGTH_LONG).show()
     fun reset() {

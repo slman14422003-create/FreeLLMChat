@@ -116,9 +116,29 @@ class ModelStats {
     }
 
     @Synchronized
+    fun latencyMs(key: String): Long? {
+        val s = map[key] ?: return null
+        return if (s.samples == 0) null else s.latencyMs
+    }
+
+    @Synchronized
     fun latencyBucket(key: String): Int {
         val s = map[key] ?: return 1
         if (s.samples == 0) return 1
         return (s.latencyMs / 1500).toInt().coerceAtMost(4)
+    }
+}
+
+object OutputQuality {
+    private val refusal = Regex("^(i('| a)m sorry|sorry|as an ai)[^\\n]{0,40}$", RegexOption.IGNORE_CASE)
+
+    /** True when a finished reply is empty, a bare fragment, or cut mid-word and so not worth keeping. */
+    fun isPoor(text: String): Boolean {
+        val t = text.trim()
+        if (t.length < 2) return true
+        if (refusal.matches(t)) return true
+        val last = t.last()
+        if (t.length < 40 && (last == ',' || last == ':' || last == '،')) return true
+        return false
     }
 }

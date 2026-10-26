@@ -6,6 +6,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -163,6 +164,17 @@ fun ProviderWizardScreen(app: FreeLlmApp, providerId: String, onBack: () -> Unit
     var result by remember(providerId) { mutableStateOf<String?>(null) }
     var ok by remember(providerId) { mutableStateOf(false) }
     val okText = stringResource(R.string.test_ok)
+    SecureWindow()
+    val clipCtx = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(key) {
+        if (key.isNotBlank()) {
+            kotlinx.coroutines.delay(30_000)
+            clearClipboardIfMatches(clipCtx, key.trim().split(Regex("\\s+")).first())
+        }
+    }
+    var found by remember(providerId) { mutableStateOf<List<String>>(emptyList()) }
+    val connOk = stringResource(R.string.conn_ok)
+    val noModels = stringResource(R.string.no_models_found)
 
     Scaffold(
         contentWindowInsets = WindowInsets.safeDrawing,
@@ -245,6 +257,48 @@ fun ProviderWizardScreen(app: FreeLlmApp, providerId: String, onBack: () -> Unit
                     singleLine = true,
                     label = { Text(stringResource(R.string.model_id)) }
                 )
+            }
+            if (def.id == "ollama") {
+                OutlinedButton(
+                    onClick = {
+                        scope.launch {
+                            busy = true
+                            result = null
+                            val (ids, err) = app.manager.discoverModels(base, key)
+                            busy = false
+                            if (ids.isNotEmpty()) {
+                                found = ids
+                                ok = true
+                                result = connOk.replace("%d", ids.size.toString())
+                                if (modelId.isBlank()) modelId = ids.first()
+                            } else {
+                                ok = false
+                                result = err?.arabic() ?: noModels
+                            }
+                        }
+                    },
+                    enabled = !busy && base.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(stringResource(R.string.test_connection_discover)) }
+                if (found.isNotEmpty()) {
+                    Text(stringResource(R.string.discovered_models), style = MaterialTheme.typography.titleMedium)
+                    val chosen = modelId.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+                    found.forEach { id ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    val next = if (id in chosen) chosen - id else chosen + id
+                                    modelId = next.joinToString(",")
+                                },
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            androidx.compose.material3.Checkbox(checked = id in chosen, onCheckedChange = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(id, Modifier.weight(1f))
+                        }
+                    }
+                }
             }
             Button(
                 onClick = {

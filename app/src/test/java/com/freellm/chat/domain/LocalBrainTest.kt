@@ -53,3 +53,15 @@ class LocalBrainTest {
         assertTrue(b.all().any { it.id == keep.id })
     }
 }
+
+class LocalBrainEditTest {
+    @org.junit.Test
+    fun updateAndRemove() {
+        val b = LocalBrain()
+        val e = b.learn("what is the capital of France", "Paris")!!
+        org.junit.Assert.assertTrue(b.update(e.id, "capital of France?", "Paris, France"))
+        org.junit.Assert.assertEquals("Paris, France", b.all().first().answer)
+        org.junit.Assert.assertTrue(b.remove(e.id))
+        org.junit.Assert.assertEquals(0, b.size())
+    }
+}

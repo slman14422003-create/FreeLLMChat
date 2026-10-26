@@ -89,6 +89,8 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
 
     val generating: Boolean get() = job?.isActive == true
 
+    fun latency(t: Target): Long? = router.stats.latencyMs(t.key)
+
     fun health(t: Target): ModelHealth = router.health.state(t, System.currentTimeMillis())
 
     private fun nonPin(): String = selection.value.takeIf { !it.startsWith("PIN:") } ?: "ADAPT"
@@ -173,6 +175,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
 
     /** Thumbs up/down on an answer: good answers are trusted more, bad ones are forgotten by the local brain. */
     fun rate(m: MessageEntity, good: Boolean) {
+        m.modelKey?.let { app.ratings.rate(it, good) }
         viewModelScope.launch {
             val list = repo.messagesOnce(m.conversationId)
             val idx = list.indexOfFirst { it.id == m.id }
@@ -194,6 +197,14 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
             app.brainStore.save()
             notice.value = app.getString(R.string.brain_cleared)
         }
+    }
+
+    fun toggleStar(c: ConversationEntity) {
+        viewModelScope.launch { repo.setStarred(c.id, !c.starred) }
+    }
+
+    fun setConversationInstructions(id: Long, text: String) {
+        viewModelScope.launch { repo.setInstructions(id, text) }
     }
 
     fun rename(id: Long, title: String) {
@@ -387,18 +398,28 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         job = viewModelScope.launch { block() }
     }
 
-    private suspend fun systemPrompt(): String {
+    private suspend fun systemPrompt(cid: Long): String {
         val style = when (app.settings.style.first()) {
             "concise" -> "Keep answers short and direct."
             "detailed" -> "Give thorough, well-structured, detailed answers."
             "teacher" -> "Explain step by step like a patient teacher, using simple examples."
             else -> ""
         }
-        val custom = app.settings.instructions.first().trim()
+        val vars = { t: String ->
+            com.freellm.chat.domain.PromptVars.expand(
+                t, java.time.LocalDateTime.now(), android.os.Build.MODEL.orEmpty(),
+                java.util.Locale.getDefault().displayLanguage
+            )
+        }
+        val custom = vars(app.settings.instructions.first().trim())
+        val facts = app.settings.facts.first().trim().take(1500)
+        val convo = vars(repo.conversation(cid)?.instructions.orEmpty().trim())
         return listOf(
             SYSTEM_PROMPT,
             style,
-            if (custom.isNotEmpty()) "User instructions: $custom" else ""
+            if (facts.isNotEmpty()) "Personal facts about the user (use them naturally, do not repeat them back): $facts" else "",
+            if (custom.isNotEmpty()) "User instructions: $custom" else "",
+            if (convo.isNotEmpty()) "Instructions for this conversation (they take priority): $convo" else ""
         ).filter { it.isNotEmpty() }.joinToString("\n")
     }
 
@@ -506,7 +527,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                 m.forEach { append("\nQ: ").append(it.entry.question.take(200)).append("\nA: ").append(it.entry.answer.take(500)) }
             }
         } else ""
-        val sys = listOf(systemPrompt(), hint, deep, memory).filter { it.isNotEmpty() }.joinToString("\n")
+        val sys = listOf(systemPrompt(cid), hint, deep, memory).filter { it.isNotEmpty() }.joinToString("\n")
         val req = RouteRequest(
             messages = listOf(ChatMsg("system", sys)) + history,
             mode = mode,
@@ -516,7 +537,8 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
             maxTokens = if (saver && kind == TaskKind.QUICK && cont == null) QUICK_MAX_TOKENS else null,
             adaptive = adaptive,
             preferSpeed = adaptive && kind == TaskKind.QUICK,
-            needsVision = needsVision
+            needsVision = needsVision,
+            rating = { app.ratings.score(it) }
         )
 
         val text = StringBuilder(prefix)

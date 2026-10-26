@@ -14,6 +14,10 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
+enum class KeyState { OK, INVALID, FAILING }
+
+data class KeyCheck(val providerName: String, val state: KeyState)
+
 enum class ProviderStatus { NOT_CONFIGURED, READY, FAILED }
 
 data class ProviderUi(
@@ -121,7 +125,7 @@ class ProviderManager(
                     val (base, alt) = baseFor(p, secrets.baseUrl(p.id), proxy, secrets.accountId(p.id).orEmpty())
                     val pool = if (p.custom) {
                         val mid = secrets.modelId(p.id).orEmpty()
-                        if (mid.isBlank() || base.isBlank()) emptyList() else listOf(customModel(p, mid))
+                        if (mid.isBlank() || base.isBlank()) emptyList() else customModels(p, mid)
                     } else {
                         cat.models.filter { it.provider == p.id && !expired(it, today) && !(avoid && it.trainsOnData) }
                     }
@@ -133,12 +137,16 @@ class ProviderManager(
             }
     }
 
-    private fun customModel(p: ProviderDef, id: String) = ModelDef(
+    private fun customModels(p: ProviderDef, ids: String): List<ModelDef> =
+        ids.split(',').map { it.trim() }.filter { it.isNotEmpty() }.distinct().mapIndexed { i, id -> customModel(p, id, 95 + i) }
+
+    private fun customModel(p: ProviderDef, id: String, priority: Int = 95) = ModelDef(
         id = id,
         provider = p.id,
         displayName = id,
-        priority = 95,
+        priority = priority,
         contextWindow = 32000,
+        vision = Regex("llava|vision|minicpm-v|gemma3|qwen2.5vl|llama3.2-vision", RegexOption.IGNORE_CASE).containsMatchIn(id),
         modes = listOf("fast", "smart", "code")
     )
 
@@ -167,7 +175,7 @@ class ProviderManager(
         val models = if (p.custom) {
             val mid = modelId.trim()
             if (base.isBlank() || mid.isEmpty()) return LlmException(ErrorKind.BAD_REQUEST, message = "base url and model id required")
-            listOf(customModel(p, mid))
+            customModels(p, mid).take(1)
         } else {
             catalog.catalog.value.models
                 .filter { it.provider == p.id }
@@ -241,6 +249,40 @@ class ProviderManager(
         }
         router.health.clearProvider(id)
     }
+
+    suspend fun testAll(): List<KeyCheck> {
+        val cat = catalog.catalog.value
+        val proxy = settings.proxyUrl.first()
+        val out = ArrayList<KeyCheck>()
+        for (p in cat.providers.filter { it.available }) {
+            val keys = withContext(Dispatchers.IO) { secrets.apiKey(p.id).orEmpty() }
+                .split('\n').map { it.trim() }.filter { it.isNotEmpty() }
+            val (base, alt) = baseFor(p, secrets.baseUrl(p.id), proxy, secrets.accountId(p.id).orEmpty())
+            val models = if (p.custom) {
+                val mid = secrets.modelId(p.id).orEmpty()
+                if (base.isBlank() || mid.isBlank()) continue
+                customModels(p, mid).take(1)
+            } else {
+                if (keys.isEmpty()) continue
+                cat.models.filter { it.provider == p.id }.sortedBy { it.priority }.take(2)
+            }
+            if (models.isEmpty()) continue
+            var worst = KeyState.OK
+            for (k in keys.ifEmpty { listOf("") }) {
+                val err = probe(p, base, alt, k, models)
+                val st = when {
+                    err == null -> KeyState.OK
+                    err.kind == ErrorKind.AUTH && err.httpCode == 401 -> KeyState.INVALID
+                    else -> KeyState.FAILING
+                }
+                if (st.ordinal > worst.ordinal) worst = st
+            }
+            out.add(KeyCheck(p.name, worst))
+        }
+        return out
+    }
+
+    suspend fun discoverModels(base: String, key: String) = client.listModels(base, key)
 
     fun baseUrlOf(id: String): String = secrets.baseUrl(id).orEmpty()
     fun modelIdOf(id: String): String = secrets.modelId(id).orEmpty()

@@ -251,4 +251,40 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
             mapIo(e, base)
         }
     }
+
+    /** Lists model ids from an OpenAI-style /models endpoint, falling back to Ollama's /api/tags. */
+    suspend fun listModels(base: String, key: String): Pair<List<String>, LlmException?> = withContext(Dispatchers.IO) {
+        val root = base.trim().trimEnd('/')
+        if (root.isEmpty()) return@withContext emptyList<String>() to LlmException(ErrorKind.BAD_REQUEST, message = "empty url")
+        val ollamaRoot = root.removeSuffix("/v1")
+        var last: LlmException? = null
+        val urls = listOf(root + "/models" to "data", ollamaRoot + "/api/tags" to "models")
+        for ((url, field) in urls) {
+            try {
+                val b = Request.Builder().url(url).header("Accept", "application/json")
+                if (key.isNotBlank()) b.header("Authorization", "Bearer $key")
+                http.newCall(b.get().build()).execute().use { r ->
+                    val txt = r.body?.string().orEmpty()
+                    if (!r.isSuccessful) {
+                        last = httpError(r.code, null, txt, key)
+                    } else {
+                        val arr = (json.parseToJsonElement(txt) as? JsonObject)?.get(field) as? JsonArray
+                        val ids = arr.orEmpty().mapNotNull { e ->
+                            val o = e as? JsonObject ?: return@mapNotNull null
+                            ((o["id"] ?: o["name"]) as? JsonPrimitive)?.content
+                        }.distinct()
+                        if (ids.isNotEmpty()) return@withContext ids to null
+                        last = LlmException(ErrorKind.EMPTY, message = "no models")
+                    }
+                }
+            } catch (e: IOException) {
+                last = mapIo(e, url)
+            } catch (e: IllegalArgumentException) {
+                last = LlmException(ErrorKind.BAD_REQUEST, message = "invalid url")
+            } catch (e: Exception) {
+                last = LlmException(ErrorKind.SERVER, message = e.javaClass.simpleName)
+            }
+        }
+        emptyList<String>() to last
+    }
 }

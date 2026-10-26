@@ -156,4 +156,44 @@ class RouterTest {
         assertEquals(listOf(b.key, a.key), tr.calls.map { it.first })
         assertEquals("from-a", textOf(events))
     }
+
+    @Test
+    fun poorOutputRetriesOnNextModel() = runTest {
+        val a = tgt("a", "m1", 1)
+        val b = tgt("b", "m2", 2)
+        val tr = FakeTransport { t, _, _ ->
+            if (t.providerId == "a") flow<String> { emit(" .") } else flow<String> { emit("A proper full answer.") }
+        }
+        val router = Router(tr, clock = { 0L })
+        val events = router.stream(req(a, b)).toList()
+        assertEquals(listOf(a.key, b.key), tr.calls.map { it.first })
+        assertTrue(events.any { it is RouteEvent.Restart })
+        assertEquals((events.last() as RouteEvent.Done).target.key, b.key)
+    }
+
+    @Test
+    fun poorOutputWithNoFallbackIsKept() = runTest {
+        val a = tgt("a", "m1", 1)
+        val tr = FakeTransport { _, _, _ -> flow<String> { emit("ok,") } }
+        val events = Router(tr, clock = { 0L }).stream(req(a)).toList()
+        assertTrue(events.last() is RouteEvent.Done)
+    }
+
+    @Test
+    fun ratingsRankModelsWithinSamePriorityTier() = runTest {
+        val a = tgt("a", "m1", 5)
+        val b = tgt("b", "m2", 5)
+        val tr = FakeTransport { _, _, _ -> flow<String> { emit("fine answer") } }
+        val router = Router(tr, clock = { 0L })
+        router.stream(req(a, b).copy(rating = { if (it == b.key) 2 else 0 })).toList()
+        assertEquals(listOf(b.key), tr.calls.map { it.first })
+    }
+
+    @Test
+    fun outputQualityRules() {
+        assertTrue(OutputQuality.isPoor(""))
+        assertTrue(OutputQuality.isPoor("x"))
+        assertTrue(OutputQuality.isPoor("Sorry, I can't"))
+        assertTrue(!OutputQuality.isPoor("Paris is the capital of France."))
+    }
 }

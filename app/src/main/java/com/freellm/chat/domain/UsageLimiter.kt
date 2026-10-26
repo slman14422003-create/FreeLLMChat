@@ -10,6 +10,8 @@ interface UsageStore {
     fun write(key: String, value: String)
 }
 
+data class UsageSnap(val minUsed: Int, val minLimit: Int, val dayUsed: Int, val dayLimit: Int)
+
 class UsageLimiter(
     private val store: UsageStore? = null,
     private val zone: ZoneId = ZoneId.systemDefault()
@@ -83,6 +85,15 @@ class UsageLimiter(
         }
         if (m.rpd > 0) bump("d:$s", dayId(now))
         if (m.rpmo > 0) bump("m:$s", monthId(now))
+    }
+
+    @Synchronized
+    fun snapshot(t: Target, now: Long): UsageSnap {
+        val m = t.model
+        val s = scope(t)
+        val minUsed = recent[s]?.count { now - it < MINUTE } ?: 0
+        val day = if (m.rpd > 0) count("d:$s", dayId(now)) else 0
+        return UsageSnap(minUsed, m.rpm, day, m.rpd)
     }
 
     @Synchronized

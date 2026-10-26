@@ -56,7 +56,7 @@ private fun MainNav(app: FreeLlmApp) {
     BackHandler(enabled = route != "chat") {
         route = when {
             route.startsWith("provider:") -> "providers"
-            route == "providers" || route == "status" -> "settings"
+            route == "providers" || route == "status" || route == "usage" || route == "brain" -> "settings"
             else -> "chat"
         }
     }
@@ -86,7 +86,9 @@ private fun MainNav(app: FreeLlmApp) {
                 app = app,
                 onBack = { route = "chat" },
                 onProviders = { route = "providers" },
-                onStatus = { route = "status" }
+                onStatus = { route = "status" },
+                onUsage = { route = "usage" },
+                onBrain = { route = "brain" }
             )
             r == "providers" -> ProvidersScreen(
                 app = app,
@@ -94,6 +96,8 @@ private fun MainNav(app: FreeLlmApp) {
                 onOpen = { route = "provider:$it" }
             )
             r == "status" -> StatusScreen(app = app, onBack = { route = "settings" })
+            r == "usage" -> UsageScreen(app = app, onBack = { route = "settings" })
+            r == "brain" -> BrainScreen(app = app, onBack = { route = "settings" })
             r.startsWith("provider:") -> ProviderWizardScreen(
                 app = app,
                 providerId = r.removePrefix("provider:"),
@@ -107,6 +111,6 @@ private fun MainNav(app: FreeLlmApp) {
 private fun depthOf(r: String): Int = when {
     r == "chat" -> 0
     r == "settings" -> 1
-    r == "providers" || r == "status" -> 2
+    r == "providers" || r == "status" || r == "usage" || r == "brain" -> 2
     else -> 3
 }
