@@ -74,21 +74,23 @@ fun WelcomeScreen(onStart: () -> Unit) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        StarBurst(size = 64.dp)
+        StarBurst(size = 64.dp, spinning = true)
         Spacer(Modifier.height(28.dp))
         Text(
             stringResource(R.string.welcome_title),
+            Modifier.appear(1),
             style = MaterialTheme.typography.headlineSmall,
             color = cs.onBackground
         )
         Spacer(Modifier.height(16.dp))
-        Text(stringResource(R.string.welcome_body), color = cs.onSurfaceVariant)
+        Text(stringResource(R.string.welcome_body), Modifier.appear(2), color = cs.onSurfaceVariant)
         Spacer(Modifier.height(16.dp))
-        Text(stringResource(R.string.welcome_privacy), color = cs.secondary)
+        Text(stringResource(R.string.welcome_privacy), Modifier.appear(3), color = cs.secondary)
         Spacer(Modifier.height(32.dp))
         Button(
             onClick = onStart,
             modifier = Modifier
+                .appear(4)
                 .fillMaxWidth()
                 .height(52.dp),
             shape = CircleShape
@@ -268,6 +270,7 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
             // Account-style card
             Row(
                 Modifier
+                    .appear(0)
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(24.dp))
                     .background(cs.surfaceContainerHigh)
@@ -295,6 +298,7 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
             // Upgrade-style card
             Column(
                 Modifier
+                    .appear(1)
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(24.dp))
                     .background(cs.surfaceContainerHigh)
@@ -307,7 +311,7 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
                 Button(onClick = onProviders, shape = CircleShape) { Text(stringResource(R.string.add_provider)) }
             }
 
-            SettingsGroup {
+            SettingsGroup(Modifier.appear(2)) {
                 SettingsRow(
                     Icons.Outlined.Cloud,
                     stringResource(R.string.providers),
@@ -318,7 +322,7 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
             }
 
             SectionLabel(stringResource(R.string.preferences_label))
-            SettingsGroup {
+            SettingsGroup(Modifier.appear(3)) {
                 SettingsRow(
                     Icons.Outlined.SwapHoriz,
                     stringResource(R.string.auto_switch),
@@ -382,7 +386,7 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
             }
 
             SectionLabel(stringResource(R.string.app_label))
-            SettingsGroup {
+            SettingsGroup(Modifier.appear(4)) {
                 SettingsRow(
                     Icons.Outlined.DarkMode,
                     stringResource(R.string.theme),
@@ -404,7 +408,7 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
             }
 
             SectionLabel(stringResource(R.string.data_label))
-            SettingsGroup {
+            SettingsGroup(Modifier.appear(5)) {
                 SettingsRow(
                     Icons.Outlined.DeleteOutline,
                     stringResource(R.string.delete_all_chats),
@@ -449,7 +453,7 @@ fun StatusScreen(app: FreeLlmApp, onBack: () -> Unit) {
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp)
             ) {
-                SettingsGroup {
+                SettingsGroup(Modifier.appear(6)) {
                     targets.forEach { t ->
                         val st = app.router.health.state(t, now)
                         val color = when (st) {

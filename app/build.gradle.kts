@@ -34,7 +34,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = appVersionCode
-        versionName = "1.2.0"
+        versionName = "1.3.0"
         buildConfigField("String", "MODELS_URL", "\"$modelsUrl\"")
         buildConfigField("String", "DEFAULT_PROXY", "\"https://freellm.slman2233445566y.workers.dev\"")
         resourceConfigurations += listOf("ar", "en")
@@ -53,6 +53,7 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            isDebuggable = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -80,6 +81,9 @@ android {
     }
 
     packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
         resources {
             excludes += setOf(
                 "/META-INF/{AL2.0,LGPL2.1}",
@@ -124,6 +128,7 @@ dependencies {
 
     implementation(libs.okhttp)
     implementation(libs.pdfbox.android)
+    implementation(libs.androidx.profileinstaller)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
 

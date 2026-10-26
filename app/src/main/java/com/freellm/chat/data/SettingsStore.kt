@@ -37,7 +37,7 @@ class SettingsStore(context: Context) {
 
     private val data: Flow<Preferences> = ds.data.catch { emit(emptyPreferences()) }
 
-    val theme: Flow<String> = data.map { it[K.THEME] ?: "system" }.distinctUntilChanged()
+    val theme: Flow<String> = data.map { it[K.THEME] ?: "dark" }.distinctUntilChanged()
     val welcomeDone: Flow<Boolean> = data.map { it[K.WELCOME] ?: false }.distinctUntilChanged()
     val enabled: Flow<Set<String>> = data.map { it[K.ENABLED] ?: emptySet() }.distinctUntilChanged()
     val order: Flow<List<String>> = data

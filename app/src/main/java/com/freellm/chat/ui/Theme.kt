@@ -16,13 +16,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /** ChatGPT palette: #212121 canvas, #171717 sidebar, #2F2F2F raised surfaces, #10A37F brand green. */
-val GptGreen = Color(0xFF10A37F)
+val Accent = Color(0xFF2F7BFF)
+val GptGreen = Accent
 
 private val LightColors = lightColorScheme(
-    primary = Color(0xFF0D0D0D),
+    primary = Accent,
     onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFECECEC),
-    onPrimaryContainer = Color(0xFF0D0D0D),
+    primaryContainer = Color(0xFFDCE8FF),
+    onPrimaryContainer = Color(0xFF0B2A66),
     secondary = Color(0xFFC2410C),
     onSecondary = Color.White,
     tertiary = GptGreen,
@@ -45,27 +46,29 @@ private val LightColors = lightColorScheme(
 )
 
 private val DarkColors = darkColorScheme(
-    primary = Color(0xFFFFFFFF),
-    onPrimary = Color(0xFF0D0D0D),
-    primaryContainer = Color(0xFF424242),
-    onPrimaryContainer = Color(0xFFECECEC),
+    primary = Accent,
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFF12294F),
+    onPrimaryContainer = Color(0xFFCFE0FF),
     secondary = Color(0xFFE5A04B),
     onSecondary = Color(0xFF2B1A00),
-    tertiary = GptGreen,
+    tertiary = Accent,
     onTertiary = Color.White,
-    background = Color(0xFF212121),
-    onBackground = Color(0xFFECECEC),
-    surface = Color(0xFF212121),
-    onSurface = Color(0xFFECECEC),
-    surfaceVariant = Color(0xFF2F2F2F),
-    onSurfaceVariant = Color(0xFFB4B4B4),
-    outline = Color(0xFF4D4D4D),
-    outlineVariant = Color(0xFF383838),
-    surfaceContainerLowest = Color(0xFF171717),
-    surfaceContainerLow = Color(0xFF171717),
-    surfaceContainer = Color(0xFF2A2A2A),
-    surfaceContainerHigh = Color(0xFF2F2F2F),
-    surfaceContainerHighest = Color(0xFF424242),
+    background = Color(0xFF000000),
+    onBackground = Color(0xFFEDEDED),
+    surface = Color(0xFF000000),
+    onSurface = Color(0xFFEDEDED),
+    surfaceVariant = Color(0xFF161616),
+    onSurfaceVariant = Color(0xFFA8A8A8),
+    outline = Color(0xFF333333),
+    outlineVariant = Color(0xFF222222),
+    surfaceContainerLowest = Color(0xFF000000),
+    surfaceContainerLow = Color(0xFF080808),
+    surfaceContainer = Color(0xFF101010),
+    surfaceContainerHigh = Color(0xFF161616),
+    surfaceContainerHighest = Color(0xFF222222),
+    inverseSurface = Color(0xFFEDEDED),
+    inverseOnSurface = Color(0xFF000000),
     error = Color(0xFFF93A37),
     scrim = Color(0xFF000000)
 )

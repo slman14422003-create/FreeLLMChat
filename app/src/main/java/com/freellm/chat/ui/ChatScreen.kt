@@ -11,7 +11,26 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.AttachFile
@@ -170,6 +189,7 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
     val importingAtt by vm.importing.collectAsStateWithLifecycle()
     var pdfJob by remember { mutableStateOf<PdfJob?>(null) }
     val speaker = remember { Speaker(ctx) }
+    val haptic = LocalHapticFeedback.current
     DisposableEffect(Unit) { onDispose { speaker.shutdown() } }
     val pickImages = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         if (uris.isNotEmpty()) vm.attachImages(uris)
@@ -284,6 +304,7 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
             snackbarHost = { SnackbarHost(snackbar) },
             topBar = {
                 ChatTopBar(
+                    active = generating,
                     label = selectionLabel(selection, targets),
                     onMenu = { scope.launch { drawerState.open() } },
                     onModel = { picker = if (generating) Picker.Continue else Picker.Select },
@@ -315,6 +336,7 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                     ) {
                         items(visible, key = { it.id }) { m ->
                             MessageItem(
+                                modifier = Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null),
                                 m = m,
                                 canSwitch = lastIsAssistant && m.id == lastAssistantId && !generating,
                                 onRegenerate = { picker = Picker.Regen(it) },
@@ -330,6 +352,7 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                         }
                         if (s != null) {
                             item(key = "stream") {
+                                Box(Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null)) {
                                 StreamItem(
                                     s = s,
                                     onRetry = { vm.retryPending() },
@@ -337,6 +360,7 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                                     onTryOther = { vm.tryOther() },
                                     onDismiss = { vm.dismissError() }
                                 )
+                                }
                             }
                         }
                         if (pendingReq) {
@@ -357,6 +381,7 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                     onInput = { input = it },
                     generating = generating,
                     onSend = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         vm.send(input)
                         input = ""
                     },
@@ -368,6 +393,7 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                     onPickPdfImages = { pickPdfImages.launch(arrayOf("application/pdf")) },
                     onRemove = { vm.removePending(it) },
                     onQuick = { prompt ->
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         vm.send(if (input.isBlank()) prompt else prompt + "\n" + input.trim())
                         input = ""
                     },
@@ -425,7 +451,7 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
 }
 
 @Composable
-private fun ChatTopBar(label: String, onMenu: () -> Unit, onModel: () -> Unit, onNew: () -> Unit) {
+private fun ChatTopBar(active: Boolean, label: String, onMenu: () -> Unit, onModel: () -> Unit, onNew: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     Row(
         Modifier
@@ -440,7 +466,7 @@ private fun ChatTopBar(label: String, onMenu: () -> Unit, onModel: () -> Unit, o
             Modifier
                 .size(44.dp)
                 .clip(CircleShape)
-                .clickable(onClick = onMenu),
+                .bounceClick(onMenu),
             contentAlignment = Alignment.Center
         ) { MenuGlyph() }
         Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
@@ -451,6 +477,8 @@ private fun ChatTopBar(label: String, onMenu: () -> Unit, onModel: () -> Unit, o
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                LiveOrb(active)
+                Spacer(Modifier.width(2.dp))
                 Text(
                     label,
                     style = MaterialTheme.typography.titleMedium,
@@ -465,7 +493,7 @@ private fun ChatTopBar(label: String, onMenu: () -> Unit, onModel: () -> Unit, o
             Modifier
                 .size(44.dp)
                 .clip(CircleShape)
-                .clickable(onClick = onNew),
+                .bounceClick(onNew),
             contentAlignment = Alignment.Center
         ) { Icon(Icons.Outlined.Edit, stringResource(R.string.new_chat), Modifier.size(22.dp)) }
     }
@@ -537,13 +565,14 @@ private fun SuggestionRow(onPick: (String) -> Unit) {
             .padding(horizontal = 14.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items.forEach { (label, prompt) ->
+        items.forEachIndexed { idx, (label, prompt) ->
             Text(
                 label,
                 Modifier
+                    .appear(idx)
                     .clip(RoundedCornerShape(20.dp))
                     .background(cs.surfaceContainerHigh)
-                    .clickable { onPick(prompt) }
+                    .bounceClick { onPick(prompt) }
                     .padding(horizontal = 16.dp, vertical = 10.dp),
                 fontSize = 14.sp,
                 color = cs.onSurface
@@ -572,12 +601,32 @@ private fun Composer(
 ) {
     val cs = MaterialTheme.colorScheme
     var attachMenu by remember { mutableStateOf(false) }
+    var focused by remember { mutableStateOf(false) }
+    val glow = rememberInfiniteTransition(label = "glow")
+    val pulse = glow.animateFloat(
+        0.3f, 1f,
+        infiniteRepeatable(tween(850, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "glowPulse"
+    )
+    val focusAmt = animateFloatAsState(if (focused) 1f else 0f, tween(260), label = "focusAmt")
+    val accent = cs.primary
     Surface(
         shape = RoundedCornerShape(30.dp),
         color = cs.surfaceContainerHigh,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 8.dp)
+            .drawWithContent {
+                drawContent()
+                val a = if (generating) pulse.value else focusAmt.value * 0.85f
+                if (a > 0.01f) {
+                    drawRoundRect(
+                        color = accent.copy(alpha = a),
+                        cornerRadius = CornerRadius(30.dp.toPx()),
+                        style = Stroke(width = 1.6.dp.toPx())
+                    )
+                }
+            }
     ) {
         Column {
         if (pending.isNotEmpty() || importing) {
@@ -651,20 +700,36 @@ private fun Composer(
                         lineHeight = 24.sp,
                         textDirection = TextDirection.Content
                     ),
-                    cursorBrush = SolidColor(cs.onSurface),
+                    cursorBrush = SolidColor(cs.primary),
                     maxLines = 6,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onFocusChanged { focused = it.isFocused }
                 )
             }
-            when {
-                generating -> CircleButton(onClick = onStop, background = cs.primary) {
-                    Icon(Icons.Filled.Stop, stringResource(R.string.stop), Modifier.size(20.dp), tint = cs.onPrimary)
-                }
-                input.isNotBlank() || pending.isNotEmpty() -> CircleButton(onClick = onSend, background = cs.primary) {
-                    Icon(Icons.Filled.ArrowUpward, stringResource(R.string.send), Modifier.size(22.dp), tint = cs.onPrimary)
-                }
-                else -> CircleButton(onClick = onMic, background = cs.surfaceContainerHighest) {
-                    Icon(Icons.Outlined.Mic, stringResource(R.string.voice_input), Modifier.size(22.dp))
+            val trailing = when {
+                generating -> 0
+                input.isNotBlank() || pending.isNotEmpty() -> 1
+                else -> 2
+            }
+            AnimatedContent(
+                targetState = trailing,
+                transitionSpec = {
+                    (scaleIn(tween(220, easing = FastOutSlowInEasing), initialScale = 0.4f) + fadeIn(tween(180))) togetherWith
+                        (scaleOut(tween(160), targetScale = 0.4f) + fadeOut(tween(120)))
+                },
+                label = "trailing"
+            ) { st ->
+                when (st) {
+                    0 -> CircleButton(onClick = onStop, background = cs.primary) {
+                        Icon(Icons.Filled.Stop, stringResource(R.string.stop), Modifier.size(20.dp), tint = cs.onPrimary)
+                    }
+                    1 -> CircleButton(onClick = onSend, background = cs.primary) {
+                        Icon(Icons.Filled.ArrowUpward, stringResource(R.string.send), Modifier.size(22.dp), tint = cs.onPrimary)
+                    }
+                    else -> CircleButton(onClick = onMic, background = cs.surfaceContainerHighest) {
+                        Icon(Icons.Outlined.Mic, stringResource(R.string.voice_input), Modifier.size(22.dp))
+                    }
                 }
             }
         }
@@ -907,7 +972,7 @@ private fun ActionIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, de
         Modifier
             .size(36.dp)
             .clip(CircleShape)
-            .clickable(onClick = onClick),
+            .bounceClick(onClick),
         contentAlignment = Alignment.Center
     ) { Icon(icon, desc, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
 }
@@ -930,6 +995,7 @@ private fun NoteChip(text: String) {
 
 @Composable
 private fun MessageItem(
+    modifier: Modifier = Modifier,
     m: MessageEntity,
     canSwitch: Boolean,
     onRegenerate: (MessageEntity) -> Unit,
@@ -956,8 +1022,10 @@ private fun MessageItem(
         }
         ctx.startActivity(Intent.createChooser(send, null))
     }
+    val fresh = remember { m.role == "user" && System.currentTimeMillis() - m.createdAt < 2000 }
     Box(
-        Modifier
+        modifier
+            .popIn(fresh)
             .fillMaxWidth()
             .combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -1086,6 +1154,8 @@ private fun StreamItem(
                 StarBurst(size = 20.dp, spinning = true)
                 Spacer(Modifier.width(10.dp))
                 Text(stringResource(R.string.typing), color = cs.onSurfaceVariant)
+                Spacer(Modifier.width(8.dp))
+                TypingDots()
             }
         }
         if (s.active && s.text.isNotEmpty()) StarBurst(size = 18.dp, spinning = true)

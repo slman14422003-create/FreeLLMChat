@@ -46,3 +46,20 @@
 -keep class com.tom_roush.pdfbox.** { *; }
 -keep class com.tom_roush.fontbox.** { *; }
 -keep class com.tom_roush.harmony.** { *; }
+
+# ---- R8 full-mode tuning ----
+-allowaccessmodification
+-repackageclasses ''
+-optimizationpasses 5
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+}
+-assumenosideeffects class kotlin.jvm.internal.Intrinsics {
+    public static void checkNotNullParameter(java.lang.Object, java.lang.String);
+    public static void checkNotNullExpressionValue(java.lang.Object, java.lang.String);
+    public static void checkParameterIsNotNull(java.lang.Object, java.lang.String);
+}
+-keep class com.freellm.chat.data.Attachment { *; }
+-keep class com.freellm.chat.data.Attachment$$serializer { *; }

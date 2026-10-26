@@ -1,6 +1,17 @@
 package com.freellm.chat.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -18,7 +29,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun AppRoot(app: FreeLlmApp) {
-    val theme by app.settings.theme.collectAsStateWithLifecycle(initialValue = "system")
+    val theme by app.settings.theme.collectAsStateWithLifecycle(initialValue = "dark")
     val welcome: Boolean? by app.settings.welcomeDone.collectAsStateWithLifecycle(initialValue = null)
     val scope = rememberCoroutineScope()
     FreeLlmTheme(theme) {
@@ -45,28 +56,52 @@ private fun MainNav(app: FreeLlmApp) {
         }
     }
 
-    when {
-        route == "chat" -> ChatScreen(
-            vm = chatVm,
-            onSettings = { route = "settings" },
-            onProviders = { route = "providers" }
-        )
-        route == "settings" -> SettingsScreen(
-            app = app,
-            onBack = { route = "chat" },
-            onProviders = { route = "providers" },
-            onStatus = { route = "status" }
-        )
-        route == "providers" -> ProvidersScreen(
-            app = app,
-            onBack = { route = "settings" },
-            onOpen = { route = "provider:$it" }
-        )
-        route == "status" -> StatusScreen(app = app, onBack = { route = "settings" })
-        route.startsWith("provider:") -> ProviderWizardScreen(
-            app = app,
-            providerId = route.removePrefix("provider:"),
-            onBack = { route = "providers" }
-        )
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    val sign = if (rtl) -1 else 1
+    AnimatedContent(
+        targetState = route,
+        modifier = Modifier.fillMaxSize(),
+        transitionSpec = {
+            val forward = depthOf(targetState) > depthOf(initialState)
+            val dir = if (forward) sign else -sign
+            (slideInHorizontally(tween(340, easing = FastOutSlowInEasing)) { w -> dir * (w / 3) } +
+                fadeIn(tween(300)) + scaleIn(tween(340, easing = FastOutSlowInEasing), initialScale = 0.96f)) togetherWith
+                (slideOutHorizontally(tween(280, easing = FastOutSlowInEasing)) { w -> -dir * (w / 5) } +
+                    fadeOut(tween(200)))
+        },
+        label = "nav"
+    ) { r ->
+        when {
+            r == "chat" -> ChatScreen(
+                vm = chatVm,
+                onSettings = { route = "settings" },
+                onProviders = { route = "providers" }
+            )
+            r == "settings" -> SettingsScreen(
+                app = app,
+                onBack = { route = "chat" },
+                onProviders = { route = "providers" },
+                onStatus = { route = "status" }
+            )
+            r == "providers" -> ProvidersScreen(
+                app = app,
+                onBack = { route = "settings" },
+                onOpen = { route = "provider:$it" }
+            )
+            r == "status" -> StatusScreen(app = app, onBack = { route = "settings" })
+            r.startsWith("provider:") -> ProviderWizardScreen(
+                app = app,
+                providerId = r.removePrefix("provider:"),
+                onBack = { route = "providers" }
+            )
+            else -> Unit
+        }
     }
+}
+
+private fun depthOf(r: String): Int = when {
+    r == "chat" -> 0
+    r == "settings" -> 1
+    r == "providers" || r == "status" -> 2
+    else -> 3
 }
