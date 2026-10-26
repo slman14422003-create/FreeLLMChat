@@ -61,19 +61,16 @@ class ProviderManager(
     }
 
     private fun proxied(p: ProviderDef, proxy: String): String {
-        val path = try {
-            java.net.URI(p.baseUrl).path.orEmpty().trimEnd('/')
-        } catch (e: Exception) {
-            ""
-        }
-        return proxy.trim().trimEnd('/') + "/" + p.id + path
+        val rest = p.baseUrl.substringAfter("://", "")
+        val path = "/" + rest.substringAfter("/", "").trimEnd('/')
+        return proxy.trim().trimEnd('/') + "/" + p.id + (if (path == "/") "" else path)
     }
 
     private fun resolveBase(p: ProviderDef, proxy: String): String {
         val custom = secrets.baseUrl(p.id)
         val base = when {
             !custom.isNullOrBlank() -> custom
-            proxy.isNotBlank() && !p.needsAccountId -> proxied(p, proxy)
+            proxy.isNotBlank() -> proxied(p, proxy)
             else -> p.baseUrl
         }
         return base.replace("{ACCOUNT_ID}", secrets.accountId(p.id).orEmpty())
@@ -113,7 +110,7 @@ class ProviderManager(
         val proxy = settings.proxyUrl.first()
         val base = when {
             baseOverride.isNotBlank() -> baseOverride.trim()
-            proxy.isNotBlank() && !p.needsAccountId -> proxied(p, proxy)
+            proxy.isNotBlank() -> proxied(p, proxy)
             else -> p.baseUrl
         }.replace("{ACCOUNT_ID}", accountId.trim())
         val models = catalog.catalog.value.models

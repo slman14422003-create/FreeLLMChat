@@ -48,7 +48,9 @@
       "keyUrl": "https://openrouter.ai/settings/keys",
       "available": true,
       "perModelLimits": true,
-      "headers": { "X-Title": "FreeLLM Chat" },
+      "headers": {
+        "X-Title": "FreeLLM Chat"
+      },
       "steps": [
         "افتح صفحة المفاتيح بالزر أدناه.",
         "سجّل الدخول بحساب Google أو GitHub.",
@@ -107,7 +109,7 @@
       "name": "NVIDIA NIM",
       "baseUrl": "https://integrate.api.nvidia.com/v1",
       "keyUrl": "https://build.nvidia.com/settings/api-keys",
-      "available": false,
+      "available": true,
       "steps": [
         "افتح الصفحة بالزر أدناه.",
         "سجّل حساباً وأكّد رقم الهاتف.",
@@ -124,13 +126,13 @@
       "name": "Cloudflare Workers AI",
       "baseUrl": "https://api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}/ai/v1",
       "keyUrl": "https://dash.cloudflare.com/profile/api-tokens",
-      "available": false,
+      "available": true,
       "needsAccountId": true,
       "steps": [
-        "افتح الصفحة بالزر أدناه.",
-        "أنشئ API Token بصلاحية Workers AI.",
-        "انسخ Account ID من لوحة التحكم.",
-        "ألصق المفتاح و Account ID في الحقول أدناه."
+        "افتح الصفحة بالزر أدناه وأنشئ API Token بقالب Workers AI.",
+        "انسخ التوكن.",
+        "انسخ Account ID من الصفحة الرئيسية للوحة Cloudflare.",
+        "ألصق المفتاح وAccount ID في الحقول أدناه."
       ],
       "warnings": [
         "حصة مجانية يومية محدودة."
@@ -141,41 +143,165 @@
       "name": "Ollama Cloud",
       "baseUrl": "https://ollama.com/v1",
       "keyUrl": "https://ollama.com/settings/keys",
-      "available": false,
+      "available": true,
       "steps": [
-        "افتح الصفحة بالزر أدناه.",
-        "سجّل الدخول وأنشئ مفتاحاً.",
-        "ألصقه في الحقل أدناه."
+        "افتح الصفحة بالزر أدناه وسجّل الدخول.",
+        "اضغط Create new key وانسخه.",
+        "ألصقه في الحقل أدناه ثم اضغط اختبر المفتاح."
       ],
       "warnings": [
         "حد مجاني محدود."
       ]
+    },
+    {
+      "id": "sambanova",
+      "name": "SambaNova",
+      "baseUrl": "https://api.sambanova.ai/v1",
+      "keyUrl": "https://cloud.sambanova.ai/apis",
+      "available": true,
+      "steps": [
+        "افتح صفحة المفاتيح بالزر أدناه.",
+        "سجّل حساباً بالبريد أو Google.",
+        "اضغط Create API Key وانسخ المفتاح.",
+        "ألصقه في الحقل أدناه ثم اضغط اختبر المفتاح."
+      ],
+      "warnings": [
+        "لا يطلب بطاقة في الباقة المجانية عادةً.",
+        "قد يحجب بعض الدول.",
+        "الحد المجاني تقريباً: عشرات الطلبات في الدقيقة وسياق محدود."
+      ]
+    },
+    {
+      "id": "github",
+      "name": "GitHub Models",
+      "baseUrl": "https://models.github.ai/inference",
+      "keyUrl": "https://github.com/settings/personal-access-tokens/new",
+      "available": true,
+      "steps": [
+        "افتح الصفحة بالزر أدناه (يلزم حساب GitHub).",
+        "أعطِ التوكن أي اسم، وفي Permissions أضف صلاحية Models بمستوى Read.",
+        "اضغط Generate token وانسخه.",
+        "ألصقه في الحقل أدناه ثم اضغط اختبر المفتاح."
+      ],
+      "warnings": [
+        "GitHub محجوب في بعض الدول؛ استخدم رابط الوسيط (Cloudflare Worker) من الإعدادات.",
+        "يحوي مودلات قوية مثل GPT-4.1 لكن بحدود صغيرة جداً (طلبات قليلة يومياً وسياق قصير).",
+        "المحادثات قد تُعالج وفق سياسة GitHub/Microsoft."
+      ]
+    },
+    {
+      "id": "cohere",
+      "name": "Cohere",
+      "baseUrl": "https://api.cohere.ai/compatibility/v1",
+      "keyUrl": "https://dashboard.cohere.com/api-keys",
+      "available": true,
+      "steps": [
+        "افتح صفحة المفاتيح بالزر أدناه.",
+        "سجّل حساباً بالبريد أو Google.",
+        "انسخ Trial key الموجود في الصفحة.",
+        "ألصقه في الحقل أدناه ثم اضغط اختبر المفتاح."
+      ],
+      "warnings": [
+        "مفتاح التجربة مجاني بدون بطاقة لكن للاستخدام غير التجاري.",
+        "الحد المجاني تقريباً: 20 طلباً في الدقيقة وألف طلب شهرياً.",
+        "قد يحجب بعض الدول."
+      ]
+    },
+    {
+      "id": "huggingface",
+      "name": "Hugging Face",
+      "baseUrl": "https://router.huggingface.co/v1",
+      "keyUrl": "https://huggingface.co/settings/tokens",
+      "available": true,
+      "steps": [
+        "افتح الصفحة بالزر أدناه وسجّل الدخول.",
+        "اضغط Create new token واختر نوع Fine-grained.",
+        "فعّل خيار Make calls to Inference Providers ثم أنشئ التوكن.",
+        "انسخه وألصقه في الحقل أدناه."
+      ],
+      "warnings": [
+        "رصيد مجاني شهري صغير ثم يتوقف.",
+        "لا يطلب بطاقة للرصيد المجاني."
+      ]
+    },
+    {
+      "id": "zai",
+      "name": "Z.ai (GLM)",
+      "baseUrl": "https://api.z.ai/api/paas/v4",
+      "keyUrl": "https://z.ai/manage-apikey/apikey-list",
+      "available": true,
+      "steps": [
+        "افتح الصفحة بالزر أدناه.",
+        "سجّل حساباً بالبريد.",
+        "اضغط Create API Key وانسخه.",
+        "ألصقه في الحقل أدناه."
+      ],
+      "warnings": [
+        "مودل GLM Flash مجاني.",
+        "الحد المجاني تقريباً: طلب أو اثنان بالتوازي.",
+        "المحادثات قد تُعالج وفق سياسة المزود."
+      ]
     }
   ],
   "models": [
-    { "id": "openai/gpt-oss-120b", "provider": "groq", "displayName": "GPT-OSS 120B (Groq)", "priority": 1, "contextWindow": 131072, "modes": ["smart", "code"], "reasoning": true },
-    { "id": "gpt-oss-120b", "provider": "cerebras", "displayName": "GPT-OSS 120B (Cerebras)", "priority": 2, "contextWindow": 65536, "modes": ["fast", "smart", "code"], "reasoning": true },
-    { "id": "gemini-flash-latest", "provider": "gemini", "displayName": "Gemini Flash", "priority": 3, "contextWindow": 1000000, "modes": ["fast", "smart"], "vision": true, "reasoning": true, "trainsOnData": true },
-    { "id": "nvidia/nemotron-3-ultra-550b-a55b:free", "provider": "openrouter", "displayName": "Nemotron 3 Ultra 550B", "priority": 4, "contextWindow": 131072, "modes": ["smart"], "reasoning": true, "trainsOnData": true },
-    { "id": "zai-glm-4.7", "provider": "cerebras", "displayName": "GLM 4.7 (Cerebras)", "priority": 5, "contextWindow": 131072, "modes": ["smart", "code"], "reasoning": true },
-    { "id": "nvidia/nemotron-3-super-120b-a12b:free", "provider": "openrouter", "displayName": "Nemotron 3 Super 120B", "priority": 6, "contextWindow": 131072, "modes": ["smart"], "reasoning": true, "trainsOnData": true },
-    { "id": "qwen/qwen3-coder:free", "provider": "openrouter", "displayName": "Qwen3 Coder", "priority": 7, "contextWindow": 262144, "modes": ["code"], "trainsOnData": true },
-    { "id": "llama-3.3-70b-versatile", "provider": "groq", "displayName": "Llama 3.3 70B (Groq)", "priority": 8, "contextWindow": 131072, "modes": ["fast", "smart"] },
-    { "id": "mistral-large-latest", "provider": "mistral", "displayName": "Mistral Large", "priority": 9, "contextWindow": 128000, "modes": ["smart", "code"], "vision": true, "trainsOnData": true },
-    { "id": "thinkingmachines/inkling:free", "provider": "openrouter", "displayName": "Inkling", "priority": 10, "contextWindow": 131072, "modes": ["smart"], "trainsOnData": true },
-    { "id": "nvidia/nemotron-3.5-super-vl:free", "provider": "openrouter", "displayName": "Nemotron 3.5 Super VL", "priority": 11, "contextWindow": 131072, "modes": ["smart"], "vision": true, "trainsOnData": true },
-    { "id": "google/gemma-4-31b-it:free", "provider": "openrouter", "displayName": "Gemma 4 31B", "priority": 12, "contextWindow": 131072, "modes": ["fast"], "vision": true, "trainsOnData": true },
-    { "id": "qwen/qwen3-next-80b-a3b-instruct:free", "provider": "openrouter", "displayName": "Qwen3 Next 80B", "priority": 13, "contextWindow": 131072, "modes": ["fast", "smart"], "trainsOnData": true },
-    { "id": "nousresearch/hermes-3-llama-3.1-405b:free", "provider": "openrouter", "displayName": "Hermes 3 405B", "priority": 14, "contextWindow": 131072, "modes": ["smart"], "trainsOnData": true },
-    { "id": "mistral-small-latest", "provider": "mistral", "displayName": "Mistral Small", "priority": 15, "contextWindow": 128000, "modes": ["fast"], "vision": true, "trainsOnData": true },
-    { "id": "openai/gpt-oss-20b", "provider": "groq", "displayName": "GPT-OSS 20B (Groq)", "priority": 16, "contextWindow": 131072, "modes": ["fast"], "reasoning": true },
-    { "id": "thinkingmachines/inkling-small:free", "provider": "openrouter", "displayName": "Inkling Small", "priority": 17, "contextWindow": 131072, "modes": ["fast"], "trainsOnData": true },
-    { "id": "meta-llama/llama-3.3-70b-instruct:free", "provider": "openrouter", "displayName": "Llama 3.3 70B", "priority": 18, "contextWindow": 131072, "modes": ["fast", "smart"], "trainsOnData": true },
-    { "id": "open-mistral-nemo", "provider": "mistral", "displayName": "Mistral Nemo", "priority": 19, "contextWindow": 128000, "modes": ["fast"], "trainsOnData": true },
-    { "id": "gemini-2.5-flash", "provider": "gemini", "displayName": "Gemini 2.5 Flash", "priority": 20, "contextWindow": 1000000, "modes": ["fast", "smart"], "vision": true, "reasoning": true, "trainsOnData": true },
-    { "id": "openrouter/free", "provider": "openrouter", "displayName": "OpenRouter Free (احتياط)", "priority": 99, "contextWindow": 32768, "modes": [], "trainsOnData": true },
-    { "id": "meta/llama-3.3-70b-instruct", "provider": "nvidia", "displayName": "Llama 3.3 70B (NVIDIA)", "priority": 30, "contextWindow": 131072, "modes": ["smart"] },
-    { "id": "@cf/meta/llama-3.3-70b-instruct-fp8-fast", "provider": "cloudflare", "displayName": "Llama 3.3 70B (Cloudflare)", "priority": 31, "contextWindow": 24000, "modes": ["fast"] },
-    { "id": "gpt-oss:120b", "provider": "ollama", "displayName": "GPT-OSS 120B (Ollama)", "priority": 32, "contextWindow": 131072, "modes": ["smart"] }
+    {"id": "openai/gpt-oss-120b", "provider": "groq", "displayName": "GPT-OSS 120B (Groq)", "priority": 1, "contextWindow": 131072, "modes": ["smart", "code"], "reasoning": true},
+    {"id": "gpt-oss-120b", "provider": "cerebras", "displayName": "GPT-OSS 120B (Cerebras)", "priority": 2, "contextWindow": 65536, "modes": ["fast", "smart", "code"], "reasoning": true},
+    {"id": "gpt-oss-120b", "provider": "sambanova", "displayName": "GPT-OSS 120B (SambaNova)", "priority": 3, "contextWindow": 65536, "modes": ["fast", "smart", "code"], "reasoning": true},
+    {"id": "gemini-flash-latest", "provider": "gemini", "displayName": "Gemini Flash", "priority": 4, "contextWindow": 1000000, "modes": ["fast", "smart"], "vision": true, "reasoning": true, "trainsOnData": true},
+    {"id": "moonshotai/kimi-k2-instruct-0905", "provider": "groq", "displayName": "Kimi K2 (Groq)", "priority": 5, "contextWindow": 262144, "modes": ["smart", "code"]},
+    {"id": "qwen-3-235b-a22b-instruct-2507", "provider": "cerebras", "displayName": "Qwen3 235B (Cerebras)", "priority": 6, "contextWindow": 65536, "modes": ["smart", "code"]},
+    {"id": "Qwen3-235B", "provider": "sambanova", "displayName": "Qwen3 235B (SambaNova)", "priority": 7, "contextWindow": 32768, "modes": ["smart", "code"], "reasoning": true},
+    {"id": "nvidia/nemotron-3-ultra-550b-a55b:free", "provider": "openrouter", "displayName": "Nemotron 3 Ultra 550B", "priority": 8, "contextWindow": 131072, "modes": ["smart"], "reasoning": true, "trainsOnData": true},
+    {"id": "deepseek-ai/deepseek-v3.1", "provider": "nvidia", "displayName": "DeepSeek V3.1 (NVIDIA)", "priority": 9, "contextWindow": 131072, "modes": ["smart", "code"]},
+    {"id": "DeepSeek-V3.1", "provider": "sambanova", "displayName": "DeepSeek V3.1 (SambaNova)", "priority": 10, "contextWindow": 32768, "modes": ["smart", "code"]},
+    {"id": "moonshotai/kimi-k2-instruct", "provider": "nvidia", "displayName": "Kimi K2 (NVIDIA)", "priority": 11, "contextWindow": 131072, "modes": ["smart", "code"]},
+    {"id": "deepseek/deepseek-r1:free", "provider": "openrouter", "displayName": "DeepSeek R1", "priority": 12, "contextWindow": 163840, "modes": ["smart", "code"], "reasoning": true, "trainsOnData": true},
+    {"id": "zai-glm-4.7", "provider": "cerebras", "displayName": "GLM 4.7 (Cerebras)", "priority": 13, "contextWindow": 131072, "modes": ["smart", "code"], "reasoning": true},
+    {"id": "qwen/qwen3-coder-480b-a35b-instruct", "provider": "nvidia", "displayName": "Qwen3 Coder 480B (NVIDIA)", "priority": 14, "contextWindow": 262144, "modes": ["code"]},
+    {"id": "deepseek-v3.1:671b", "provider": "ollama", "displayName": "DeepSeek V3.1 671B (Ollama)", "priority": 15, "contextWindow": 131072, "modes": ["smart", "code"]},
+    {"id": "qwen3-coder:480b", "provider": "ollama", "displayName": "Qwen3 Coder 480B (Ollama)", "priority": 16, "contextWindow": 131072, "modes": ["code"]},
+    {"id": "qwen/qwen3-coder:free", "provider": "openrouter", "displayName": "Qwen3 Coder", "priority": 17, "contextWindow": 262144, "modes": ["code"], "trainsOnData": true},
+    {"id": "nvidia/nemotron-3-super-120b-a12b:free", "provider": "openrouter", "displayName": "Nemotron 3 Super 120B", "priority": 18, "contextWindow": 131072, "modes": ["smart"], "reasoning": true, "trainsOnData": true},
+    {"id": "gemini-2.5-pro", "provider": "gemini", "displayName": "Gemini 2.5 Pro", "priority": 19, "contextWindow": 1000000, "modes": ["smart", "code"], "vision": true, "reasoning": true, "trainsOnData": true},
+    {"id": "openai/gpt-4.1", "provider": "github", "displayName": "GPT-4.1 (GitHub)", "priority": 20, "contextWindow": 8000, "modes": ["smart", "code"], "vision": true, "trainsOnData": true},
+    {"id": "deepseek/DeepSeek-R1", "provider": "github", "displayName": "DeepSeek R1 (GitHub)", "priority": 21, "contextWindow": 8000, "modes": ["smart"], "reasoning": true, "trainsOnData": true},
+    {"id": "qwen/qwen3-235b-a22b:free", "provider": "openrouter", "displayName": "Qwen3 235B", "priority": 22, "contextWindow": 131072, "modes": ["smart"], "reasoning": true, "trainsOnData": true},
+    {"id": "z-ai/glm-4.5-air:free", "provider": "openrouter", "displayName": "GLM 4.5 Air", "priority": 23, "contextWindow": 131072, "modes": ["smart"], "reasoning": true, "trainsOnData": true},
+    {"id": "glm-4.5-flash", "provider": "zai", "displayName": "GLM 4.5 Flash (Z.ai)", "priority": 24, "contextWindow": 131072, "modes": ["fast", "smart"], "reasoning": true, "trainsOnData": true},
+    {"id": "llama-3.3-70b-versatile", "provider": "groq", "displayName": "Llama 3.3 70B (Groq)", "priority": 25, "contextWindow": 131072, "modes": ["fast", "smart"]},
+    {"id": "qwen/qwen3-32b", "provider": "groq", "displayName": "Qwen3 32B (Groq)", "priority": 26, "contextWindow": 131072, "modes": ["fast", "smart"], "reasoning": true},
+    {"id": "@cf/openai/gpt-oss-120b", "provider": "cloudflare", "displayName": "GPT-OSS 120B (Cloudflare)", "priority": 27, "contextWindow": 128000, "modes": ["smart", "code"], "reasoning": true},
+    {"id": "mistral-large-latest", "provider": "mistral", "displayName": "Mistral Large", "priority": 28, "contextWindow": 128000, "modes": ["smart", "code"], "vision": true, "trainsOnData": true},
+    {"id": "magistral-medium-latest", "provider": "mistral", "displayName": "Magistral Medium", "priority": 29, "contextWindow": 128000, "modes": ["smart"], "reasoning": true, "trainsOnData": true},
+    {"id": "command-a-03-2025", "provider": "cohere", "displayName": "Command A (Cohere)", "priority": 30, "contextWindow": 256000, "modes": ["smart", "code"], "trainsOnData": true},
+    {"id": "meta/llama-3.1-405b-instruct", "provider": "nvidia", "displayName": "Llama 3.1 405B (NVIDIA)", "priority": 31, "contextWindow": 131072, "modes": ["smart"]},
+    {"id": "thinkingmachines/inkling:free", "provider": "openrouter", "displayName": "Inkling", "priority": 32, "contextWindow": 131072, "modes": ["smart"], "trainsOnData": true},
+    {"id": "nvidia/nemotron-3.5-super-vl:free", "provider": "openrouter", "displayName": "Nemotron 3.5 Super VL", "priority": 33, "contextWindow": 131072, "modes": ["smart"], "vision": true, "trainsOnData": true},
+    {"id": "meta-llama/llama-4-maverick:free", "provider": "openrouter", "displayName": "Llama 4 Maverick", "priority": 34, "contextWindow": 131072, "modes": ["smart"], "vision": true, "trainsOnData": true},
+    {"id": "openai/gpt-oss-120b:free", "provider": "openrouter", "displayName": "GPT-OSS 120B (OpenRouter)", "priority": 35, "contextWindow": 131072, "modes": ["smart", "code"], "reasoning": true, "trainsOnData": true},
+    {"id": "meta-llama/llama-4-scout-17b-16e-instruct", "provider": "groq", "displayName": "Llama 4 Scout (Groq)", "priority": 36, "contextWindow": 131072, "modes": ["fast"], "vision": true},
+    {"id": "openai/gpt-oss-120b", "provider": "huggingface", "displayName": "GPT-OSS 120B (HF)", "priority": 37, "contextWindow": 131072, "modes": ["smart"], "reasoning": true},
+    {"id": "deepseek-ai/DeepSeek-V3.1", "provider": "huggingface", "displayName": "DeepSeek V3.1 (HF)", "priority": 38, "contextWindow": 131072, "modes": ["smart", "code"]},
+    {"id": "Qwen/Qwen3-235B-A22B-Instruct-2507", "provider": "huggingface", "displayName": "Qwen3 235B (HF)", "priority": 39, "contextWindow": 131072, "modes": ["smart"]},
+    {"id": "google/gemma-4-31b-it:free", "provider": "openrouter", "displayName": "Gemma 4 31B", "priority": 40, "contextWindow": 131072, "modes": ["fast"], "vision": true, "trainsOnData": true},
+    {"id": "qwen/qwen3-next-80b-a3b-instruct:free", "provider": "openrouter", "displayName": "Qwen3 Next 80B", "priority": 41, "contextWindow": 131072, "modes": ["fast", "smart"], "trainsOnData": true},
+    {"id": "nousresearch/hermes-3-llama-3.1-405b:free", "provider": "openrouter", "displayName": "Hermes 3 405B", "priority": 42, "contextWindow": 131072, "modes": ["smart"], "trainsOnData": true},
+    {"id": "mistral-small-latest", "provider": "mistral", "displayName": "Mistral Small", "priority": 43, "contextWindow": 128000, "modes": ["fast"], "vision": true, "trainsOnData": true},
+    {"id": "openai/gpt-oss-20b", "provider": "groq", "displayName": "GPT-OSS 20B (Groq)", "priority": 44, "contextWindow": 131072, "modes": ["fast"], "reasoning": true},
+    {"id": "thinkingmachines/inkling-small:free", "provider": "openrouter", "displayName": "Inkling Small", "priority": 45, "contextWindow": 131072, "modes": ["fast"], "trainsOnData": true},
+    {"id": "meta-llama/llama-3.3-70b-instruct:free", "provider": "openrouter", "displayName": "Llama 3.3 70B", "priority": 46, "contextWindow": 131072, "modes": ["fast", "smart"], "trainsOnData": true},
+    {"id": "open-mistral-nemo", "provider": "mistral", "displayName": "Mistral Nemo", "priority": 47, "contextWindow": 128000, "modes": ["fast"], "trainsOnData": true},
+    {"id": "gemini-2.5-flash", "provider": "gemini", "displayName": "Gemini 2.5 Flash", "priority": 48, "contextWindow": 1000000, "modes": ["fast", "smart"], "vision": true, "reasoning": true, "trainsOnData": true},
+    {"id": "gemini-2.5-flash-lite", "provider": "gemini", "displayName": "Gemini 2.5 Flash Lite", "priority": 49, "contextWindow": 1000000, "modes": ["fast"], "vision": true, "trainsOnData": true},
+    {"id": "llama-3.1-8b-instant", "provider": "groq", "displayName": "Llama 3.1 8B (Groq)", "priority": 50, "contextWindow": 131072, "modes": ["fast"]},
+    {"id": "deepseek/deepseek-chat-v3.1:free", "provider": "openrouter", "displayName": "DeepSeek V3.1", "priority": 51, "contextWindow": 163840, "modes": ["smart", "code"], "trainsOnData": true},
+    {"id": "moonshotai/kimi-k2:free", "provider": "openrouter", "displayName": "Kimi K2", "priority": 52, "contextWindow": 131072, "modes": ["smart", "code"], "trainsOnData": true},
+    {"id": "meta/llama-3.3-70b-instruct", "provider": "nvidia", "displayName": "Llama 3.3 70B (NVIDIA)", "priority": 53, "contextWindow": 131072, "modes": ["smart"]},
+    {"id": "@cf/meta/llama-3.3-70b-instruct-fp8-fast", "provider": "cloudflare", "displayName": "Llama 3.3 70B (Cloudflare)", "priority": 54, "contextWindow": 24000, "modes": ["fast"]},
+    {"id": "gpt-oss:120b", "provider": "ollama", "displayName": "GPT-OSS 120B (Ollama)", "priority": 55, "contextWindow": 131072, "modes": ["smart"]},
+    {"id": "Meta-Llama-3.3-70B-Instruct", "provider": "sambanova", "displayName": "Llama 3.3 70B (SambaNova)", "priority": 56, "contextWindow": 32768, "modes": ["fast"]},
+    {"id": "command-r-plus-08-2024", "provider": "cohere", "displayName": "Command R+ (Cohere)", "priority": 57, "contextWindow": 128000, "modes": ["smart"], "trainsOnData": true},
+    {"id": "meta/Llama-3.3-70B-Instruct", "provider": "github", "displayName": "Llama 3.3 70B (GitHub)", "priority": 58, "contextWindow": 8000, "modes": ["fast"], "trainsOnData": true},
+    {"id": "openrouter/free", "provider": "openrouter", "displayName": "OpenRouter Free (احتياط)", "priority": 99, "contextWindow": 32768, "modes": [], "trainsOnData": true}
   ]
 }

@@ -6,6 +6,12 @@ const UPSTREAMS = {
   mistral: "https://api.mistral.ai",
   nvidia: "https://integrate.api.nvidia.com",
   ollama: "https://ollama.com",
+  cloudflare: "https://api.cloudflare.com",
+  sambanova: "https://api.sambanova.ai",
+  github: "https://models.github.ai",
+  cohere: "https://api.cohere.ai",
+  huggingface: "https://router.huggingface.co",
+  zai: "https://api.z.ai",
 };
 
 const STRIP = [
