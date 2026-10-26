@@ -13,8 +13,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import okhttp3.Dns
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
+import java.net.Inet4Address
+import java.net.InetAddress
 import java.util.concurrent.TimeUnit
 
 class FreeLlmApp : Application() {
@@ -27,6 +30,7 @@ class FreeLlmApp : Application() {
             .writeTimeout(30, TimeUnit.SECONDS)
             .protocols(listOf(Protocol.HTTP_1_1))
             .retryOnConnectionFailure(true)
+            .dns(Ipv4FirstDns)
             .build()
     }
     val settings: SettingsStore by lazy { SettingsStore(this) }
@@ -42,4 +46,9 @@ class FreeLlmApp : Application() {
         super.onCreate()
         appScope.launch { catalog.load() }
     }
+}
+
+object Ipv4FirstDns : Dns {
+    override fun lookup(hostname: String): List<InetAddress> =
+        Dns.SYSTEM.lookup(hostname).sortedBy { if (it is Inet4Address) 0 else 1 }
 }

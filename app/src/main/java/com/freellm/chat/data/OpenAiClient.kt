@@ -83,9 +83,16 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
         return LlmException(kind, code, retryAfter?.trim()?.toLongOrNull(), snippet)
     }
 
-    private fun mapIo(e: IOException): LlmException =
-        if (e is SocketTimeoutException) LlmException(ErrorKind.TIMEOUT, message = "timeout")
-        else LlmException(ErrorKind.NETWORK, message = e.javaClass.simpleName + ": " + e.message.orEmpty().take(80))
+    private fun hostOf(base: String): String = base.substringAfter("://").substringBefore("/")
+
+    private fun mapIo(e: IOException, base: String = ""): LlmException {
+        val where = if (base.isBlank()) "" else hostOf(base) + " "
+        return if (e is SocketTimeoutException) {
+            LlmException(ErrorKind.TIMEOUT, message = where + e.message.orEmpty().take(90))
+        } else {
+            LlmException(ErrorKind.NETWORK, message = where + e.javaClass.simpleName + ": " + e.message.orEmpty().take(80))
+        }
+    }
 
     private fun parseChunk(data: String): Parsed? = try {
         val obj = json.parseToJsonElement(data) as JsonObject
@@ -143,7 +150,7 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
                 call.execute()
             } catch (e: IOException) {
                 if (call.isCanceled()) throw CancellationException("cancelled")
-                throw mapIo(e)
+                throw mapIo(e, base)
             }
             resp.use { r ->
                 if (!r.isSuccessful) {
@@ -191,13 +198,18 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
     suspend fun test(target: Target): LlmException? {
         val all = bases(target)
         var last: LlmException? = null
+        val trail = ArrayList<String>()
         for ((i, base) in all.withIndex()) {
             val err = testOnce(target, base) ?: return null
             last = err
+            val tag = if (err.httpCode > 0) err.httpCode.toString() else err.kind.name
+            trail.add(hostOf(base) + " -> " + tag + ": " + err.message.orEmpty().take(120))
             if (i == all.lastIndex || !retryable(err)) break
         }
-        return last
+        val l = last ?: return null
+        return LlmException(l.kind, l.httpCode, l.retryAfterSec, trail.joinToString(" | "))
     }
+
 
     private suspend fun testOnce(target: Target, base: String): LlmException? = withContext(Dispatchers.IO) {
         val req = try {
@@ -218,7 +230,7 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
                 }
             }
         } catch (e: IOException) {
-            mapIo(e)
+            mapIo(e, base)
         }
     }
 }
