@@ -46,8 +46,11 @@ class CatalogRepository(
     suspend fun load(force: Boolean = false) {
         withContext(Dispatchers.IO) {
             if (_catalog.value.providers.isEmpty()) {
-                val initial = readCache() ?: readAssets()
+                val cached = readCache()
+                val bundled = readAssets()
+                val initial = if (cached != null && (bundled == null || cached.version >= bundled.version)) cached else bundled ?: cached
                 if (initial != null) _catalog.value = initial
+                if (initial === bundled) cacheFile.delete()
             }
             val fresh = cacheFile.exists() &&
                 System.currentTimeMillis() - cacheFile.lastModified() < TTL_MS
@@ -60,7 +63,8 @@ class CatalogRepository(
                     }
                     if (text != null) {
                         val parsed = parse(text)
-                        if (parsed != null) {
+                        val floor = readAssets()?.version ?: 0
+                        if (parsed != null && parsed.version >= floor) {
                             cacheFile.writeText(text)
                             _catalog.value = parsed
                         }
