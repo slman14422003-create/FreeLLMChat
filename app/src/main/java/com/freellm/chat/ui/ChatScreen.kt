@@ -892,11 +892,7 @@ private fun ConversationRow(
                     open = false
                     onExport()
                 })
-                DropdownMenuItem(text = { Text(stringResource(R.string.save_pdf)) }, onClick = {
-                menu = false
-                onPdf(m)
-            })
-            DropdownMenuItem(text = { Text(stringResource(R.string.delete), color = cs.error) }, onClick = {
+                DropdownMenuItem(text = { Text(stringResource(R.string.delete), color = cs.error) }, onClick = {
                     open = false
                     onDelete()
                 })
@@ -1042,6 +1038,10 @@ private fun MessageItem(
                     onRegenerate(m)
                 })
             }
+            DropdownMenuItem(text = { Text(stringResource(R.string.save_pdf)) }, onClick = {
+                menu = false
+                onPdf(m)
+            })
             DropdownMenuItem(text = { Text(stringResource(R.string.delete), color = cs.error) }, onClick = {
                 menu = false
                 onDelete(m)

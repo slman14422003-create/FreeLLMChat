@@ -144,12 +144,15 @@ class AttachmentStore(private val ctx: Context) {
 
     // ---------- files ----------
 
-    private fun copyToCache(uri: Uri): File? = try {
-        val f = File.createTempFile("imp", ".bin", ctx.cacheDir)
-        ctx.contentResolver.openInputStream(uri)?.use { i -> f.outputStream().use { o -> i.copyTo(o) } } ?: return null
-        f
-    } catch (e: Throwable) {
-        null
+    private fun copyToCache(uri: Uri): File? {
+        return try {
+            val f = File.createTempFile("imp", ".bin", ctx.cacheDir)
+            val ins = ctx.contentResolver.openInputStream(uri) ?: return null
+            ins.use { i -> f.outputStream().use { o -> i.copyTo(o) } }
+            f
+        } catch (e: Throwable) {
+            null
+        }
     }
 
     private fun pdfText(src: File): String = try {
