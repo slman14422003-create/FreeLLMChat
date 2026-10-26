@@ -45,6 +45,9 @@
     <string name="notes">Notes</string>
     <string name="open_key_page">Open the key page</string>
     <string name="api_key">API key</string>
+    <string name="api_key_optional">API key (optional, raises limits)</string>
+    <string name="avoid_training">Avoid providers that train on my data</string>
+    <string name="avoid_training_desc">Hides models whose conversations may be used to improve products</string>
     <string name="key_saved_hint">Key saved — paste a new one to replace it</string>
     <string name="show_key">Show</string>
     <string name="hide_key">Hide</string>

@@ -12,3 +12,4 @@
 *.keystore
 gradle-wrapper.jar
 !/app/keystore/freellm-release.jks
+/tools/awesome.json

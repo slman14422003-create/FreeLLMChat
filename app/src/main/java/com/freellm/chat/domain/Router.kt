@@ -153,7 +153,8 @@ private const val TAIL_CHARS = 240
 class Router(
     private val transport: ChatTransport,
     private val config: RouterConfig = RouterConfig(),
-    private val clock: () -> Long = { System.currentTimeMillis() }
+    private val clock: () -> Long = { System.currentTimeMillis() },
+    val limiter: UsageLimiter = UsageLimiter()
 ) {
     val health = Health(config)
     val stats = ModelStats()
@@ -241,6 +242,15 @@ class Router(
                     continue
                 }
             }
+            if (!pinned) {
+                val lim = limiter.blockedUntil(t, clock())
+                if (lim != null) {
+                    reasons.putIfAbsent(t.providerName, "بلغ حد الاستخدام")
+                    soonest = min(soonest, lim)
+                    continue
+                }
+            }
+            limiter.record(t, clock())
             val msgs = buildMessages(req, t, partial.toString())
             var got = false
             var completed = false

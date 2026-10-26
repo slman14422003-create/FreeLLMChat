@@ -37,6 +37,8 @@ class SettingsStore(context: Context) {
         val BRAIN_LOCAL_FIRST = booleanPreferencesKey("brain_local_first")
         val BRAIN_CONTEXT = booleanPreferencesKey("brain_context")
         val DEEP_THINK = booleanPreferencesKey("deep_think")
+        val AVOID_TRAINING = booleanPreferencesKey("avoid_training")
+        val KEYLESS_OFF = stringSetPreferencesKey("keyless_off")
     }
 
     private val data: Flow<Preferences> = ds.data.catch { emit(emptyPreferences()) }
@@ -58,6 +60,8 @@ class SettingsStore(context: Context) {
     val brainLearn: Flow<Boolean> = data.map { it[K.BRAIN_LEARN] ?: true }.distinctUntilChanged()
     val brainLocalFirst: Flow<Boolean> = data.map { it[K.BRAIN_LOCAL_FIRST] ?: true }.distinctUntilChanged()
     val brainContext: Flow<Boolean> = data.map { it[K.BRAIN_CONTEXT] ?: true }.distinctUntilChanged()
+    val avoidTraining: Flow<Boolean> = data.map { it[K.AVOID_TRAINING] ?: false }.distinctUntilChanged()
+    val keylessOff: Flow<Set<String>> = data.map { it[K.KEYLESS_OFF] ?: emptySet() }.distinctUntilChanged()
     val deepThink: Flow<Boolean> = data.map { it[K.DEEP_THINK] ?: false }.distinctUntilChanged()
     val style: Flow<String> = data.map { it[K.STYLE] ?: "default" }.distinctUntilChanged()
     val instructions: Flow<String> = data.map { it[K.INSTRUCTIONS] ?: "" }.distinctUntilChanged()
@@ -133,6 +137,17 @@ class SettingsStore(context: Context) {
 
     suspend fun setBrainContext(v: Boolean) {
         ds.edit { it[K.BRAIN_CONTEXT] = v }
+    }
+
+    suspend fun setAvoidTraining(v: Boolean) {
+        ds.edit { it[K.AVOID_TRAINING] = v }
+    }
+
+    suspend fun setKeylessOff(id: String, off: Boolean) {
+        ds.edit { p ->
+            val cur = p[K.KEYLESS_OFF] ?: emptySet()
+            p[K.KEYLESS_OFF] = if (off) cur + id else cur - id
+        }
     }
 
     suspend fun setDeepThink(v: Boolean) {

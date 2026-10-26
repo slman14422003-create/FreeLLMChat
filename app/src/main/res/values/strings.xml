@@ -45,6 +45,9 @@
     <string name="notes">ملاحظات</string>
     <string name="open_key_page">افتح صفحة إنشاء المفتاح</string>
     <string name="api_key">مفتاح API</string>
+    <string name="api_key_optional">مفتاح API (اختياري لرفع الحدود)</string>
+    <string name="avoid_training">تجنّب المزودين الذين يدرّبون على بياناتي</string>
+    <string name="avoid_training_desc">يستبعد المودلات التي قد تُستخدم محادثاتها لتحسين المنتجات</string>
     <string name="key_saved_hint">المفتاح محفوظ — الصق مفتاحاً جديداً للاستبدال</string>
     <string name="show_key">إظهار</string>
     <string name="hide_key">إخفاء</string>

@@ -138,6 +138,7 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
     val autoSwitch by app.settings.autoSwitch.collectAsStateWithLifecycle(initialValue = true)
     val autoResume by app.settings.autoResume.collectAsStateWithLifecycle(initialValue = true)
     val tokenSaver by app.settings.tokenSaver.collectAsStateWithLifecycle(initialValue = true)
+    val avoidTraining by app.settings.avoidTraining.collectAsStateWithLifecycle(initialValue = false)
     val brainLearn by app.settings.brainLearn.collectAsStateWithLifecycle(initialValue = true)
     val brainLocalFirst by app.settings.brainLocalFirst.collectAsStateWithLifecycle(initialValue = true)
     val brainContext by app.settings.brainContext.collectAsStateWithLifecycle(initialValue = true)
@@ -370,6 +371,22 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
                         Switch(
                             checked = tokenSaver,
                             onCheckedChange = { scope.launch { app.settings.setTokenSaver(it) } },
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = cs.tertiary,
+                                checkedThumbColor = androidx.compose.ui.graphics.Color.White
+                            )
+                        )
+                    }
+                )
+                SettingsRow(
+                    Icons.Outlined.Info,
+                    stringResource(R.string.avoid_training),
+                    stringResource(R.string.avoid_training_desc),
+                    onClick = { scope.launch { app.settings.setAvoidTraining(!avoidTraining) } },
+                    trailing = {
+                        Switch(
+                            checked = avoidTraining,
+                            onCheckedChange = { scope.launch { app.settings.setAvoidTraining(it) } },
                             colors = SwitchDefaults.colors(
                                 checkedTrackColor = cs.tertiary,
                                 checkedThumbColor = androidx.compose.ui.graphics.Color.White

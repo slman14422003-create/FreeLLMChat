@@ -72,7 +72,7 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
         val b = Request.Builder()
             .url(endpoint(base))
             .header("Accept", "application/json")
-        b.header("Authorization", "Bearer ${t.apiKey}")
+        if (t.apiKey.isNotBlank()) b.header("Authorization", "Bearer ${t.apiKey}")
         if (t.providerId == "gemini") b.header("x-goog-api-key", t.apiKey)
         t.headers.forEach { (k, v) -> b.header(k, v) }
         return b.post(bodyJson.toRequestBody(mediaJson)).build()
@@ -134,6 +134,7 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
     private fun retryable(e: LlmException): Boolean = when (e.kind) {
         ErrorKind.TIMEOUT, ErrorKind.NETWORK -> true
         ErrorKind.AUTH -> e.httpCode == 403
+        ErrorKind.NOT_FOUND -> e.httpCode == 404 && e.message.orEmpty().trim().equals("Not found", ignoreCase = true)
         ErrorKind.SERVER -> e.httpCode in listOf(502, 503, 504) || e.httpCode in 520..530
         else -> false
     }

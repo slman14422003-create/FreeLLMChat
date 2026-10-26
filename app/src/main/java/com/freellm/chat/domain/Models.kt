@@ -14,7 +14,9 @@ data class ProviderDef(
     val headers: Map<String, String> = emptyMap(),
     val available: Boolean = true,
     val needsAccountId: Boolean = false,
-    val perModelLimits: Boolean = false
+    val perModelLimits: Boolean = false,
+    val keyless: Boolean = false,
+    val sharedLimits: Boolean = false
 )
 
 @Serializable
@@ -28,6 +30,10 @@ data class ModelDef(
     val vision: Boolean = false,
     val reasoning: Boolean = false,
     val trainsOnData: Boolean = false,
+    val rpm: Int = 0,
+    val rph: Int = 0,
+    val rpd: Int = 0,
+    val rpmo: Int = 0,
     val expiresAt: String? = null
 )
 
@@ -49,7 +55,8 @@ data class Target(
     val model: ModelDef,
     val providerRank: Int = 0,
     val perModelLimits: Boolean = false,
-    val altBaseUrl: String = ""
+    val altBaseUrl: String = "",
+    val sharedLimits: Boolean = false
 ) {
     val key: String get() = "$providerId/${model.id}"
     override fun toString(): String = "Target($key)"

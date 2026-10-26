@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "providers": [
     {
       "id": "gemini",
@@ -43,7 +43,8 @@
         "الحد المجاني تقريباً: 20 طلباً في الدقيقة و50 طلباً يومياً، ويرتفع إلى 1000 يومياً بعد شحن 10 دولارات.",
         "بعض المودلات المجانية تسجّل المحادثات وقد تستخدمها للتدريب.",
         "المودلات المجانية تتغير وتختفي كثيراً."
-      ]
+      ],
+      "sharedLimits": true
     },
     {
       "id": "cloudflare",
@@ -98,9 +99,136 @@
         "الحد المجاني تقريباً: طلب أو اثنان بالتوازي.",
         "المحادثات قد تُعالج وفق سياسة المزود."
       ]
+    },
+    {
+      "id": "mistral",
+      "name": "Mistral AI",
+      "baseUrl": "https://api.mistral.ai/v1",
+      "keyUrl": "https://console.mistral.ai/api-keys",
+      "available": true,
+      "steps": [
+        "افتح صفحة المفاتيح بالزر أدناه.",
+        "أنشئ حساباً أو سجّل الدخول (قد يُطلب تأكيد رقم هاتف).",
+        "فعّل الوضع المجاني إن طُلب منك اختيار خطة.",
+        "اضغط إنشاء مفتاح جديد ثم انسخه.",
+        "ألصقه في الحقل أدناه ثم اضغط اختبر المفتاح."
+      ],
+      "warnings": [
+        "لا يطلب بطاقة دفع.",
+        "في الوضع المجاني قد تُستخدم محادثاتك لتدريب نماذج Mistral ما لم تُلغِ ذلك من إعدادات الحساب.",
+        "الحد التقريبي: طلب واحد في الثانية."
+      ],
+      "sharedLimits": true
+    },
+    {
+      "id": "groq",
+      "name": "Groq",
+      "baseUrl": "https://api.groq.com/openai/v1",
+      "keyUrl": "https://console.groq.com/keys",
+      "available": true,
+      "steps": [
+        "افتح صفحة المفاتيح بالزر أدناه.",
+        "أنشئ حساباً أو سجّل الدخول.",
+        "اضغط Create API Key وسمّه.",
+        "انسخ المفتاح.",
+        "ألصقه في الحقل أدناه ثم اضغط اختبر المفتاح."
+      ],
+      "warnings": [
+        "لا يطلب بطاقة دفع.",
+        "قد يرفض الطلبات (403) في بعض المناطق، والتطبيق يجرّب المسار البديل تلقائياً.",
+        "الحد التقريبي: 30 طلباً في الدقيقة و1000 طلب يومياً لكل مودل."
+      ],
+      "perModelLimits": true
+    },
+    {
+      "id": "nvidia",
+      "name": "NVIDIA NIM",
+      "baseUrl": "https://integrate.api.nvidia.com/v1",
+      "keyUrl": "https://build.nvidia.com/explore/discover",
+      "available": true,
+      "steps": [
+        "افتح صفحة المودلات بالزر أدناه.",
+        "سجّل الدخول بحساب NVIDIA أو أنشئ حساباً.",
+        "اختر أي مودل ثم اضغط Get API Key.",
+        "انسخ المفتاح (يبدأ بـ nvapi-).",
+        "ألصقه في الحقل أدناه ثم اضغط اختبر المفتاح."
+      ],
+      "warnings": [
+        "يتطلب عضوية NVIDIA Developer Program وقد يُطلب تأكيد رقم هاتف.",
+        "الحد التقريبي: 40 طلباً في الدقيقة."
+      ],
+      "sharedLimits": true
+    },
+    {
+      "id": "kilo",
+      "name": "Kilo Gateway (بلا مفتاح)",
+      "baseUrl": "https://api.kilo.ai/api/gateway",
+      "keyUrl": "",
+      "available": true,
+      "steps": [
+        "لا يحتاج أي مفتاح، يعمل مباشرة بعد التثبيت.",
+        "يمكنك تفعيله أو تعطيله من المفتاح الجانبي في قائمة المزودين.",
+        "اضغط اختبار الاتصال للتأكد."
+      ],
+      "warnings": [
+        "الحد التقريبي: 200 طلب في الساعة لكل عنوان IP.",
+        "مودلات المجمع المجاني تتغير باستمرار، راجع سياسة الخصوصية قبل إرسال بيانات حساسة."
+      ],
+      "keyless": true,
+      "sharedLimits": true
+    },
+    {
+      "id": "ovh",
+      "name": "OVHcloud (بلا مفتاح)",
+      "baseUrl": "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1",
+      "keyUrl": "",
+      "available": true,
+      "steps": [
+        "لا يحتاج أي مفتاح ولا تسجيل.",
+        "يمكنك تفعيله أو تعطيله من المفتاح الجانبي في قائمة المزودين.",
+        "اضغط اختبار الاتصال للتأكد."
+      ],
+      "warnings": [
+        "الحد: طلبان في الدقيقة لكل عنوان IP ولكل مودل.",
+        "المودلات مستضافة في أوروبا."
+      ],
+      "keyless": true,
+      "perModelLimits": true
+    },
+    {
+      "id": "llm7",
+      "name": "LLM7 (مفتاح اختياري)",
+      "baseUrl": "https://api.llm7.io/v1",
+      "keyUrl": "https://token.llm7.io",
+      "available": true,
+      "steps": [
+        "يعمل بدون مفتاح بحدود منخفضة.",
+        "لرفع الحدود افتح صفحة التوكن بالزر أدناه وسجّل للحصول على توكن مجاني.",
+        "ألصق التوكن في الحقل أدناه (اختياري) ثم اضغط اختبر."
+      ],
+      "warnings": [
+        "الحد مع التوكن: 60 طلباً في الدقيقة و250 طلباً في الساعة.",
+        "قد تتغير الموديلات أو تختفي دون إشعار."
+      ],
+      "keyless": true,
+      "sharedLimits": true
     }
   ],
   "models": [
+    {
+      "id": "gemini-3.8-flash",
+      "provider": "gemini",
+      "displayName": "Gemini 3.8 Flash",
+      "priority": 3,
+      "contextWindow": 1000000,
+      "modes": [
+        "fast",
+        "smart"
+      ],
+      "vision": true,
+      "reasoning": true,
+      "trainsOnData": true
+    },
     {
       "id": "gemini-flash-latest",
       "provider": "gemini",
@@ -116,39 +244,90 @@
       "trainsOnData": true
     },
     {
+      "id": "openai/gpt-oss-120b",
+      "provider": "groq",
+      "displayName": "GPT-OSS 120B (Groq)",
+      "priority": 6,
+      "contextWindow": 131000,
+      "modes": [
+        "smart",
+        "code"
+      ],
+      "vision": false,
+      "reasoning": true,
+      "trainsOnData": false,
+      "rpm": 30,
+      "rpd": 1000
+    },
+    {
       "id": "nvidia/nemotron-3-ultra-550b-a55b:free",
       "provider": "openrouter",
       "displayName": "Nemotron 3 Ultra 550B",
       "priority": 8,
-      "contextWindow": 131072,
+      "contextWindow": 1000000,
       "modes": [
         "smart"
       ],
       "reasoning": true,
-      "trainsOnData": true
+      "trainsOnData": true,
+      "rpm": 20
     },
     {
-      "id": "qwen/qwen3-coder:free",
-      "provider": "openrouter",
-      "displayName": "Qwen3 Coder",
-      "priority": 17,
-      "contextWindow": 262144,
+      "id": "qwen/qwen3.8-27b",
+      "provider": "groq",
+      "displayName": "Qwen3.8 27B (Groq)",
+      "priority": 10,
+      "contextWindow": 131000,
       "modes": [
-        "code"
+        "fast",
+        "smart"
       ],
-      "trainsOnData": true
+      "vision": true,
+      "reasoning": false,
+      "trainsOnData": false,
+      "rpm": 30,
+      "rpd": 1000
+    },
+    {
+      "id": "mistral-medium-3-5",
+      "provider": "mistral",
+      "displayName": "Mistral Medium 3.5",
+      "priority": 12,
+      "contextWindow": 256000,
+      "modes": [
+        "smart"
+      ],
+      "vision": true,
+      "reasoning": false,
+      "trainsOnData": true,
+      "rpm": 60
+    },
+    {
+      "id": "mistral-large-2512",
+      "provider": "mistral",
+      "displayName": "Mistral Large 3",
+      "priority": 14,
+      "contextWindow": 256000,
+      "modes": [
+        "smart"
+      ],
+      "vision": true,
+      "reasoning": false,
+      "trainsOnData": true,
+      "rpm": 60
     },
     {
       "id": "nvidia/nemotron-3-super-120b-a12b:free",
       "provider": "openrouter",
       "displayName": "Nemotron 3 Super 120B",
       "priority": 18,
-      "contextWindow": 131072,
+      "contextWindow": 262000,
       "modes": [
         "smart"
       ],
       "reasoning": true,
-      "trainsOnData": true
+      "trainsOnData": true,
+      "rpm": 20
     },
     {
       "id": "gemini-2.5-pro",
@@ -165,35 +344,25 @@
       "trainsOnData": true
     },
     {
-      "id": "qwen/qwen3-235b-a22b:free",
-      "provider": "openrouter",
-      "displayName": "Qwen3 235B",
-      "priority": 22,
-      "contextWindow": 131072,
+      "id": "codestral-2508",
+      "provider": "mistral",
+      "displayName": "Codestral",
+      "priority": 20,
+      "contextWindow": 128000,
       "modes": [
-        "smart"
+        "code"
       ],
-      "reasoning": true,
-      "trainsOnData": true
-    },
-    {
-      "id": "z-ai/glm-4.5-air:free",
-      "provider": "openrouter",
-      "displayName": "GLM 4.5 Air",
-      "priority": 23,
-      "contextWindow": 131072,
-      "modes": [
-        "smart"
-      ],
-      "reasoning": true,
-      "trainsOnData": true
+      "vision": false,
+      "reasoning": false,
+      "trainsOnData": true,
+      "rpm": 60
     },
     {
       "id": "glm-4.5-flash",
       "provider": "zai",
       "displayName": "GLM 4.5 Flash (Z.ai)",
       "priority": 24,
-      "contextWindow": 131072,
+      "contextWindow": 128000,
       "modes": [
         "fast",
         "smart"
@@ -223,113 +392,121 @@
         "smart",
         "code"
       ],
-      "trainsOnData": true
+      "trainsOnData": true,
+      "rpm": 20,
+      "rpmo": 1000
+    },
+    {
+      "id": "mistral-small-2603",
+      "provider": "mistral",
+      "displayName": "Mistral Small 4",
+      "priority": 31,
+      "contextWindow": 256000,
+      "modes": [
+        "fast",
+        "smart"
+      ],
+      "vision": true,
+      "reasoning": false,
+      "trainsOnData": true,
+      "rpm": 60
     },
     {
       "id": "thinkingmachines/inkling:free",
       "provider": "openrouter",
       "displayName": "Inkling",
       "priority": 32,
-      "contextWindow": 131072,
+      "contextWindow": 1000000,
       "modes": [
         "smart"
       ],
-      "trainsOnData": true
+      "trainsOnData": true,
+      "vision": true,
+      "rpm": 20
     },
     {
       "id": "nvidia/nemotron-3.5-super-vl:free",
       "provider": "openrouter",
       "displayName": "Nemotron 3.5 Super VL",
       "priority": 33,
-      "contextWindow": 131072,
+      "contextWindow": 1000000,
       "modes": [
         "smart"
       ],
       "vision": true,
-      "trainsOnData": true
+      "trainsOnData": true,
+      "rpm": 20
     },
     {
-      "id": "meta-llama/llama-4-maverick:free",
-      "provider": "openrouter",
-      "displayName": "Llama 4 Maverick",
-      "priority": 34,
-      "contextWindow": 131072,
+      "id": "nvidia/nemotron-3-ultra-550b-a55b",
+      "provider": "nvidia",
+      "displayName": "Nemotron 3 Ultra (NVIDIA)",
+      "priority": 36,
+      "contextWindow": 1000000,
       "modes": [
         "smart"
       ],
-      "vision": true,
-      "trainsOnData": true
+      "vision": false,
+      "reasoning": false,
+      "trainsOnData": false,
+      "rpm": 40,
+      "rpd": 10000
     },
     {
-      "id": "openai/gpt-oss-120b:free",
-      "provider": "openrouter",
-      "displayName": "GPT-OSS 120B (OpenRouter)",
-      "priority": 35,
-      "contextWindow": 131072,
+      "id": "openai/gpt-oss-20b",
+      "provider": "groq",
+      "displayName": "GPT-OSS 20B (Groq)",
+      "priority": 38,
+      "contextWindow": 131000,
       "modes": [
-        "smart",
-        "code"
+        "fast"
       ],
+      "vision": false,
       "reasoning": true,
-      "trainsOnData": true
+      "trainsOnData": false,
+      "rpm": 30,
+      "rpd": 1000
     },
     {
       "id": "google/gemma-4-31b-it:free",
       "provider": "openrouter",
       "displayName": "Gemma 4 31B",
       "priority": 40,
-      "contextWindow": 131072,
+      "contextWindow": 262000,
       "modes": [
         "fast"
       ],
       "vision": true,
-      "trainsOnData": true
+      "trainsOnData": true,
+      "rpm": 20
     },
     {
-      "id": "qwen/qwen3-next-80b-a3b-instruct:free",
-      "provider": "openrouter",
-      "displayName": "Qwen3 Next 80B",
-      "priority": 41,
-      "contextWindow": 131072,
+      "id": "google/gemma-4-31b-it",
+      "provider": "nvidia",
+      "displayName": "Gemma 4 31B (NVIDIA)",
+      "priority": 44,
+      "contextWindow": 262000,
       "modes": [
-        "fast",
-        "smart"
+        "fast"
       ],
-      "trainsOnData": true
-    },
-    {
-      "id": "nousresearch/hermes-3-llama-3.1-405b:free",
-      "provider": "openrouter",
-      "displayName": "Hermes 3 405B",
-      "priority": 42,
-      "contextWindow": 131072,
-      "modes": [
-        "smart"
-      ],
-      "trainsOnData": true
+      "vision": true,
+      "reasoning": false,
+      "trainsOnData": false,
+      "rpm": 40,
+      "rpd": 10000
     },
     {
       "id": "thinkingmachines/inkling-small:free",
       "provider": "openrouter",
       "displayName": "Inkling Small",
       "priority": 45,
-      "contextWindow": 131072,
+      "contextWindow": 1000000,
       "modes": [
         "fast"
       ],
-      "trainsOnData": true
-    },
-    {
-      "id": "meta-llama/llama-3.3-70b-instruct:free",
-      "provider": "openrouter",
-      "displayName": "Llama 3.3 70B",
-      "priority": 46,
-      "contextWindow": 131072,
-      "modes": [
-        "fast",
-        "smart"
-      ],
-      "trainsOnData": true
+      "trainsOnData": true,
+      "vision": true,
+      "rpm": 20
     },
     {
       "id": "gemini-2.5-flash",
@@ -368,13 +545,157 @@
       ]
     },
     {
+      "id": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "provider": "kilo",
+      "displayName": "Nemotron 3 Ultra (Kilo)",
+      "priority": 56,
+      "contextWindow": 1000000,
+      "modes": [
+        "smart"
+      ],
+      "vision": false,
+      "reasoning": false,
+      "trainsOnData": true,
+      "rph": 200
+    },
+    {
+      "id": "poolside/laguna-s-2.1:free",
+      "provider": "kilo",
+      "displayName": "Laguna S 2.1 (Kilo)",
+      "priority": 57,
+      "contextWindow": 262000,
+      "modes": [
+        "code"
+      ],
+      "vision": false,
+      "reasoning": false,
+      "trainsOnData": true,
+      "rph": 200
+    },
+    {
+      "id": "kilo-auto/free",
+      "provider": "kilo",
+      "displayName": "Kilo Auto (احتياط)",
+      "priority": 58,
+      "contextWindow": 256000,
+      "modes": [],
+      "vision": false,
+      "reasoning": false,
+      "trainsOnData": true,
+      "rph": 200
+    },
+    {
+      "id": "Qwen3.8-27B",
+      "provider": "ovh",
+      "displayName": "Qwen3.8 27B (OVH)",
+      "priority": 60,
+      "contextWindow": 262000,
+      "modes": [
+        "fast",
+        "smart"
+      ],
+      "vision": true,
+      "reasoning": false,
+      "trainsOnData": false,
+      "rpm": 2
+    },
+    {
+      "id": "gpt-oss-120b",
+      "provider": "ovh",
+      "displayName": "GPT-OSS 120B (OVH)",
+      "priority": 61,
+      "contextWindow": 131000,
+      "modes": [
+        "smart",
+        "code"
+      ],
+      "vision": false,
+      "reasoning": true,
+      "trainsOnData": false,
+      "rpm": 2
+    },
+    {
+      "id": "Meta-Llama-3_3-70B-Instruct",
+      "provider": "ovh",
+      "displayName": "Llama 3.3 70B (OVH)",
+      "priority": 62,
+      "contextWindow": 131000,
+      "modes": [
+        "fast"
+      ],
+      "vision": false,
+      "reasoning": false,
+      "trainsOnData": false,
+      "rpm": 2
+    },
+    {
+      "id": "Mistral-Small-3.2-24B-Instruct-2506",
+      "provider": "ovh",
+      "displayName": "Mistral Small 3.2 (OVH)",
+      "priority": 63,
+      "contextWindow": 128000,
+      "modes": [
+        "fast"
+      ],
+      "vision": true,
+      "reasoning": false,
+      "trainsOnData": false,
+      "rpm": 2
+    },
+    {
+      "id": "gpt-oss:20b",
+      "provider": "llm7",
+      "displayName": "GPT-OSS 20B (LLM7)",
+      "priority": 70,
+      "contextWindow": 128000,
+      "modes": [
+        "fast"
+      ],
+      "vision": false,
+      "reasoning": true,
+      "trainsOnData": false,
+      "rpm": 60,
+      "rph": 250
+    },
+    {
+      "id": "minimax-m2.7",
+      "provider": "llm7",
+      "displayName": "MiniMax M2.7 (LLM7)",
+      "priority": 71,
+      "contextWindow": 180000,
+      "modes": [
+        "smart"
+      ],
+      "vision": false,
+      "reasoning": true,
+      "trainsOnData": false,
+      "rpm": 60,
+      "rph": 250
+    },
+    {
+      "id": "codestral-latest",
+      "provider": "llm7",
+      "displayName": "Codestral (LLM7)",
+      "priority": 72,
+      "contextWindow": 32000,
+      "modes": [
+        "code"
+      ],
+      "vision": false,
+      "reasoning": false,
+      "trainsOnData": false,
+      "rpm": 60,
+      "rph": 250
+    },
+    {
       "id": "openrouter/free",
       "provider": "openrouter",
       "displayName": "OpenRouter Free (احتياط)",
       "priority": 99,
       "contextWindow": 32768,
       "modes": [],
-      "trainsOnData": true
+      "trainsOnData": true,
+      "rpm": 20
     },
     {
       "id": "glm-4.7-flash",
@@ -388,7 +709,7 @@
       ],
       "vision": false,
       "reasoning": true,
-      "trainsOnData": false
+      "trainsOnData": true
     },
     {
       "id": "glm-4.6v-flash",
@@ -401,49 +722,6 @@
       ],
       "vision": true,
       "reasoning": false,
-      "trainsOnData": false
-    },
-    {
-      "id": "deepseek/deepseek-v4-flash:free",
-      "provider": "openrouter",
-      "displayName": "DeepSeek V4 Flash",
-      "priority": 102,
-      "contextWindow": 128000,
-      "modes": [
-        "fast",
-        "smart",
-        "code"
-      ],
-      "vision": false,
-      "reasoning": true,
-      "trainsOnData": true
-    },
-    {
-      "id": "moonshotai/kimi-k2.6:free",
-      "provider": "openrouter",
-      "displayName": "Kimi K2.6",
-      "priority": 103,
-      "contextWindow": 128000,
-      "modes": [
-        "smart",
-        "code"
-      ],
-      "vision": false,
-      "reasoning": true,
-      "trainsOnData": true
-    },
-    {
-      "id": "minimax/minimax-m2.5:free",
-      "provider": "openrouter",
-      "displayName": "MiniMax M2.5",
-      "priority": 104,
-      "contextWindow": 128000,
-      "modes": [
-        "smart",
-        "code"
-      ],
-      "vision": false,
-      "reasoning": true,
       "trainsOnData": true
     },
     {
@@ -451,26 +729,14 @@
       "provider": "openrouter",
       "displayName": "Gemma 4 26B",
       "priority": 105,
-      "contextWindow": 128000,
+      "contextWindow": 262000,
       "modes": [
         "fast"
       ],
       "vision": true,
       "reasoning": false,
-      "trainsOnData": true
-    },
-    {
-      "id": "openai/gpt-oss-20b:free",
-      "provider": "openrouter",
-      "displayName": "GPT-OSS 20B (OpenRouter)",
-      "priority": 106,
-      "contextWindow": 128000,
-      "modes": [
-        "fast"
-      ],
-      "vision": false,
-      "reasoning": true,
-      "trainsOnData": true
+      "trainsOnData": true,
+      "rpm": 20
     },
     {
       "id": "@cf/openai/gpt-oss-20b",
@@ -494,9 +760,296 @@
       "modes": [
         "smart"
       ],
+      "vision": true,
+      "reasoning": false,
+      "trainsOnData": true,
+      "rpm": 20,
+      "rpmo": 1000
+    },
+    {
+      "id": "openai/gpt-oss-20b",
+      "provider": "nvidia",
+      "displayName": "GPT-OSS 20B (NVIDIA)",
+      "priority": 109,
+      "contextWindow": 131000,
+      "modes": [
+        "fast"
+      ],
+      "vision": false,
+      "reasoning": true,
+      "trainsOnData": false,
+      "rpm": 40,
+      "rpd": 10000
+    },
+    {
+      "id": "@cf/meta/llama-4-scout-17b-16e-instruct",
+      "provider": "cloudflare",
+      "displayName": "@cf/meta/llama-4-scout-17b-16e-instruct",
+      "priority": 200,
+      "contextWindow": 131000,
+      "modes": [
+        "smart"
+      ],
+      "vision": true,
+      "reasoning": false,
+      "trainsOnData": false
+    },
+    {
+      "id": "cohere/north-mini-code:free",
+      "provider": "openrouter",
+      "displayName": "cohere/north-mini-code:free",
+      "priority": 200,
+      "contextWindow": 256000,
+      "modes": [
+        "fast",
+        "code"
+      ],
+      "vision": false,
+      "reasoning": false,
+      "trainsOnData": true,
+      "rpm": 20
+    },
+    {
+      "id": "command-r-plus-08-2024",
+      "provider": "cohere",
+      "displayName": "Command R+",
+      "priority": 200,
+      "contextWindow": 128000,
+      "modes": [
+        "smart"
+      ],
+      "vision": false,
+      "reasoning": false,
+      "trainsOnData": true,
+      "rpm": 20,
+      "rpmo": 1000
+    },
+    {
+      "id": "gemini-3.6-flash",
+      "provider": "gemini",
+      "displayName": "Gemini 3.6 Flash",
+      "priority": 200,
+      "contextWindow": 1000000,
+      "modes": [
+        "fast"
+      ],
+      "vision": true,
+      "reasoning": false,
+      "trainsOnData": true
+    },
+    {
+      "id": "ministral-8b-2512",
+      "provider": "mistral",
+      "displayName": "Ministral 3 8B",
+      "priority": 200,
+      "contextWindow": 256000,
+      "modes": [
+        "fast"
+      ],
+      "vision": true,
+      "reasoning": false,
+      "trainsOnData": true,
+      "rpm": 60
+    },
+    {
+      "id": "mistral-Nemo-Instruct-2407",
+      "provider": "llm7",
+      "displayName": "mistral-Nemo-Instruct-2407",
+      "priority": 200,
+      "contextWindow": 128000,
+      "modes": [
+        "smart"
+      ],
+      "vision": false,
+      "reasoning": false,
+      "trainsOnData": false,
+      "rpm": 60,
+      "rph": 250
+    },
+    {
+      "id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+      "provider": "kilo",
+      "displayName": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+      "priority": 200,
+      "contextWindow": 256000,
+      "modes": [
+        "fast",
+        "smart"
+      ],
+      "vision": true,
+      "reasoning": false,
+      "trainsOnData": true,
+      "rph": 200
+    },
+    {
+      "id": "Qwen3.5-397B-A17B",
+      "provider": "ovh",
+      "displayName": "Qwen3.5-397B-A17B",
+      "priority": 200,
+      "contextWindow": 262000,
+      "modes": [
+        "smart"
+      ],
+      "vision": true,
+      "reasoning": false,
+      "trainsOnData": false,
+      "rpm": 2
+    },
+    {
+      "id": "@cf/google/gemma-4-26b-a4b-it",
+      "provider": "cloudflare",
+      "displayName": "@cf/google/gemma-4-26b-a4b-it",
+      "priority": 201,
+      "contextWindow": 256000,
+      "modes": [
+        "smart"
+      ],
+      "vision": true,
+      "reasoning": false,
+      "trainsOnData": false
+    },
+    {
+      "id": "gemini-3.5-flash-lite",
+      "provider": "gemini",
+      "displayName": "Gemini 3.5 Flash-Lite",
+      "priority": 201,
+      "contextWindow": 1000000,
+      "modes": [
+        "fast"
+      ],
+      "vision": true,
+      "reasoning": false,
+      "trainsOnData": true
+    },
+    {
+      "id": "gpt-oss-20b",
+      "provider": "ovh",
+      "displayName": "gpt-oss-20b",
+      "priority": 201,
+      "contextWindow": 131000,
+      "modes": [
+        "fast"
+      ],
+      "vision": false,
+      "reasoning": false,
+      "trainsOnData": false,
+      "rpm": 2
+    },
+    {
+      "id": "ministral-3b-2512",
+      "provider": "mistral",
+      "displayName": "Ministral 3 3B",
+      "priority": 201,
+      "contextWindow": 256000,
+      "modes": [
+        "fast"
+      ],
+      "vision": true,
+      "reasoning": false,
+      "trainsOnData": true,
+      "rpm": 60
+    },
+    {
+      "id": "nemotron-3-nano:30b",
+      "provider": "llm7",
+      "displayName": "nemotron-3-nano:30b",
+      "priority": 201,
+      "contextWindow": 1000000,
+      "modes": [
+        "fast",
+        "smart"
+      ],
+      "vision": false,
+      "reasoning": true,
+      "trainsOnData": false,
+      "rpm": 60,
+      "rph": 250
+    },
+    {
+      "id": "poolside/laguna-s-2.1:free",
+      "provider": "openrouter",
+      "displayName": "poolside/laguna-s-2.1:free",
+      "priority": 201,
+      "contextWindow": 262000,
+      "modes": [
+        "code",
+        "smart"
+      ],
+      "vision": false,
+      "reasoning": false,
+      "trainsOnData": true,
+      "rpm": 20
+    },
+    {
+      "id": "poolside/laguna-xs-2.1:free",
+      "provider": "kilo",
+      "displayName": "poolside/laguna-xs-2.1:free",
+      "priority": 201,
+      "contextWindow": 262000,
+      "modes": [
+        "code",
+        "smart"
+      ],
+      "vision": false,
+      "reasoning": false,
+      "trainsOnData": true,
+      "rph": 200
+    },
+    {
+      "id": "@cf/zai-org/glm-4.7-flash",
+      "provider": "cloudflare",
+      "displayName": "@cf/zai-org/glm-4.7-flash",
+      "priority": 202,
+      "contextWindow": 131000,
+      "modes": [
+        "fast"
+      ],
       "vision": false,
       "reasoning": false,
       "trainsOnData": false
+    },
+    {
+      "id": "gemini-3.1-flash-lite",
+      "provider": "gemini",
+      "displayName": "Gemini 3.1 Flash-Lite",
+      "priority": 202,
+      "contextWindow": 1000000,
+      "modes": [
+        "fast"
+      ],
+      "vision": true,
+      "reasoning": false,
+      "trainsOnData": true,
+      "expiresAt": "2027-05-07"
+    },
+    {
+      "id": "poolside/laguna-xs-2.1:free",
+      "provider": "openrouter",
+      "displayName": "poolside/laguna-xs-2.1:free",
+      "priority": 202,
+      "contextWindow": 262000,
+      "modes": [
+        "code",
+        "smart"
+      ],
+      "vision": false,
+      "reasoning": false,
+      "trainsOnData": true,
+      "rpm": 20
+    },
+    {
+      "id": "dots-studio/dots-3-note-preview:free",
+      "provider": "openrouter",
+      "displayName": "dots-studio/dots-3-note-preview:free",
+      "priority": 203,
+      "contextWindow": 512000,
+      "modes": [
+        "smart"
+      ],
+      "vision": true,
+      "reasoning": false,
+      "trainsOnData": true,
+      "rpm": 20
     }
   ]
 }

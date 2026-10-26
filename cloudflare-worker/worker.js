@@ -12,6 +12,9 @@ const UPSTREAMS = {
   cohere: "https://api.cohere.ai",
   huggingface: "https://router.huggingface.co",
   zai: "https://api.z.ai",
+  kilo: "https://api.kilo.ai",
+  ovh: "https://oai.endpoints.kepler.ai.cloud.ovh.net",
+  llm7: "https://api.llm7.io",
 };
 
 const STRIP = [

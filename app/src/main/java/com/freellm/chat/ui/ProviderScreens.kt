@@ -111,7 +111,7 @@ fun ProvidersScreen(app: FreeLlmApp, onBack: () -> Unit, onOpen: (String) -> Uni
                         }
                         Switch(
                             checked = ui.enabled,
-                            enabled = ui.hasKey,
+                            enabled = ui.hasKey || ui.def.keyless,
                             onCheckedChange = { on -> scope.launch { app.manager.setEnabled(ui.def.id, on) } }
                         )
                     }
@@ -183,7 +183,7 @@ fun ProviderWizardScreen(app: FreeLlmApp, providerId: String, onBack: () -> Unit
                 onValueChange = { key = it },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                label = { Text(stringResource(R.string.api_key)) },
+                label = { Text(stringResource(if (def.keyless) R.string.api_key_optional else R.string.api_key)) },
                 placeholder = { if (ui.hasKey) Text(stringResource(R.string.key_saved_hint)) },
                 visualTransformation = if (show) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -225,7 +225,7 @@ fun ProviderWizardScreen(app: FreeLlmApp, providerId: String, onBack: () -> Unit
                         if (err == null) key = ""
                     }
                 },
-                enabled = !busy && key.isNotBlank(),
+                enabled = !busy && (key.isNotBlank() || def.keyless),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 if (busy) {

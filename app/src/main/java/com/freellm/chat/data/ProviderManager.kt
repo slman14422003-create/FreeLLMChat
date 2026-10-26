@@ -30,9 +30,18 @@ class ProviderManager(
     private val client: OpenAiClient,
     private val router: Router
 ) {
-    val providers: Flow<List<ProviderUi>> = combine(
+    private val enabledIds: Flow<Set<String>> = combine(
         catalog.catalog,
         settings.enabled,
+        settings.keylessOff,
+        settings.avoidTraining
+    ) { cat, on, off, _ ->
+        on + cat.providers.filter { it.keyless && it.id !in off }.map { it.id }
+    }
+
+    val providers: Flow<List<ProviderUi>> = combine(
+        catalog.catalog,
+        enabledIds,
         settings.order,
         settings.statuses,
         secrets.changes
@@ -43,7 +52,7 @@ class ProviderManager(
         sorted.map { p ->
             val has = !secrets.apiKey(p.id).isNullOrBlank()
             val status = when {
-                !has -> ProviderStatus.NOT_CONFIGURED
+                !has && !p.keyless -> ProviderStatus.NOT_CONFIGURED
                 statuses[p.id] == "fail" -> ProviderStatus.FAILED
                 else -> ProviderStatus.READY
             }
@@ -91,7 +100,9 @@ class ProviderManager(
 
     suspend fun activeTargets(): List<Target> = withContext(Dispatchers.Default) {
         val cat = catalog.catalog.value
-        val enabled = settings.enabled.first()
+        val off = settings.keylessOff.first()
+        val enabled = settings.enabled.first() + cat.providers.filter { it.keyless && it.id !in off }.map { it.id }
+        val avoid = settings.avoidTraining.first()
         val order = settings.order.first()
         val statuses = settings.statuses.first()
         val today = LocalDate.now()
@@ -99,15 +110,15 @@ class ProviderManager(
         cat.providers
             .filter { it.available && it.id in enabled && statuses[it.id] != "fail" }
             .flatMap { p ->
-                val key = secrets.apiKey(p.id)
-                if (key.isNullOrBlank()) {
+                val key = secrets.apiKey(p.id).orEmpty()
+                if (key.isBlank() && !p.keyless) {
                     emptyList()
                 } else {
                     val rank = order.indexOf(p.id).let { if (it < 0) 99 else it }
                     val (base, alt) = baseFor(p, secrets.baseUrl(p.id), proxy, secrets.accountId(p.id).orEmpty())
                     cat.models
-                        .filter { it.provider == p.id && !expired(it, today) }
-                        .map { m -> Target(p.id, p.name, base, p.headers, key, m, rank, p.perModelLimits, alt) }
+                        .filter { it.provider == p.id && !expired(it, today) && !(avoid && it.trainsOnData) }
+                        .map { m -> Target(p.id, p.name, base, p.headers, key, m, rank, p.perModelLimits, alt, p.sharedLimits) }
                 }
             }
     }
@@ -119,7 +130,7 @@ class ProviderManager(
         accountId: String
     ): LlmException? {
         val k = key.trim()
-        if (k.isEmpty()) return LlmException(ErrorKind.AUTH, 401, message = "empty key")
+        if (k.isEmpty() && !p.keyless) return LlmException(ErrorKind.AUTH, 401, message = "empty key")
         val proxy = settings.proxyUrl.first()
         val (base, alt) = baseFor(p, baseOverride, proxy, accountId)
         val models = catalog.catalog.value.models
@@ -159,6 +170,7 @@ class ProviderManager(
 
     suspend fun setEnabled(id: String, on: Boolean) {
         settings.setEnabled(id, on)
+        settings.setKeylessOff(id, !on)
         if (on) {
             settings.setStatus(id, "ok")
             router.health.clearProvider(id)
@@ -168,6 +180,7 @@ class ProviderManager(
     suspend fun markFailed(id: String) {
         settings.setStatus(id, "fail")
         settings.setEnabled(id, false)
+        settings.setKeylessOff(id, true)
     }
 
     suspend fun move(id: String, delta: Int) {
@@ -183,8 +196,11 @@ class ProviderManager(
 
     suspend fun removeKey(id: String) {
         withContext(Dispatchers.IO) { secrets.clear(id) }
-        settings.setEnabled(id, false)
-        settings.setStatus(id, null)
+        val keyless = catalog.catalog.value.providers.firstOrNull { it.id == id }?.keyless == true
+        if (!keyless) {
+            settings.setEnabled(id, false)
+            settings.setStatus(id, null)
+        }
         router.health.clearProvider(id)
     }
 

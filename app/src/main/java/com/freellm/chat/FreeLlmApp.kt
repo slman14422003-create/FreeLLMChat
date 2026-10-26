@@ -4,6 +4,8 @@ import android.app.Application
 import com.freellm.chat.data.AttachmentStore
 import com.freellm.chat.data.BrainStore
 import com.freellm.chat.data.CatalogRepository
+import com.freellm.chat.data.UsagePrefs
+import com.freellm.chat.domain.UsageLimiter
 import com.freellm.chat.data.ChatRepository
 import com.freellm.chat.data.OpenAiClient
 import com.freellm.chat.data.ProviderManager
@@ -38,7 +40,8 @@ class FreeLlmApp : Application() {
     val settings: SettingsStore by lazy { SettingsStore(this) }
     val secrets: SecretStore by lazy { SecretStore(this) }
     val client: OpenAiClient by lazy { OpenAiClient(http) }
-    val router: Router by lazy { Router(client) }
+    val usage: UsagePrefs by lazy { UsagePrefs(this) }
+    val router: Router by lazy { Router(client, limiter = UsageLimiter(usage)) }
     val catalog: CatalogRepository by lazy { CatalogRepository(this, http, BuildConfig.MODELS_URL) }
     val attachments: AttachmentStore by lazy { AttachmentStore(this) }
     val brainStore: BrainStore by lazy { BrainStore(this) }

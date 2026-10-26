@@ -1,0 +1,56 @@
+name: Catalog
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: catalog
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    env:
+      PROXY: ${{ secrets.WORKER_URL }}
+      CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+      KEY_GEMINI: ${{ secrets.KEY_GEMINI }}
+      KEY_OPENROUTER: ${{ secrets.KEY_OPENROUTER }}
+      KEY_CLOUDFLARE: ${{ secrets.KEY_CLOUDFLARE }}
+      KEY_COHERE: ${{ secrets.KEY_COHERE }}
+      KEY_ZAI: ${{ secrets.KEY_ZAI }}
+      KEY_MISTRAL: ${{ secrets.KEY_MISTRAL }}
+      KEY_GROQ: ${{ secrets.KEY_GROQ }}
+      KEY_NVIDIA: ${{ secrets.KEY_NVIDIA }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Fetch upstream data
+        run: curl -fsSL https://raw.githubusercontent.com/mnfst/awesome-free-llm-apis/main/data.json -o tools/awesome.json
+
+      - name: Verify models
+        run: node tools/verify-models.mjs
+
+      - name: Build catalog
+        run: node tools/build-catalog.mjs
+
+      - name: Commit changes
+        run: |
+          if git diff --quiet -- app/src/main/assets/models.json tools/health.json; then
+            exit 0
+          fi
+          git config user.name "catalog-bot"
+          git config user.email "catalog-bot@users.noreply.github.com"
+          git add app/src/main/assets/models.json tools/health.json
+          git commit -m "Refresh model catalog"
+          git push
