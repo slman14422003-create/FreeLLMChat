@@ -3,13 +3,13 @@ package com.freellm.chat
 import android.content.Context
 import android.content.res.Configuration
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.fragment.app.FragmentActivity
 import com.freellm.chat.ui.AppRoot
 import java.util.Locale
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     override fun attachBaseContext(newBase: Context) {
         val lang = newBase.getSharedPreferences("ui_prefs", MODE_PRIVATE).getString("lang", "ar") ?: "ar"
         if (lang == "system") {

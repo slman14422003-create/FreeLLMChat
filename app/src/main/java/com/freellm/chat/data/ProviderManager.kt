@@ -228,6 +228,10 @@ class ProviderManager(
         settings.setOrder(ids)
     }
 
+    suspend fun setOrder(ids: List<String>) {
+        settings.setOrder(ids)
+    }
+
     suspend fun removeKey(id: String) {
         withContext(Dispatchers.IO) { secrets.clear(id) }
         val keyless = catalog.catalog.value.providers.firstOrNull { it.id == id }?.keyless == true

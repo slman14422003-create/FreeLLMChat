@@ -1,5 +1,10 @@
 package com.freellm.chat.ui
 
+import dev.snipme.highlights.Highlights
+import dev.snipme.highlights.model.ColorHighlight
+import dev.snipme.highlights.model.SyntaxLanguage
+import dev.snipme.highlights.model.SyntaxThemes
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -170,11 +175,13 @@ private val keywords = setOf(
     "let", "new", "this", "self", "from", "as", "try", "catch", "except", "finally", "throw",
     "public", "private", "static", "void", "int", "string", "async", "await", "switch", "case",
     "break", "continue", "override", "data", "enum", "struct", "None", "True", "False", "lambda",
-    "elif", "print"
+    "elif", "print", "fn", "mut", "impl", "trait", "pub", "use", "mod", "match", "func", "defer",
+    "type", "extends", "implements", "abstract", "final", "suspend", "companion", "sealed", "export",
+    "default", "do", "with", "yield", "pass", "and", "or", "not", "boolean", "double", "float", "long"
 )
 
 private val tokenRe = Regex(
-    "(//[^\\n]*|#[^\\n]*)|(\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*')|(\\b\\d+(?:\\.\\d+)?\\b)|(\\b[A-Za-z_][A-Za-z0-9_]*\\b)"
+    "(/\\*[\\s\\S]*?\\*/|//[^\\n]*|#[^\\n]*)|(\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*')|(\\b\\d+(?:\\.\\d+)?\\b)|(\\b[A-Za-z_][A-Za-z0-9_]*\\b)"
 )
 
 private fun highlight(code: String, c: CodeColors): AnnotatedString = buildAnnotatedString {
@@ -188,6 +195,45 @@ private fun highlight(code: String, c: CodeColors): AnnotatedString = buildAnnot
             else -> null
         }
         if (color != null) addStyle(SpanStyle(color = color), m.range.first, m.range.last + 1)
+    }
+}
+
+private fun libLanguage(lang: String): SyntaxLanguage? = when (lang.trim().lowercase()) {
+    "kotlin", "kt" -> SyntaxLanguage.KOTLIN
+    "java" -> SyntaxLanguage.JAVA
+    "python", "py" -> SyntaxLanguage.PYTHON
+    "javascript", "js" -> SyntaxLanguage.JAVASCRIPT
+    "typescript", "ts" -> SyntaxLanguage.TYPESCRIPT
+    "c" -> SyntaxLanguage.C
+    "cpp", "c++" -> SyntaxLanguage.CPP
+    "rust", "rs" -> SyntaxLanguage.RUST
+    "go", "golang" -> SyntaxLanguage.GO
+    "swift" -> SyntaxLanguage.SWIFT
+    "php" -> SyntaxLanguage.PHP
+    "ruby", "rb" -> SyntaxLanguage.RUBY
+    "bash", "sh", "shell" -> SyntaxLanguage.SHELL
+    "dart" -> SyntaxLanguage.DART
+    else -> null
+}
+
+private fun libHighlight(lang: String, code: String, dark: Boolean): AnnotatedString? {
+    val l = libLanguage(lang) ?: return null
+    return try {
+        val engine = Highlights.Builder().code(code).language(l).theme(SyntaxThemes.monokai(dark)).build()
+        buildAnnotatedString {
+            append(code)
+            for (h in engine.getHighlights()) {
+                if (h is ColorHighlight) {
+                    val a = h.location.start
+                    val b = h.location.end
+                    if (a >= 0 && b > a && b <= code.length) {
+                        addStyle(SpanStyle(color = Color(0xFF000000.toInt() or h.rgb)), a, b)
+                    }
+                }
+            }
+        }
+    } catch (e: Throwable) {
+        null
     }
 }
 
@@ -224,7 +270,7 @@ private fun CodeBlock(lang: String, code: String) {
         if (dark) CodeColors(Color(0xFFC792EA), Color(0xFFC3E88D), Color(0xFFF78C6C), Color(0xFF8A8A8A))
         else CodeColors(Color(0xFF7B3FBF), Color(0xFF2E7D32), Color(0xFFD35400), Color(0xFF8A8A8A))
     }
-    val annotated = remember(code, dark) { highlight(code, colors) }
+    val annotated = remember(code, lang, dark) { libHighlight(lang, code, dark) ?: highlight(code, colors) }
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         Column(
             Modifier

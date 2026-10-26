@@ -125,6 +125,11 @@ dependencies {
 
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.security.crypto)
+    implementation(libs.androidx.biometric)
+    implementation(libs.androidx.fragment)
+    implementation(libs.reorderable)
+    implementation(libs.highlights)
+    debugImplementation(libs.leakcanary)
 
     implementation(libs.okhttp)
     implementation(libs.pdfbox.android)

@@ -145,7 +145,8 @@ import kotlinx.coroutines.launch
 import java.util.Calendar
 
 private sealed class Picker {
-    data object Select : Picker()
+    data object Mode : Picker()
+    data object Model : Picker()
     data object Continue : Picker()
     data object Retry : Picker()
     data class Regen(val m: MessageEntity) : Picker()
@@ -310,7 +311,7 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                     active = generating,
                     label = selectionLabel(selection, targets),
                     onMenu = { scope.launch { drawerState.open() } },
-                    onModel = { picker = if (generating) Picker.Continue else Picker.Select },
+                    onModel = { picker = Picker.Mode },
                     onNew = { vm.newChat() }
                 )
             }
@@ -405,7 +406,7 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                         pdfJob = PdfJob(null, pendingAtt.filter { it.isImage })
                         savePdf.launch("images.pdf")
                     },
-                    onPlus = { picker = if (generating) Picker.Continue else Picker.Select },
+                    onPlus = { picker = if (generating) Picker.Continue else Picker.Model },
                     onMic = {
                         try {
                             speech.launch(
@@ -427,7 +428,8 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
     if (p != null) {
         ModelSheet(
             purpose = when (p) {
-                is Picker.Select -> PickPurpose.SELECT
+                is Picker.Mode -> PickPurpose.MODE
+                is Picker.Model -> PickPurpose.MODEL
                 is Picker.Continue -> PickPurpose.CONTINUE
                 is Picker.Retry -> PickPurpose.RETRY
                 is Picker.Regen -> PickPurpose.REGENERATE
@@ -437,7 +439,7 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
             health = { vm.health(it) },
             onPick = { code ->
                 when (p) {
-                    is Picker.Select -> vm.select(code)
+                    is Picker.Mode, is Picker.Model -> vm.select(code)
                     is Picker.Continue -> vm.continueWith(code)
                     is Picker.Retry -> vm.retryPending(code)
                     is Picker.Regen -> vm.regenerate(p.m, code)

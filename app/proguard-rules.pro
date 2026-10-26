@@ -63,3 +63,5 @@
 }
 -keep class com.freellm.chat.data.Attachment { *; }
 -keep class com.freellm.chat.data.Attachment$$serializer { *; }
+
+-keep class androidx.biometric.** { *; }

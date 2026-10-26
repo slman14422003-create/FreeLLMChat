@@ -15,6 +15,11 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.runtime.LaunchedEffect
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -79,41 +84,58 @@ private fun statusColor(s: ProviderStatus): Color = when (s) {
 fun ProvidersScreen(app: FreeLlmApp, onBack: () -> Unit, onOpen: (String) -> Unit) {
     val list by app.manager.providers.collectAsStateWithLifecycle(initialValue = emptyList())
     val scope = rememberCoroutineScope()
+    var local by remember { mutableStateOf(list) }
+    var dragging by remember { mutableStateOf(false) }
+    LaunchedEffect(list) { if (!dragging) local = list }
+    val lazyState = rememberLazyListState()
+    val reorderState = rememberReorderableLazyListState(lazyState) { from, to ->
+        local = local.toMutableList().apply { add(to.index, removeAt(from.index)) }
+    }
     Scaffold(topBar = { AppTopBar(stringResource(R.string.providers), onBack) }) { pad ->
         LazyColumn(
             Modifier.padding(pad),
+            state = lazyState,
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            itemsIndexed(list, key = { _, u -> u.def.id }) { index, ui ->
-                Card(
-                    onClick = { onOpen(ui.def.id) },
-                    modifier = Modifier.fillMaxWidth().animateItem().appear(index),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh), shape = RoundedCornerShape(24.dp)
-                ) {
-                    Row(
-                        Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+            itemsIndexed(local, key = { _, u -> u.def.id }) { index, ui ->
+                ReorderableItem(reorderState, key = ui.def.id) {
+                    Card(
+                        onClick = { onOpen(ui.def.id) },
+                        modifier = Modifier.fillMaxWidth().appear(index),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh), shape = RoundedCornerShape(24.dp)
                     ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(ui.def.name, style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                statusLabel(ui.status),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = statusColor(ui.status)
+                        Row(
+                            Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(ui.def.name, style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    statusLabel(ui.status),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = statusColor(ui.status)
+                                )
+                            }
+                            IconButton(
+                                onClick = {},
+                                modifier = Modifier.draggableHandle(
+                                    onDragStarted = { dragging = true },
+                                    onDragStopped = {
+                                        dragging = false
+                                        val ids = local.map { it.def.id }
+                                        scope.launch { app.manager.setOrder(ids) }
+                                    }
+                                )
+                            ) {
+                                Icon(Icons.Filled.DragHandle, stringResource(R.string.move_up))
+                            }
+                            Switch(
+                                checked = ui.enabled,
+                                enabled = ui.hasKey || ui.def.keyless,
+                                onCheckedChange = { on -> scope.launch { app.manager.setEnabled(ui.def.id, on) } }
                             )
                         }
-                        IconButton(onClick = { scope.launch { app.manager.move(ui.def.id, -1) } }) {
-                            Icon(Icons.Filled.KeyboardArrowUp, stringResource(R.string.move_up))
-                        }
-                        IconButton(onClick = { scope.launch { app.manager.move(ui.def.id, 1) } }) {
-                            Icon(Icons.Filled.KeyboardArrowDown, stringResource(R.string.move_down))
-                        }
-                        Switch(
-                            checked = ui.enabled,
-                            enabled = ui.hasKey || ui.def.keyless,
-                            onCheckedChange = { on -> scope.launch { app.manager.setEnabled(ui.def.id, on) } }
-                        )
                     }
                 }
             }

@@ -328,6 +328,7 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
                 SettingsRow(Icons.Outlined.Speed, stringResource(R.string.model_status), onClick = onStatus)
             }
 
+            BackupSection(app, Modifier.appear(3))
             SectionLabel(stringResource(R.string.preferences_label))
             SettingsGroup(Modifier.appear(3)) {
                 SettingsRow(

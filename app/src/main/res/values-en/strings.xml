@@ -84,6 +84,7 @@
     <string name="greeting_evening">Good evening</string>
     <string name="plan_free">Free plan</string>
     <string name="add_provider">Add provider</string>
+    <string name="pick_title_mode">Chat mode</string>
     <string name="pick_title_select">Choose model</string>
     <string name="pick_title_continue">Switch model and continue</string>
     <string name="pick_title_retry">Run your request with</string>
@@ -191,4 +192,25 @@
     <string name="brain_clear">Clear local brain memory</string>
     <string name="rate_good">Good answer</string>
     <string name="rate_bad">Bad answer</string>
+    <string name="backup_label">Backup</string>
+    <string name="backup_export">Back up keys</string>
+    <string name="backup_export_desc">Save all keys and settings to an encrypted file on this device</string>
+    <string name="backup_import">Restore from backup</string>
+    <string name="backup_import_desc">Bring back keys and settings from a saved file</string>
+    <string name="backup_password_title">File password</string>
+    <string name="backup_password_hint">The file is encrypted with this password. Without it the keys cannot be restored, so keep it safe.</string>
+    <string name="backup_password">Password</string>
+    <string name="backup_password_confirm">Confirm password (at least 6 characters)</string>
+    <string name="backup_save_file">Save file</string>
+    <string name="backup_continue">Continue</string>
+    <string name="backup_done">Backup saved</string>
+    <string name="backup_wrong_password">Wrong password</string>
+    <string name="backup_bad_file">Invalid file</string>
+    <string name="backup_failed">Operation failed</string>
+    <string name="backup_auth_title">Confirm your identity</string>
+    <string name="restore_title">Restore keys</string>
+    <string name="restore_summary">The file holds %1$d keys from %2$d providers. Merge them with the current ones or replace them?</string>
+    <string name="restore_merge">Merge</string>
+    <string name="restore_replace">Replace</string>
+    <string name="restore_done">Restore complete</string>
 </resources>

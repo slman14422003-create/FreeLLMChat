@@ -2,6 +2,7 @@ package com.freellm.chat
 
 import android.app.Application
 import com.freellm.chat.data.AttachmentStore
+import com.freellm.chat.data.BackupManager
 import com.freellm.chat.data.BrainStore
 import com.freellm.chat.data.CatalogRepository
 import com.freellm.chat.data.UsagePrefs
@@ -39,6 +40,7 @@ class FreeLlmApp : Application() {
     }
     val settings: SettingsStore by lazy { SettingsStore(this) }
     val secrets: SecretStore by lazy { SecretStore(this) }
+    val backup: BackupManager by lazy { BackupManager(this, secrets, settings) }
     val client: OpenAiClient by lazy { OpenAiClient(http) }
     val usage: UsagePrefs by lazy { UsagePrefs(this) }
     val router: Router by lazy { Router(client, limiter = UsageLimiter(usage)) }

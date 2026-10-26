@@ -84,6 +84,7 @@
     <string name="greeting_evening">مساء الخير</string>
     <string name="plan_free">الخطة المجانية</string>
     <string name="add_provider">إضافة مزود</string>
+    <string name="pick_title_mode">وضع الدردشة</string>
     <string name="pick_title_select">اختر المودل</string>
     <string name="pick_title_continue">تبديل المودل ومتابعة الرد</string>
     <string name="pick_title_retry">أكمل طلبك بمودل</string>
@@ -191,4 +192,25 @@
     <string name="brain_clear">مسح ذاكرة العقل المحلي</string>
     <string name="rate_good">إجابة جيدة</string>
     <string name="rate_bad">إجابة سيئة</string>
+    <string name="backup_label">النسخ الاحتياطي</string>
+    <string name="backup_export">نسخ احتياطي للمفاتيح</string>
+    <string name="backup_export_desc">حفظ كل المفاتيح والإعدادات في ملف مشفّر على الجهاز</string>
+    <string name="backup_import">استعادة من نسخة احتياطية</string>
+    <string name="backup_import_desc">استرجاع المفاتيح والإعدادات من ملف محفوظ</string>
+    <string name="backup_password_title">كلمة مرور الملف</string>
+    <string name="backup_password_hint">الملف يُشفَّر بهذه الكلمة. بدونها لا يمكن استعادة المفاتيح، فاحفظها جيدًا.</string>
+    <string name="backup_password">كلمة المرور</string>
+    <string name="backup_password_confirm">تأكيد كلمة المرور (6 أحرف على الأقل)</string>
+    <string name="backup_save_file">حفظ الملف</string>
+    <string name="backup_continue">متابعة</string>
+    <string name="backup_done">تم حفظ النسخة الاحتياطية</string>
+    <string name="backup_wrong_password">كلمة المرور غير صحيحة</string>
+    <string name="backup_bad_file">الملف غير صالح</string>
+    <string name="backup_failed">فشلت العملية</string>
+    <string name="backup_auth_title">تأكيد الهوية</string>
+    <string name="restore_title">استعادة المفاتيح</string>
+    <string name="restore_summary">يحتوي الملف على %1$d مفتاح من %2$d مزود. هل تريد دمجها مع الحالية أم استبدالها؟</string>
+    <string name="restore_merge">دمج</string>
+    <string name="restore_replace">استبدال</string>
+    <string name="restore_done">تمت الاستعادة</string>
 </resources>

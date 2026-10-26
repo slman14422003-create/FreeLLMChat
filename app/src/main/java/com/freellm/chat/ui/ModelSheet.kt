@@ -49,7 +49,7 @@ import com.freellm.chat.R
 import com.freellm.chat.domain.ModelHealth
 import com.freellm.chat.domain.Target
 
-enum class PickPurpose { SELECT, CONTINUE, RETRY, REGENERATE }
+enum class PickPurpose { MODE, MODEL, CONTINUE, RETRY, REGENERATE }
 
 private fun ctxLabel(n: Int): String = when {
     n >= 1_000_000 -> "${n / 1_000_000}M"
@@ -79,12 +79,15 @@ fun ModelSheet(
     val now = System.currentTimeMillis()
 
     val title = when (purpose) {
-        PickPurpose.SELECT -> R.string.pick_title_select
+        PickPurpose.MODE -> R.string.pick_title_mode
+        PickPurpose.MODEL -> R.string.pick_title_select
         PickPurpose.CONTINUE -> R.string.pick_title_continue
         PickPurpose.RETRY -> R.string.pick_title_retry
         PickPurpose.REGENERATE -> R.string.pick_title_regen
     }
-    val modes = if (purpose == PickPurpose.SELECT) {
+    val showModes = purpose != PickPurpose.MODEL
+    val showModels = purpose != PickPurpose.MODE
+    val modes = if (purpose == PickPurpose.MODE) {
         listOf(
             "ADAPT" to R.string.mode_adaptive,
             "AUTO" to R.string.mode_auto,
@@ -96,7 +99,8 @@ fun ModelSheet(
         listOf("AUTO" to R.string.mode_auto)
     }
     val q = filter.trim()
-    val shown = if (q.isEmpty()) targets else targets.filter {
+    val visibleTargets = if (showModels) targets else emptyList()
+    val shown = if (q.isEmpty()) visibleTargets else visibleTargets.filter {
         it.model.displayName.contains(q, ignoreCase = true) || it.providerName.contains(q, ignoreCase = true)
     }
     val grouped = shown.groupBy { it.providerName }
@@ -113,7 +117,7 @@ fun ModelSheet(
                 Modifier.padding(horizontal = 24.dp),
                 style = MaterialTheme.typography.titleLarge
             )
-            if (purpose != PickPurpose.SELECT) {
+            if (purpose != PickPurpose.MODE && purpose != PickPurpose.MODEL) {
                 Text(
                     stringResource(R.string.request_saved),
                     Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
@@ -121,7 +125,7 @@ fun ModelSheet(
                     color = cs.onSurfaceVariant
                 )
             }
-            Row(
+            if (showModels) Row(
                 Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 12.dp)
@@ -147,7 +151,7 @@ fun ModelSheet(
                 }
             }
             LazyColumn(Modifier.weight(1f, fill = false), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp)) {
-                if (q.isEmpty()) {
+                if (showModes && q.isEmpty()) {
                     item(key = "modes_label") { GroupLabel(stringResource(R.string.modes_label)) }
                     items(modes, key = { "mode_${it.first}" }) { (code, label) ->
                         PickRow(
@@ -160,7 +164,7 @@ fun ModelSheet(
                         )
                     }
                 }
-                if (targets.isEmpty()) {
+                if (showModels && targets.isEmpty()) {
                     item(key = "empty") {
                         Column(Modifier.padding(24.dp)) {
                             Text(stringResource(R.string.no_provider_hint), color = cs.onSurfaceVariant)

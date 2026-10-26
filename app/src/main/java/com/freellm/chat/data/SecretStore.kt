@@ -54,6 +54,17 @@ class SecretStore(context: Context) {
         _changes.value = _changes.value + 1
     }
 
+    fun exportAll(): Map<String, String> =
+        prefs.all.mapNotNull { (k, v) -> (v as? String)?.let { k to it } }.toMap()
+
+    fun importAll(data: Map<String, String>, replace: Boolean) {
+        val e = prefs.edit()
+        if (replace) e.clear()
+        data.forEach { (k, v) -> if (v.isNotBlank()) e.putString(k, v) }
+        e.commit()
+        _changes.value = _changes.value + 1
+    }
+
     companion object {
         private const val FILE = "secrets_v1"
     }

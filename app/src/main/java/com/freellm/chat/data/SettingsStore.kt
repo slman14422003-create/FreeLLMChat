@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -147,6 +148,34 @@ class SettingsStore(context: Context) {
         ds.edit { p ->
             val cur = p[K.KEYLESS_OFF] ?: emptySet()
             p[K.KEYLESS_OFF] = if (off) cur + id else cur - id
+        }
+    }
+
+    suspend fun exportAll(): Map<String, Any> {
+        val out = LinkedHashMap<String, Any>()
+        for ((k, v) in ds.data.first().asMap()) {
+            if (k.name == K.WELCOME.name) continue
+            when (v) {
+                is String -> out["s:${k.name}"] = v
+                is Boolean -> out["b:${k.name}"] = v
+                is Set<*> -> out["m:${k.name}"] = v.filterIsInstance<String>()
+            }
+        }
+        return out
+    }
+
+    suspend fun importAll(data: Map<String, Any>) {
+        ds.edit { p ->
+            for ((tagged, v) in data) {
+                val i = tagged.indexOf(':')
+                if (i != 1) continue
+                val name = tagged.substring(2)
+                when (tagged[0]) {
+                    's' -> (v as? String)?.let { p[stringPreferencesKey(name)] = it }
+                    'b' -> (v as? Boolean)?.let { p[booleanPreferencesKey(name)] = it }
+                    'm' -> (v as? Collection<*>)?.let { c -> p[stringSetPreferencesKey(name)] = c.filterIsInstance<String>().toSet() }
+                }
+            }
         }
     }
 
