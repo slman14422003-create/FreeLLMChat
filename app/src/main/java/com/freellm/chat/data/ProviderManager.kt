@@ -60,25 +60,34 @@ class ProviderManager(
         }
     }
 
-    private fun proxied(p: ProviderDef, proxy: String): String {
-        val rest = p.baseUrl.substringAfter("://", "")
-        val path = "/" + rest.substringAfter("/", "").trimEnd('/')
-        return proxy.trim().trimEnd('/') + "/" + p.id + (if (path == "/") "" else path)
+    private fun pathOf(url: String): String =
+        "/" + url.substringAfter("://", "").substringAfter("/", "").trimEnd('/')
+
+    private fun hostOf(url: String): String =
+        url.substringAfter("://", "").substringBefore("/").lowercase()
+
+    private fun viaProxy(id: String, url: String, proxy: String): String {
+        val path = pathOf(url)
+        return proxy.trim().trimEnd('/') + "/" + id + (if (path == "/") "" else path)
     }
 
-    private fun baseFor(p: ProviderDef, custom: String?, proxy: String): String {
-        val c = custom.orEmpty().trim()
-        val isDefault = c.isEmpty() || c.trimEnd('/') == p.baseUrl.trimEnd('/')
+    private fun baseFor(p: ProviderDef, custom: String?, proxy: String, accountId: String): Pair<String, String> {
+        val c = custom.orEmpty().trim().trimEnd('/')
+        val px = proxy.trim().trimEnd('/')
+        val hasProxy = px.isNotEmpty()
+        val direct = (if (c.isEmpty()) p.baseUrl.trimEnd('/') else c)
+            .replace("{ACCOUNT_ID}", accountId.trim())
+        val defaultDirect = p.baseUrl.trimEnd('/').replace("{ACCOUNT_ID}", accountId.trim())
+        val knownHost = hostOf(direct) == hostOf(defaultDirect)
+        val alreadyProxied = hasProxy && direct.startsWith(px)
+        val customIsOtherProxy = c.isNotEmpty() && !knownHost && pathOf(c) == "/"
         return when {
-            proxy.isNotBlank() && isDefault -> proxied(p, proxy)
-            c.isEmpty() -> p.baseUrl
-            c.substringAfter("://", "").substringAfter("/", "").trim('/').isEmpty() -> proxied(p, c)
-            else -> c
+            customIsOtherProxy -> viaProxy(p.id, defaultDirect, c) to ""
+            alreadyProxied -> direct to ""
+            hasProxy && knownHost -> viaProxy(p.id, direct, px) to direct
+            else -> direct to ""
         }
     }
-
-    private fun resolveBase(p: ProviderDef, proxy: String): String =
-        baseFor(p, secrets.baseUrl(p.id), proxy).replace("{ACCOUNT_ID}", secrets.accountId(p.id).orEmpty())
 
     suspend fun activeTargets(): List<Target> = withContext(Dispatchers.Default) {
         val cat = catalog.catalog.value
@@ -95,10 +104,10 @@ class ProviderManager(
                     emptyList()
                 } else {
                     val rank = order.indexOf(p.id).let { if (it < 0) 99 else it }
-                    val base = resolveBase(p, proxy)
+                    val (base, alt) = baseFor(p, secrets.baseUrl(p.id), proxy, secrets.accountId(p.id).orEmpty())
                     cat.models
                         .filter { it.provider == p.id && !expired(it, today) }
-                        .map { m -> Target(p.id, p.name, base, p.headers, key, m, rank, p.perModelLimits) }
+                        .map { m -> Target(p.id, p.name, base, p.headers, key, m, rank, p.perModelLimits, alt) }
                 }
             }
     }
@@ -112,7 +121,7 @@ class ProviderManager(
         val k = key.trim()
         if (k.isEmpty()) return LlmException(ErrorKind.AUTH, 401, message = "empty key")
         val proxy = settings.proxyUrl.first()
-        val base = baseFor(p, baseOverride, proxy).replace("{ACCOUNT_ID}", accountId.trim())
+        val (base, alt) = baseFor(p, baseOverride, proxy, accountId)
         val models = catalog.catalog.value.models
             .filter { it.provider == p.id }
             .sortedBy { it.priority }
@@ -120,7 +129,7 @@ class ProviderManager(
         if (models.isEmpty()) return LlmException(ErrorKind.NOT_FOUND, 404, message = "no models")
         var last: LlmException? = null
         for (m in models) {
-            val err = client.test(Target(p.id, p.name, base, p.headers, k, m))
+            val err = client.test(Target(p.id, p.name, base, p.headers, k, m, altBaseUrl = alt))
             if (err == null) {
                 withContext(Dispatchers.IO) {
                     secrets.setApiKey(p.id, k)

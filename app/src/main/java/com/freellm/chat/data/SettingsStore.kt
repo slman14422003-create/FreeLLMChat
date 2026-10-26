@@ -44,7 +44,7 @@ class SettingsStore(context: Context) {
     val statuses: Flow<Map<String, String>> = data.map { decode(it[K.STATUSES]) }.distinctUntilChanged()
     val selection: Flow<String> = data.map { it[K.SELECTION] ?: "AUTO" }.distinctUntilChanged()
 
-    val proxyUrl: Flow<String> = data.map { it[K.PROXY] ?: BuildConfig.DEFAULT_PROXY }.distinctUntilChanged()
+    val proxyUrl: Flow<String> = data.map { it[K.PROXY]?.trim()?.takeIf { v -> v.isNotEmpty() } ?: BuildConfig.DEFAULT_PROXY }.distinctUntilChanged()
 
     val autoSwitch: Flow<Boolean> = data.map { it[K.AUTO_SWITCH] ?: true }.distinctUntilChanged()
     val style: Flow<String> = data.map { it[K.STYLE] ?: "default" }.distinctUntilChanged()

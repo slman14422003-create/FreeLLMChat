@@ -15,6 +15,15 @@ const UPSTREAMS = {
 };
 
 const STRIP = [
+  "x-forwarded-host",
+  "cf-connecting-ipv6",
+  "cf-ew-via",
+  "cf-pseudo-ipv4",
+  "true-client-ip",
+  "forwarded",
+  "via",
+  "origin",
+  "referer",
   "host",
   "cf-connecting-ip",
   "cf-ipcountry",
@@ -51,15 +60,36 @@ export default {
     const headers = new Headers(request.headers);
     STRIP.forEach((h) => headers.delete(h));
 
-    const upstream = await fetch(target, {
-      method: request.method,
-      headers,
-      body: request.method === "GET" || request.method === "HEAD" ? undefined : request.body,
-      redirect: "follow",
-    });
+    headers.set("accept-encoding", "identity");
+
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort("upstream_timeout"), 25000);
+    let upstream;
+    try {
+      upstream = await fetch(target, {
+        method: request.method,
+        headers,
+        body: request.method === "GET" || request.method === "HEAD" ? undefined : request.body,
+        redirect: "follow",
+        signal: ctrl.signal,
+      });
+    } catch (e) {
+      clearTimeout(timer);
+      const timedOut = String(e && e.message ? e.message : e).includes("upstream_timeout") || ctrl.signal.aborted;
+      return new Response(
+        JSON.stringify({ error: { message: timedOut ? "worker upstream timeout" : "worker upstream error: " + String(e), type: "worker_error" } }),
+        {
+          status: timedOut ? 504 : 502,
+          headers: { "content-type": "application/json", "Access-Control-Allow-Origin": "*" },
+        }
+      );
+    }
+    clearTimeout(timer);
 
     const out = new Headers(upstream.headers);
     out.set("Access-Control-Allow-Origin", "*");
+    out.set("Cache-Control", "no-store");
+    out.set("X-Accel-Buffering", "no");
     return new Response(upstream.body, {
       status: upstream.status,
       statusText: upstream.statusText,

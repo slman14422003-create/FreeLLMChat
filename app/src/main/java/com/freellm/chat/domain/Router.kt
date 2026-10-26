@@ -21,7 +21,7 @@ data class RouterConfig(
     val defaultCooldownMs: Long = 60_000,
     val maxCooldownMs: Long = 3_600_000,
     val failureThreshold: Int = 3,
-    val firstTokenTimeoutMs: Long = 45_000,
+    val firstTokenTimeoutMs: Long = 60_000,
     val restartBelowChars: Int = 20
 )
 
