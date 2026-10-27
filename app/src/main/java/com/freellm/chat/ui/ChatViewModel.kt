@@ -778,11 +778,21 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         val summaryText = if (summaryLine.isEmpty()) "" else ContextPlanner.asSystemLine(summaryLine)
         var bundle: SearchBundle? = null
         var searchNote: String? = null
-        val searchOn = SearchPolicy.resolveEnabled(app.settings.webSearch.first(), SearchFactory.anyConfigured(app.secrets))
+        val useLocal = app.settings.localSearch.first()
+        val searchOn = SearchPolicy.resolveEnabled(app.settings.webSearch.first(), useLocal || SearchFactory.anyConfigured(app.secrets))
         if (searchOn) {
-            val prov = SearchFactory.resolve(
+            val keyed = SearchFactory.resolve(
                 com.freellm.chat.domain.SearchKind.of(app.settings.searchProvider.first()), app.searchHttp, app.secrets, app.settings.proxyUrl.first()
             )
+            val keyedLeft = keyed?.let {
+                app.searchQuota.remaining(it.kind, SearchLimits.effective(it.kind, app.settings.searchLimits.first()), System.currentTimeMillis())
+            } ?: 0
+            val prov: com.freellm.chat.domain.SearchProvider? = when {
+                keyed != null && keyedLeft > 0 ->
+                    if (useLocal) com.freellm.chat.domain.ChainSearch(keyed, app.localSearch) else keyed
+                useLocal -> app.localSearch
+                else -> keyed
+            }
             if (prov != null) {
                 val limit = SearchLimits.effective(prov.kind, app.settings.searchLimits.first())
                 val left = app.searchQuota.remaining(prov.kind, limit, System.currentTimeMillis())

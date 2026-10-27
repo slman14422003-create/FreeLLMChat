@@ -151,6 +151,7 @@ object SearchFactory {
     fun keyId(kind: SearchKind): String = "search_" + kind.id
 
     fun configured(kind: SearchKind, secrets: SecretStore): Boolean {
+        if (kind == SearchKind.LOCAL) return false
         val key = secrets.apiKey(keyId(kind))?.trim().orEmpty()
         if (key.isEmpty()) return false
         return kind != SearchKind.GOOGLE || !secrets.accountId(keyId(kind))?.trim().isNullOrEmpty()
@@ -164,6 +165,7 @@ object SearchFactory {
             SearchKind.BRAVE -> BraveSearch(http, k, proxy)
             SearchKind.TAVILY -> TavilySearch(http, k, proxy)
             SearchKind.SERPER -> SerperSearch(http, k, proxy)
+            SearchKind.LOCAL -> null
         }
     }
 
@@ -175,6 +177,7 @@ object SearchFactory {
             SearchKind.BRAVE -> BraveSearch(http, key, proxy)
             SearchKind.TAVILY -> TavilySearch(http, key, proxy)
             SearchKind.SERPER -> SerperSearch(http, key, proxy)
+            SearchKind.LOCAL -> null
         }
     }
 

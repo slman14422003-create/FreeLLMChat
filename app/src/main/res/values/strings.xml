@@ -450,4 +450,9 @@
     <string name="share_card_chooser">مشاركة بطاقة الرد</string>
     <string name="share_card_sources">المصادر</string>
     <string name="share_card_app">FreeLLMChat</string>
+    <string name="search_name_local">بحث محلي بدون مفتاح</string>
+    <string name="search_desc_local">يفتح صفحة بحث داخل التطبيق ويقرأ النتائج، بلا حساب ولا حصة</string>
+    <string name="search_local_title">بحث محلي بدون مفتاح</string>
+    <string name="search_local_desc">يستخدم متصفحاً مخفياً داخل التطبيق مثل WebView، ثم يقرأ النموذج المصادر ويجمع الرد</string>
+    <string name="search_local_warn">قد يكون أبطأ وأقل ثباتاً من المفاتيح، وقد تعرض محركات البحث تحقق الروبوت أحياناً. إن وُجد مفتاح يُستخدم أولاً ويبقى البحث المحلي احتياطاً تلقائياً إن فشل أو انتهت حصته.</string>
 </resources>

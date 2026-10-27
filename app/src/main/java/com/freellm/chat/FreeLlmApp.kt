@@ -66,6 +66,7 @@ class FreeLlmApp : Application() {
             { url -> fetcher.fetch(url) }
         )
     }
+    val localSearch: com.freellm.chat.data.WebViewSearch by lazy { com.freellm.chat.data.WebViewSearch(this) }
     val comparer: com.freellm.chat.domain.Comparer by lazy { com.freellm.chat.domain.Comparer(router) }
     val catalog: CatalogRepository by lazy { CatalogRepository(this, http, BuildConfig.MODELS_URL) }
     val attachments: AttachmentStore by lazy { AttachmentStore(this) }

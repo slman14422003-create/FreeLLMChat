@@ -33,6 +33,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -67,6 +68,7 @@ private fun nameRes(k: SearchKind): Int = when (k) {
     SearchKind.BRAVE -> R.string.search_name_brave
     SearchKind.TAVILY -> R.string.search_name_tavily
     SearchKind.SERPER -> R.string.search_name_serper
+    SearchKind.LOCAL -> R.string.search_name_local
 }
 
 private fun descRes(k: SearchKind): Int = when (k) {
@@ -74,6 +76,7 @@ private fun descRes(k: SearchKind): Int = when (k) {
     SearchKind.BRAVE -> R.string.search_desc_brave
     SearchKind.TAVILY -> R.string.search_desc_tavily
     SearchKind.SERPER -> R.string.search_desc_serper
+    SearchKind.LOCAL -> R.string.search_desc_local
 }
 
 private fun stepsRes(k: SearchKind): Int = when (k) {
@@ -81,6 +84,7 @@ private fun stepsRes(k: SearchKind): Int = when (k) {
     SearchKind.BRAVE -> R.string.search_steps_brave
     SearchKind.TAVILY -> R.string.search_steps_tavily
     SearchKind.SERPER -> R.string.search_steps_serper
+    SearchKind.LOCAL -> R.string.search_steps_serper
 }
 
 private fun warnRes(k: SearchKind): Int? = when (k) {
@@ -94,6 +98,7 @@ private fun keyUrl(k: SearchKind): String = when (k) {
     SearchKind.BRAVE -> "https://brave.com/search/api/"
     SearchKind.TAVILY -> "https://app.tavily.com/"
     SearchKind.SERPER -> "https://serper.dev/"
+    SearchKind.LOCAL -> "https://duckduckgo.com/"
 }
 
 private fun periodRes(p: LimitPeriod): Int = when (p) {
@@ -170,8 +175,34 @@ fun SearchSettingsScreen(app: FreeLlmApp, onBack: () -> Unit) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = cs.onSurfaceVariant
             )
+            val localOn by app.settings.localSearch.collectAsStateWithLifecycle(initialValue = false)
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(Corners.card))
+                    .background(cs.surfaceContainerHigh)
+                    .padding(Spacing.lg),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.search_local_title), style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            stringResource(R.string.search_local_desc),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = cs.onSurfaceVariant
+                        )
+                    }
+                    Switch(checked = localOn, onCheckedChange = { v -> scope.launch { app.settings.setLocalSearch(v) } })
+                }
+                Text(
+                    stringResource(R.string.search_local_warn),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = cs.onSurfaceVariant
+                )
+            }
             StepCard(1, stringResource(R.string.search_step_provider), Modifier.appear(1)) {
-                SearchKind.entries.forEach { k ->
+                SearchKind.entries.filter { it != SearchKind.LOCAL }.forEach { k ->
                     Row(
                         Modifier
                             .fillMaxWidth()

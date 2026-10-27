@@ -23,7 +23,7 @@ data class StoredSource(val title: String, val url: String)
 data class SourceItem(val title: String, val url: String, val text: String, val fetched: Boolean)
 
 enum class SearchKind(val id: String) {
-    GOOGLE("google"), BRAVE("brave"), TAVILY("tavily"), SERPER("serper");
+    GOOGLE("google"), BRAVE("brave"), TAVILY("tavily"), SERPER("serper"), LOCAL("local");
 
     companion object {
         fun of(id: String?): SearchKind? = entries.firstOrNull { it.id == id }
@@ -138,6 +138,7 @@ object SearchParsers {
         SearchKind.BRAVE -> brave(raw)
         SearchKind.TAVILY -> tavily(raw)
         SearchKind.SERPER -> serper(raw)
+        SearchKind.LOCAL -> emptyList()
     }
 
     fun encode(list: List<SearchResult>): String = json.encodeToString(ListSerializer(SearchResult.serializer()), list)
@@ -259,6 +260,28 @@ object SourcesPrompt {
 
 enum class LimitPeriod { DAY, MONTH, TOTAL }
 
+class ChainSearch(private val first: SearchProvider, private val second: SearchProvider?) : SearchProvider {
+    override val kind: SearchKind = first.kind
+
+    override suspend fun search(query: String, count: Int): List<SearchResult> {
+        var error: Throwable? = null
+        var answered = false
+        for (p in listOfNotNull(first, second)) {
+            try {
+                val r = p.search(query, count)
+                answered = true
+                if (r.isNotEmpty()) return r
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                if (error == null) error = e
+            }
+        }
+        if (!answered && error != null) throw error
+        return emptyList()
+    }
+}
+
 data class SearchLimit(val amount: Int, val period: LimitPeriod)
 
 object SearchLimits {
@@ -266,7 +289,8 @@ object SearchLimits {
         SearchKind.GOOGLE to SearchLimit(100, LimitPeriod.DAY),
         SearchKind.BRAVE to SearchLimit(1000, LimitPeriod.MONTH),
         SearchKind.TAVILY to SearchLimit(1000, LimitPeriod.MONTH),
-        SearchKind.SERPER to SearchLimit(2500, LimitPeriod.TOTAL)
+        SearchKind.SERPER to SearchLimit(2500, LimitPeriod.TOTAL),
+        SearchKind.LOCAL to SearchLimit(1000, LimitPeriod.DAY)
     )
 
     fun effective(kind: SearchKind, overrides: Map<SearchKind, Int>): SearchLimit {

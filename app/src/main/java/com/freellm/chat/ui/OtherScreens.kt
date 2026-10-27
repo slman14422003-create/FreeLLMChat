@@ -122,7 +122,8 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
     val verifyAnswers by app.settings.verifyAnswers.collectAsStateWithLifecycle(initialValue = false)
     val webSearchRaw: Boolean? by app.settings.webSearch.collectAsStateWithLifecycle(initialValue = null)
     val secretChanges by app.secrets.changes.collectAsStateWithLifecycle()
-    val hasSearchKey = remember(secretChanges) { com.freellm.chat.data.SearchFactory.anyConfigured(app.secrets) }
+    val localSearchOn by app.settings.localSearch.collectAsStateWithLifecycle(initialValue = false)
+    val hasSearchKey = remember(secretChanges, localSearchOn) { localSearchOn || com.freellm.chat.data.SearchFactory.anyConfigured(app.secrets) }
     val avoidTraining by app.settings.avoidTraining.collectAsStateWithLifecycle(initialValue = false)
     val brainLearn by app.settings.brainLearn.collectAsStateWithLifecycle(initialValue = true)
     val brainLocalFirst by app.settings.brainLocalFirst.collectAsStateWithLifecycle(initialValue = true)

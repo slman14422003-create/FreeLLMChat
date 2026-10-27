@@ -50,6 +50,7 @@ class SettingsStore(context: Context) {
         val SMART_ROUTING = booleanPreferencesKey("smart_routing")
         val COMPARE_MERGE = booleanPreferencesKey("compare_merge")
         val WEB_SEARCH = booleanPreferencesKey("web_search")
+        val LOCAL_SEARCH = booleanPreferencesKey("local_search")
         val ANSWER_TEMPERATURE = booleanPreferencesKey("answer_temperature")
         val VERIFY_ANSWERS = booleanPreferencesKey("verify_answers")
         val SEARCH_PROVIDER = stringPreferencesKey("search_provider")
@@ -94,6 +95,7 @@ class SettingsStore(context: Context) {
     val answerTemperature: Flow<Boolean> = data.map { it[K.ANSWER_TEMPERATURE] ?: true }.distinctUntilChanged()
     val verifyAnswers: Flow<Boolean> = data.map { it[K.VERIFY_ANSWERS] ?: false }.distinctUntilChanged()
     val webSearch: Flow<Boolean?> = data.map { it[K.WEB_SEARCH] }.distinctUntilChanged()
+    val localSearch: Flow<Boolean> = data.map { it[K.LOCAL_SEARCH] ?: false }.distinctUntilChanged()
     val searchProvider: Flow<String> = data.map { it[K.SEARCH_PROVIDER] ?: "tavily" }.distinctUntilChanged()
     val searchCacheHours: Flow<Int> = data.map { it[K.SEARCH_CACHE_HOURS]?.toIntOrNull()?.coerceIn(1, 168) ?: 6 }.distinctUntilChanged()
     val searchLimits: Flow<Map<com.freellm.chat.domain.SearchKind, Int>> =
@@ -253,6 +255,13 @@ class SettingsStore(context: Context) {
 
     suspend fun setWebSearch(v: Boolean) {
         ds.edit { it[K.WEB_SEARCH] = v }
+    }
+
+    suspend fun setLocalSearch(v: Boolean) {
+        ds.edit {
+            it[K.LOCAL_SEARCH] = v
+            if (v) it[K.WEB_SEARCH] = true
+        }
     }
 
     suspend fun setSearchProvider(v: String) {

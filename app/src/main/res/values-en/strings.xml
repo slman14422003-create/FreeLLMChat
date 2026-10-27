@@ -450,4 +450,9 @@
     <string name="share_card_chooser">Share reply card</string>
     <string name="share_card_sources">Sources</string>
     <string name="share_card_app">FreeLLMChat</string>
+    <string name="search_name_local">Local search, no key</string>
+    <string name="search_desc_local">Opens a search page inside the app and reads the results, no account or quota</string>
+    <string name="search_local_title">Local search without a key</string>
+    <string name="search_local_desc">Uses a hidden in-app browser (WebView), then the model reads the sources and writes the answer</string>
+    <string name="search_local_warn">May be slower and less reliable than keys, and search engines sometimes show a bot check. If a key exists it is used first and local search is the automatic backup when it fails or its quota runs out.</string>
 </resources>
