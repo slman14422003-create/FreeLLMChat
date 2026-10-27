@@ -15,6 +15,10 @@ const UPSTREAMS = {
   kilo: "https://api.kilo.ai",
   ovh: "https://oai.endpoints.kepler.ai.cloud.ovh.net",
   llm7: "https://api.llm7.io",
+  tavily: "https://api.tavily.com",
+  brave: "https://api.search.brave.com",
+  serper: "https://google.serper.dev",
+  google: "https://www.googleapis.com",
 };
 
 const STRIP = [

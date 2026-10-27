@@ -121,9 +121,12 @@ class WebSearchPipeline(
                 throw e
             } catch (e: LlmException) {
                 error = e
-                if (e.kind == ErrorKind.AUTH || e.kind == ErrorKind.PAYMENT || e.kind == ErrorKind.RATE_LIMIT) break
+                if (e.kind == ErrorKind.AUTH || e.kind == ErrorKind.PAYMENT || e.kind == ErrorKind.RATE_LIMIT ||
+                    e.kind == ErrorKind.NETWORK || e.kind == ErrorKind.TIMEOUT
+                ) break
             } catch (e: Throwable) {
                 error = LlmException(ErrorKind.NETWORK, message = e.javaClass.simpleName)
+                break
             }
         }
         val ranked = SourceRank.rank(all, resultCount, java.time.LocalDate.now().year)

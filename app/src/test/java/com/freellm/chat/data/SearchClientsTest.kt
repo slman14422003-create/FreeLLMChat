@@ -26,4 +26,13 @@ class SearchClientsTest {
         assertTrue(p.httpError(500, null, "x".repeat(1000)).message.orEmpty().length <= 160)
         assertFalse(p.httpError(500, null, "a\nb").message.orEmpty().contains("\n"))
     }
+
+    @Test fun endpointGoesDirectWithoutProxy() {
+        assertEquals("https://api.tavily.com/search", p.endpoint("tavily", "https://api.tavily.com", "/search"))
+    }
+
+    @Test fun endpointGoesThroughProxyWhenSet() {
+        val px = TavilySearch(OkHttpClient(), "k", "https://x.workers.dev/")
+        assertEquals("https://x.workers.dev/tavily/search", px.endpoint("tavily", "https://api.tavily.com", "/search"))
+    }
 }

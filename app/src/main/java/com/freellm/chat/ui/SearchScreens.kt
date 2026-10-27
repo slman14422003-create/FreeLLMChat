@@ -59,6 +59,7 @@ import com.freellm.chat.domain.LlmException
 import com.freellm.chat.domain.SearchKind
 import com.freellm.chat.domain.SearchLimits
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 private fun nameRes(k: SearchKind): Int = when (k) {
@@ -256,7 +257,7 @@ fun SearchSettingsScreen(app: FreeLlmApp, onBack: () -> Unit) {
                             val id = SearchFactory.keyId(kind)
                             val k = key.trim().ifEmpty { app.secrets.apiKey(id).orEmpty() }
                             val c = cx.trim().ifEmpty { app.secrets.accountId(id).orEmpty() }
-                            val p = SearchFactory.build(kind, app.searchHttp, k, c)
+                            val p = SearchFactory.build(kind, app.searchHttp, k, c, app.settings.proxyUrl.first())
                             if (p == null) {
                                 ok = false
                                 result = needKey
@@ -278,7 +279,7 @@ fun SearchSettingsScreen(app: FreeLlmApp, onBack: () -> Unit) {
                                     result = ctx.errorText(e)
                                 } catch (e: Throwable) {
                                     ok = false
-                                    result = failText
+                                    result = failText + " (" + e.javaClass.simpleName + ")"
                                 }
                             }
                             busy = false

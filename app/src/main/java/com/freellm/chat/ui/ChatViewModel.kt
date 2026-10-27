@@ -781,16 +781,20 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         val searchOn = SearchPolicy.resolveEnabled(app.settings.webSearch.first(), SearchFactory.anyConfigured(app.secrets))
         if (searchOn) {
             val prov = SearchFactory.resolve(
-                com.freellm.chat.domain.SearchKind.of(app.settings.searchProvider.first()), app.searchHttp, app.secrets
+                com.freellm.chat.domain.SearchKind.of(app.settings.searchProvider.first()), app.searchHttp, app.secrets, app.settings.proxyUrl.first()
             )
             if (prov != null) {
                 val limit = SearchLimits.effective(prov.kind, app.settings.searchLimits.first())
                 val left = app.searchQuota.remaining(prov.kind, limit, System.currentTimeMillis())
                 if (SearchPolicy.shouldSearch(true, true, cls.needsFresh, false, hasAtt, cont != null, left)) {
                     stream.value = StreamUi(active = true, status = app.getString(R.string.searching_web))
-                    val out = app.webSearch.run(
-                        prov, limit, lastUser, all, QueryBuilder.isTechnical(lastUser, cls.type),
-                        CachePolicy.ttlMs(app.settings.searchCacheHours.first())
+                    val out = kotlinx.coroutines.withTimeoutOrNull(SEARCH_BUDGET_MS) {
+                        app.webSearch.run(
+                            prov, limit, lastUser, all, QueryBuilder.isTechnical(lastUser, cls.type),
+                            CachePolicy.ttlMs(app.settings.searchCacheHours.first())
+                        )
+                    } ?: com.freellm.chat.domain.SearchOutcome(
+                        null, com.freellm.chat.domain.LlmException(com.freellm.chat.domain.ErrorKind.TIMEOUT, message = "search budget")
                     )
                     bundle = out.bundle
                     if (bundle == null) {
@@ -1029,6 +1033,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
     }
 
     companion object {
+        private const val SEARCH_BUDGET_MS = 20_000L
         private const val MAX_PENDING = 6
         private const val MAX_HISTORY_IMAGES = 4
         private const val MAX_RESUME = 2

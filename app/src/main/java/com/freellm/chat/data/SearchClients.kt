@@ -35,7 +35,12 @@ internal suspend fun Call.await(): Response = suspendCancellableCoroutine { cont
     })
 }
 
-abstract class HttpSearch(private val http: OkHttpClient) : SearchProvider {
+abstract class HttpSearch(private val http: OkHttpClient, private val proxy: String = "") : SearchProvider {
+    internal fun endpoint(id: String, host: String, path: String): String {
+        val px = proxy.trim().trimEnd('/')
+        return if (px.isEmpty()) host + path else px + "/" + id + path
+    }
+
     private val mediaJson = "application/json; charset=utf-8".toMediaType()
 
     protected fun jsonBody(query: String, count: Int, queryKey: String, countKey: String, extra: Map<String, String> = emptyMap()) =
@@ -84,11 +89,11 @@ abstract class HttpSearch(private val http: OkHttpClient) : SearchProvider {
     }
 }
 
-class GoogleSearch(http: OkHttpClient, private val key: String, private val cx: String) : HttpSearch(http) {
+class GoogleSearch(http: OkHttpClient, private val key: String, private val cx: String, proxy: String = "") : HttpSearch(http, proxy) {
     override val kind = SearchKind.GOOGLE
 
     override suspend fun search(query: String, count: Int): List<SearchResult> {
-        val url = "https://www.googleapis.com/customsearch/v1".toHttpUrl().newBuilder()
+        val url = endpoint("google", "https://www.googleapis.com", "/customsearch/v1").toHttpUrl().newBuilder()
             .addQueryParameter("key", key)
             .addQueryParameter("cx", cx)
             .addQueryParameter("q", query)
@@ -98,11 +103,11 @@ class GoogleSearch(http: OkHttpClient, private val key: String, private val cx: 
     }
 }
 
-class BraveSearch(http: OkHttpClient, private val key: String) : HttpSearch(http) {
+class BraveSearch(http: OkHttpClient, private val key: String, proxy: String = "") : HttpSearch(http, proxy) {
     override val kind = SearchKind.BRAVE
 
     override suspend fun search(query: String, count: Int): List<SearchResult> {
-        val url = "https://api.search.brave.com/res/v1/web/search".toHttpUrl().newBuilder()
+        val url = endpoint("brave", "https://api.search.brave.com", "/res/v1/web/search").toHttpUrl().newBuilder()
             .addQueryParameter("q", query)
             .addQueryParameter("count", count.coerceIn(1, 20).toString())
             .build()
@@ -114,11 +119,11 @@ class BraveSearch(http: OkHttpClient, private val key: String) : HttpSearch(http
     }
 }
 
-class TavilySearch(http: OkHttpClient, private val key: String) : HttpSearch(http) {
+class TavilySearch(http: OkHttpClient, private val key: String, proxy: String = "") : HttpSearch(http, proxy) {
     override val kind = SearchKind.TAVILY
 
     override suspend fun search(query: String, count: Int): List<SearchResult> {
-        val req = Request.Builder().url("https://api.tavily.com/search")
+        val req = Request.Builder().url(endpoint("tavily", "https://api.tavily.com", "/search"))
             .header("Accept", "application/json")
             .header("Authorization", "Bearer $key")
             .post(jsonBody(query, count.coerceIn(1, 10), "query", "max_results", mapOf("search_depth" to "basic")))
@@ -127,11 +132,11 @@ class TavilySearch(http: OkHttpClient, private val key: String) : HttpSearch(htt
     }
 }
 
-class SerperSearch(http: OkHttpClient, private val key: String) : HttpSearch(http) {
+class SerperSearch(http: OkHttpClient, private val key: String, proxy: String = "") : HttpSearch(http, proxy) {
     override val kind = SearchKind.SERPER
 
     override suspend fun search(query: String, count: Int): List<SearchResult> {
-        val req = Request.Builder().url("https://google.serper.dev/search")
+        val req = Request.Builder().url(endpoint("serper", "https://google.serper.dev", "/search"))
             .header("Accept", "application/json")
             .header("X-API-KEY", key)
             .post(jsonBody(query, count.coerceIn(1, 10), "q", "num"))
@@ -149,31 +154,31 @@ object SearchFactory {
         return kind != SearchKind.GOOGLE || !secrets.accountId(keyId(kind))?.trim().isNullOrEmpty()
     }
 
-    fun build(kind: SearchKind, http: OkHttpClient, key: String, cx: String): SearchProvider? {
+    fun build(kind: SearchKind, http: OkHttpClient, key: String, cx: String, proxy: String = ""): SearchProvider? {
         val k = key.trim()
         if (k.isEmpty()) return null
         return when (kind) {
-            SearchKind.GOOGLE -> if (cx.trim().isEmpty()) null else GoogleSearch(http, k, cx.trim())
-            SearchKind.BRAVE -> BraveSearch(http, k)
-            SearchKind.TAVILY -> TavilySearch(http, k)
-            SearchKind.SERPER -> SerperSearch(http, k)
+            SearchKind.GOOGLE -> if (cx.trim().isEmpty()) null else GoogleSearch(http, k, cx.trim(), proxy)
+            SearchKind.BRAVE -> BraveSearch(http, k, proxy)
+            SearchKind.TAVILY -> TavilySearch(http, k, proxy)
+            SearchKind.SERPER -> SerperSearch(http, k, proxy)
         }
     }
 
-    fun create(kind: SearchKind, http: OkHttpClient, secrets: SecretStore): SearchProvider? {
+    fun create(kind: SearchKind, http: OkHttpClient, secrets: SecretStore, proxy: String = ""): SearchProvider? {
         if (!configured(kind, secrets)) return null
         val key = secrets.apiKey(keyId(kind))!!.trim()
         return when (kind) {
-            SearchKind.GOOGLE -> GoogleSearch(http, key, secrets.accountId(keyId(kind))!!.trim())
-            SearchKind.BRAVE -> BraveSearch(http, key)
-            SearchKind.TAVILY -> TavilySearch(http, key)
-            SearchKind.SERPER -> SerperSearch(http, key)
+            SearchKind.GOOGLE -> GoogleSearch(http, key, secrets.accountId(keyId(kind))!!.trim(), proxy)
+            SearchKind.BRAVE -> BraveSearch(http, key, proxy)
+            SearchKind.TAVILY -> TavilySearch(http, key, proxy)
+            SearchKind.SERPER -> SerperSearch(http, key, proxy)
         }
     }
 
-    fun resolve(selected: SearchKind?, http: OkHttpClient, secrets: SecretStore): SearchProvider? {
+    fun resolve(selected: SearchKind?, http: OkHttpClient, secrets: SecretStore, proxy: String = ""): SearchProvider? {
         val kind = selected?.takeIf { configured(it, secrets) } ?: SearchKind.entries.firstOrNull { configured(it, secrets) } ?: return null
-        return create(kind, http, secrets)
+        return create(kind, http, secrets, proxy)
     }
 
     fun anyConfigured(secrets: SecretStore): Boolean = SearchKind.entries.any { configured(it, secrets) }
