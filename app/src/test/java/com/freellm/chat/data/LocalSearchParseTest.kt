@@ -71,4 +71,16 @@ class LocalSearchParseTest {
         assertTrue(!LocalSearchParse.isBlockedPage("https://www.google.com/search?q=a"))
         assertTrue(!LocalSearchParse.isBlockedPage(null))
     }
+
+    @Test fun extractScriptIsBalanced() {
+        val js = LocalSearchParse.EXTRACT_JS
+        assertEquals(js.count { it == '{' }, js.count { it == '}' })
+        assertEquals(js.count { it == '(' }, js.count { it == ')' })
+        assertEquals(js.count { it == '[' }, js.count { it == ']' })
+        assertTrue(js.startsWith("(function(){") && js.endsWith("})()"))
+    }
+
+    @Test fun engineNamesMatchEngineUrls() {
+        assertEquals(LocalSearchParse.NAMES.size, LocalSearchParse.engines("q").size)
+    }
 }

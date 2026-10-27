@@ -51,6 +51,10 @@ description: Progress log and working notes for the FreeLLMChat Android project 
 - OtherScreens: collapsible advanced settings; mode_adaptive is the smart auto default.
 - data/ShareCard.kt (CardText, ShareCard): reply as PNG card via CreateDocument then share intent.
 
+# Local search
+- data/WebViewSearch.kt (hidden WebView, engines google then ddg then bing, EngineHealth cooldown, wipes cookies/cache/history after every search), data/LocalSearchParse.kt (EXTRACT_JS, unwrap, parse), domain ChainSearch (key first, local as backup). Key: local_search.
+- EXTRACT_JS must stay balanced: LocalSearchParseTest.extractScriptIsBalanced guards it.
+
 # Next
 - Run `./gradlew testDebugUnitTest` once and fix any compile error first.
 - Then a manual pass on device: compare dialog on phone and tablet, search wizard per provider, share card with RTL text.

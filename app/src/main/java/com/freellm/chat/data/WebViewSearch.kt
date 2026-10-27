@@ -52,14 +52,18 @@ class WebViewSearch(private val context: Context, private val health: EngineHeal
     override val kind = SearchKind.LOCAL
     private val lock = Mutex()
 
+    @Volatile
+    private var trail = ""
+
     override suspend fun search(query: String, count: Int): List<SearchResult> = lock.withLock {
+        trail = ""
         val raw = try {
             withTimeoutOrNull(TOTAL_MS) { load(query) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
             throw LlmException(ErrorKind.NETWORK, message = e.javaClass.simpleName)
-        } ?: throw LlmException(ErrorKind.TIMEOUT, message = "local search failed")
+        } ?: throw LlmException(ErrorKind.TIMEOUT, message = "local search failed " + trail.trim())
         LocalSearchParse.parse(raw, count)
     }
 
@@ -87,7 +91,8 @@ class WebViewSearch(private val context: Context, private val health: EngineHeal
                 if (cont.isActive) cont.resume(value)
             }
 
-            fun next() {
+            fun next(reason: String) {
+                trail += LocalSearchParse.NAMES[order[pos]] + ":" + reason + " "
                 health.block(order[pos])
                 pos++
                 if (pos >= order.size) finish(null) else wv.loadUrl(urls[order[pos]])
@@ -111,7 +116,7 @@ class WebViewSearch(private val context: Context, private val health: EngineHeal
                 override fun onPageFinished(view: WebView, url: String?) {
                     if (done) return
                     if (LocalSearchParse.isBlockedPage(url)) {
-                        next()
+                        next("blocked")
                         return
                     }
                     val at = pos
@@ -124,14 +129,14 @@ class WebViewSearch(private val context: Context, private val health: EngineHeal
                                 health.ok(order[pos])
                                 finish(json)
                             } else {
-                                next()
+                                next(if (json == null) "script" else "empty")
                             }
                         }
                     }, SETTLE_MS)
                 }
 
                 override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
-                    if (request.isForMainFrame && !done) next()
+                    if (request.isForMainFrame && !done) next("error" + error.errorCode)
                 }
             }
             cont.invokeOnCancellation { finish(null) }

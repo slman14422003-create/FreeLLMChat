@@ -14,21 +14,26 @@ object LocalSearchParse {
         "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
     const val EXTRACT_JS =
-        "(function(){var out=[];" +
-            "document.querySelectorAll('a h3').forEach(function(h){var a=h.closest('a');if(!a)return;" +
-            "var c=a.parentElement&&a.parentElement.parentElement?a.parentElement.parentElement.parentElement:null;" +
-            "var s=c?c.querySelector('.VwiC3b, [data-sncf], .lEBKkf'):null;" +
-            "out.push({title:h.textContent.trim(),url:a.href,snippet:s?s.textContent.trim():''});});" +
-            "if(out.length==0){document.querySelectorAll('a.result__a').forEach(function(a){var r=a.closest('.result');" +
-            "var s=r?r.querySelector('.result__snippet'):null;" +
-            "out.push({title:a.textContent.trim(),url:a.href,snippet:s?s.textContent.trim():''});});" +
-            "if(out.length==0){document.querySelectorAll('li.b_algo').forEach(function(li){" +
-            "var h=li.querySelector('h2 a');var p=li.querySelector('.b_caption p, p');" +
-            "if(h)out.push({title:h.textContent.trim(),url:h.href,snippet:p?p.textContent.trim():''});});}" +
-            "return JSON.stringify(out);})()"
+        "(function(){" +
+        "var out=[];" +
+        "function add(t,u,s){if(u)out.push({title:(t||'').trim(),url:u,snippet:(s||'').trim()});}" +
+        "function txt(n){return n?n.textContent:'';}" +
+        "document.querySelectorAll('a h3').forEach(function(h){" +
+        "var a=h.closest('a');if(!a)return;" +
+        "var c=a.parentElement;var s=null;" +
+        "for(var i=0;i<4&&c&&!s;i++){s=c.querySelector('.VwiC3b, [data-sncf], .lEBKkf');c=c.parentElement;}" +
+        "add(h.textContent,a.href,txt(s));});" +
+        "if(out.length==0){document.querySelectorAll('a.result__a').forEach(function(a){" +
+        "var r=a.closest('.result');add(a.textContent,a.href,txt(r?r.querySelector('.result__snippet'):null));});}" +
+        "if(out.length==0){document.querySelectorAll('li.b_algo').forEach(function(li){" +
+        "var h=li.querySelector('h2 a');if(h)add(h.textContent,h.href,txt(li.querySelector('.b_caption p, p')));});}" +
+        "return JSON.stringify(out);" +
+        "})()"
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     private val blockedHosts = listOf("duckduckgo.com", "bing.com", "microsoft.com", "google.com", "gstatic.com", "googleusercontent.com")
+
+    val NAMES = listOf("google", "ddg", "bing")
 
     fun engines(encodedQuery: String): List<String> = listOf(
         "https://www.google.com/search?q=$encodedQuery&udm=14&pws=0&nfpr=1&hl=en",
