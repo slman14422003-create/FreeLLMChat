@@ -47,7 +47,26 @@ class FreeLlmApp : Application() {
     val local: com.freellm.chat.data.LocalPrefs by lazy { com.freellm.chat.data.LocalPrefs(this) }
     val usage: UsagePrefs by lazy { UsagePrefs(this) }
     val ratings: com.freellm.chat.data.ModelRatings by lazy { com.freellm.chat.data.ModelRatings(usage) }
-    val router: Router by lazy { Router(client, limiter = UsageLimiter(usage), failLog = com.freellm.chat.domain.FailureLog(usage)) }
+    val router: Router by lazy {
+        Router(client, limiter = UsageLimiter(usage), failLog = com.freellm.chat.domain.FailureLog(usage)).also { r ->
+            r.onOutcome = { k, ok, ms -> ratings.outcome(k, ok, ms) }
+        }
+    }
+    val sideTasks: com.freellm.chat.domain.SideTasks by lazy { com.freellm.chat.domain.SideTasks(client, router) }
+    val searchHttp: OkHttpClient by lazy {
+        http.newBuilder().connectTimeout(8, TimeUnit.SECONDS).readTimeout(12, TimeUnit.SECONDS).callTimeout(15, TimeUnit.SECONDS).build()
+    }
+    val searchQuota: com.freellm.chat.domain.SearchQuota by lazy { com.freellm.chat.domain.SearchQuota(usage) }
+    val webSearch: com.freellm.chat.domain.WebSearchPipeline by lazy {
+        val fetcher = com.freellm.chat.data.PageFetcher(http)
+        com.freellm.chat.domain.WebSearchPipeline(
+            sideTasks,
+            com.freellm.chat.data.RoomSearchCache(db.dao()),
+            searchQuota,
+            { url -> fetcher.fetch(url) }
+        )
+    }
+    val comparer: com.freellm.chat.domain.Comparer by lazy { com.freellm.chat.domain.Comparer(router) }
     val catalog: CatalogRepository by lazy { CatalogRepository(this, http, BuildConfig.MODELS_URL) }
     val attachments: AttachmentStore by lazy { AttachmentStore(this) }
     val brainStore: BrainStore by lazy { BrainStore(this) }

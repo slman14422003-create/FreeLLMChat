@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -49,7 +50,7 @@ import com.freellm.chat.R
 import com.freellm.chat.domain.ModelHealth
 import com.freellm.chat.domain.Target
 
-enum class PickPurpose { MODE, MODEL, CONTINUE, RETRY, REGENERATE }
+enum class PickPurpose { MODE, MODEL, CONTINUE, RETRY, REGENERATE, COMPARE }
 
 private fun ctxLabel(n: Int): String = when {
     n >= 1_000_000 -> "${n / 1_000_000}M"
@@ -70,6 +71,7 @@ fun ModelSheet(
     health: (Target) -> ModelHealth,
     latency: (Target) -> Long? = { null },
     onPick: (String) -> Unit,
+    onCompare: (String, String) -> Unit = { _, _ -> },
     onPrivacy: () -> Unit,
     onProviders: () -> Unit,
     onDismiss: () -> Unit
@@ -77,6 +79,7 @@ fun ModelSheet(
     val cs = MaterialTheme.colorScheme
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var filter by remember { mutableStateOf("") }
+    var chosen by remember { mutableStateOf(listOf<String>()) }
     val now = System.currentTimeMillis()
 
     val title = when (purpose) {
@@ -85,8 +88,10 @@ fun ModelSheet(
         PickPurpose.CONTINUE -> R.string.pick_title_continue
         PickPurpose.RETRY -> R.string.pick_title_retry
         PickPurpose.REGENERATE -> R.string.pick_title_regen
+        PickPurpose.COMPARE -> R.string.pick_title_compare
     }
-    val showModes = purpose != PickPurpose.MODEL
+    val comparing = purpose == PickPurpose.COMPARE
+    val showModes = purpose != PickPurpose.MODEL && !comparing
     val showModels = purpose != PickPurpose.MODE
     val modes = if (purpose == PickPurpose.MODE) {
         listOf(
@@ -116,13 +121,20 @@ fun ModelSheet(
         Column(Modifier.navigationBarsPadding()) {
             Text(
                 stringResource(title),
-                Modifier.padding(horizontal = 24.dp),
+                Modifier.padding(horizontal = Spacing.xxl),
                 style = MaterialTheme.typography.titleLarge
             )
-            if (purpose != PickPurpose.MODE && purpose != PickPurpose.MODEL) {
+            if (comparing) {
+                Text(
+                    stringResource(R.string.compare_pick_hint),
+                    Modifier.padding(horizontal = Spacing.xxl, vertical = Spacing.xxs),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = cs.onSurfaceVariant
+                )
+            } else if (purpose != PickPurpose.MODE && purpose != PickPurpose.MODEL) {
                 Text(
                     stringResource(R.string.request_saved),
-                    Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
+                    Modifier.padding(horizontal = Spacing.xxl, vertical = Spacing.xxs),
                     style = MaterialTheme.typography.bodyMedium,
                     color = cs.onSurfaceVariant
                 )
@@ -130,10 +142,10 @@ fun ModelSheet(
             if (showModels) Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-                    .clip(RoundedCornerShape(24.dp))
+                    .padding(horizontal = Spacing.lg, vertical = Spacing.md)
+                    .clip(RoundedCornerShape(Corners.card))
                     .background(cs.surfaceContainerHigh)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(horizontal = Spacing.lg, vertical = Spacing.md),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(Icons.Filled.Search, null, Modifier.size(20.dp), tint = cs.onSurfaceVariant)
@@ -168,7 +180,7 @@ fun ModelSheet(
                 }
                 if (showModels && targets.isEmpty()) {
                     item(key = "empty") {
-                        Column(Modifier.padding(24.dp)) {
+                        Column(Modifier.padding(Spacing.xxl)) {
                             Text(stringResource(R.string.no_provider_hint), color = cs.onSurfaceVariant)
                             TextButton(onClick = onProviders) { Text(stringResource(R.string.setup_provider)) }
                         }
@@ -197,7 +209,7 @@ fun ModelSheet(
                         PickRow(
                             title = t.model.displayName,
                             subtitle = tags,
-                            selected = selection == "PIN:${t.key}",
+                            selected = if (comparing) t.key in chosen else selection == "PIN:${t.key}",
                             enabled = !dead,
                             trailing = {
                                 if (status != null) {
@@ -208,17 +220,32 @@ fun ModelSheet(
                                         Icons.Filled.Warning,
                                         stringResource(R.string.trains_title),
                                         Modifier
-                                            .padding(start = 8.dp)
+                                            .padding(start = Spacing.sm)
                                             .size(18.dp)
                                             .clickable(onClick = onPrivacy),
                                         tint = cs.secondary
                                     )
                                 }
                             },
-                            onClick = { onPick("PIN:${t.key}") }
+                            onClick = {
+                                if (comparing) {
+                                    chosen = if (t.key in chosen) chosen - t.key else (chosen + t.key).takeLast(2)
+                                } else {
+                                    onPick("PIN:${t.key}")
+                                }
+                            }
                         )
                     }
                 }
+            }
+            if (comparing) {
+                Button(
+                    onClick = { if (chosen.size == 2) onCompare("PIN:${chosen[0]}", "PIN:${chosen[1]}") },
+                    enabled = chosen.size == 2,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.lg, vertical = Spacing.md)
+                ) { Text(stringResource(R.string.compare_start)) }
             }
         }
     }
@@ -228,7 +255,7 @@ fun ModelSheet(
 private fun GroupLabel(text: String) {
     Text(
         text,
-        Modifier.padding(start = 24.dp, end = 24.dp, top = 14.dp, bottom = 4.dp),
+        Modifier.padding(start = Spacing.xxl, end = Spacing.xxl, top = Spacing.lg, bottom = Spacing.xxs),
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
@@ -247,14 +274,14 @@ private fun PickRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .padding(horizontal = Spacing.md)
+            .clip(RoundedCornerShape(Corners.md))
             .background(if (selected) cs.surfaceContainerHigh else cs.background)
             .clickable(enabled = enabled, onClick = onClick)
             .alpha(if (enabled) 1f else 0.45f)
-            .padding(horizontal = 12.dp, vertical = 12.dp),
+            .padding(horizontal = Spacing.md, vertical = Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
     ) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)

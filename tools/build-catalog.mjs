@@ -156,6 +156,19 @@ for (const m of models.values()) {
   if (exp) m.expiresAt = exp;
 }
 
+const arabicRe = /gemini|qwen|gpt|llama-?3\.[1-9]|llama-?4|deepseek|glm|command|mistral|claude|gemma/i;
+function capsOf(m) {
+  const c = [];
+  const modes = m.modes || [];
+  if (modes.includes("code")) c.push("code");
+  if (modes.includes("fast")) c.push("fast");
+  if (m.reasoning) c.push("reasoning");
+  if ((m.contextWindow || 0) >= 200000) c.push("long_context");
+  if (arabicRe.test(m.id + " " + (m.displayName || ""))) c.push("arabic");
+  return c;
+}
+for (const m of models.values()) m.caps = capsOf(m);
+
 const out = {
   version: base.version,
   providers: [...providers.values()],

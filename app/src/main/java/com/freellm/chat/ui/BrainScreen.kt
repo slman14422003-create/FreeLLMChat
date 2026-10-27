@@ -94,7 +94,7 @@ fun BrainScreen(app: FreeLlmApp, onBack: () -> Unit) {
             },
             title = { Text(stringResource(R.string.brain_entry)) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     OutlinedTextField(question, { question = it }, maxLines = 3, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(answer, { answer = it }, maxLines = 8, modifier = Modifier.fillMaxWidth())
                 }
@@ -109,11 +109,11 @@ fun BrainScreen(app: FreeLlmApp, onBack: () -> Unit) {
         LazyColumn(
             Modifier.padding(pad),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
             item(key = "art") { BrainArt(Modifier.fillMaxWidth().height(130.dp).appear(0)) }
             item(key = "facts") {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     Text(stringResource(R.string.personal_facts), style = MaterialTheme.typography.titleMedium)
                     OutlinedTextField(
                         facts,
@@ -139,7 +139,7 @@ fun BrainScreen(app: FreeLlmApp, onBack: () -> Unit) {
                     Modifier
                         .fillMaxWidth()
                         .clickable { editing = en }
-                        .padding(vertical = 6.dp)
+                        .padding(vertical = Spacing.xs)
                 ) {
                     Text(en.question, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(
@@ -149,7 +149,7 @@ fun BrainScreen(app: FreeLlmApp, onBack: () -> Unit) {
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
-                    HorizontalDivider(Modifier.padding(top = 8.dp))
+                    HorizontalDivider(Modifier.padding(top = Spacing.sm))
                 }
             }
         }

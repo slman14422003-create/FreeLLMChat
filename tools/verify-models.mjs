@@ -39,6 +39,7 @@ async function probe(p, m, key) {
   const headers = { "content-type": "application/json", accept: "application/json", ...(p.headers || {}) };
   if (key) headers.authorization = "Bearer " + key;
   if (p.id === "gemini" && key) headers["x-goog-api-key"] = key;
+  const started = Date.now();
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 25000);
   try {
@@ -49,7 +50,7 @@ async function probe(p, m, key) {
       signal: ctrl.signal
     });
     const text = await r.text();
-    return { verdict: classify(r.status, text), status: r.status };
+    return { verdict: classify(r.status, text), status: r.status, ms: Date.now() - started };
   } catch (e) {
     return { verdict: "NETWORK", status: 0 };
   } finally {
@@ -72,6 +73,12 @@ for (const p of catalog.providers) {
     else if (r.verdict === "PASS" || r.verdict === "LIMITED") delete health.streaks[k];
     await sleep(1200);
   }
+}
+
+health.latency = health.latency || {};
+for (const r of results) {
+  if (r.verdict === "PASS") health.latency[r.key] = Math.round(((health.latency[r.key] || r.ms) * 2 + r.ms) / 3);
+  else if (r.verdict === "DEAD") delete health.latency[r.key];
 }
 
 health.dead = Object.entries(health.streaks).filter(([, n]) => n >= deadAfter).map(([k]) => k);

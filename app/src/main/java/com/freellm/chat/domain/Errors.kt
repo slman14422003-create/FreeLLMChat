@@ -1,5 +1,7 @@
 package com.freellm.chat.domain
 
+import com.freellm.chat.R
+
 enum class ErrorKind {
     RATE_LIMIT, PAYMENT, SERVER, AUTH, NOT_FOUND, TIMEOUT, NETWORK, EMPTY, INTERRUPTED, BAD_REQUEST
 }
@@ -11,30 +13,33 @@ class LlmException(
     message: String = ""
 ) : Exception(message)
 
-fun ErrorKind.label(): String = when (this) {
-    ErrorKind.RATE_LIMIT -> "تجاوز الحد المسموح (429)"
-    ErrorKind.PAYMENT -> "انتهى الرصيد أو السقف (402)"
-    ErrorKind.SERVER -> "خطأ في خادم المزود"
-    ErrorKind.AUTH -> "المفتاح مرفوض أو المنطقة محجوبة (401/403)"
-    ErrorKind.NOT_FOUND -> "المودل غير متاح (404)"
-    ErrorKind.TIMEOUT -> "انتهت المهلة"
-    ErrorKind.NETWORK -> "مشكلة في الشبكة"
-    ErrorKind.EMPTY -> "رد فارغ"
-    ErrorKind.INTERRUPTED -> "انقطع الستريم"
-    ErrorKind.BAD_REQUEST -> "طلب مرفوض (400)"
+fun ErrorKind.labelRes(): Int = when (this) {
+    ErrorKind.RATE_LIMIT -> R.string.err_label_rate_limit
+    ErrorKind.PAYMENT -> R.string.err_label_payment
+    ErrorKind.SERVER -> R.string.err_label_server
+    ErrorKind.AUTH -> R.string.err_label_auth
+    ErrorKind.NOT_FOUND -> R.string.err_label_not_found
+    ErrorKind.TIMEOUT -> R.string.err_label_timeout
+    ErrorKind.NETWORK -> R.string.err_label_network
+    ErrorKind.EMPTY -> R.string.err_label_empty
+    ErrorKind.INTERRUPTED -> R.string.err_label_interrupted
+    ErrorKind.BAD_REQUEST -> R.string.err_label_bad_request
 }
 
-fun LlmException.arabic(): String = when (kind) {
-    ErrorKind.AUTH ->
-        if (httpCode == 401) "المفتاح غير صحيح (401). تأكد من نسخه كاملاً."
-        else "الوصول مرفوض (403): قد تكون منطقتك محجوبة أو المفتاح بلا صلاحية. جرّب حقل Base URL مع وسيط. ${message.orEmpty()}".trim()
-    ErrorKind.RATE_LIMIT -> "تم تجاوز الحد المجاني حالياً (429). جرّب بعد قليل."
-    ErrorKind.PAYMENT -> "المزود يطلب رصيداً أو انتهى السقف المجاني (402)."
-    ErrorKind.NOT_FOUND -> "الرابط أو المودل غير موجود (404). تحقق من Base URL."
-    ErrorKind.TIMEOUT -> "انتهت مهلة الاتصال. تحقق من الإنترنت أو جرّب وسيطاً. ${message.orEmpty()}".trim()
-    ErrorKind.NETWORK -> "تعذّر الاتصال بالشبكة. تحقق من الإنترنت أو من حجب المزود في بلدك. (${message.orEmpty()})"
-    ErrorKind.SERVER -> "خطأ من خادم المزود. جرّب لاحقاً. ${message.orEmpty()}".trim()
-    ErrorKind.BAD_REQUEST -> "رفض المزود الطلب (400). ${message.orEmpty()}".trim()
-    ErrorKind.EMPTY -> "رد المزود فارغ."
-    ErrorKind.INTERRUPTED -> "انقطع الاتصال أثناء الرد."
+fun LlmException.messageRes(): Int = when (kind) {
+    ErrorKind.AUTH -> if (httpCode == 401) R.string.err_msg_auth_401 else R.string.err_msg_auth_403
+    ErrorKind.RATE_LIMIT -> R.string.err_msg_rate_limit
+    ErrorKind.PAYMENT -> R.string.err_msg_payment
+    ErrorKind.NOT_FOUND -> R.string.err_msg_not_found
+    ErrorKind.TIMEOUT -> R.string.err_msg_timeout
+    ErrorKind.NETWORK -> R.string.err_msg_network
+    ErrorKind.SERVER -> R.string.err_msg_server
+    ErrorKind.BAD_REQUEST -> R.string.err_msg_bad_request
+    ErrorKind.EMPTY -> R.string.err_msg_empty
+    ErrorKind.INTERRUPTED -> R.string.err_msg_interrupted
 }
+
+fun LlmException.localized(get: (Int, String) -> String): String = get(messageRes(), message.orEmpty()).trim()
+
+fun labelOf(name: String, get: (Int) -> String): String =
+    ErrorKind.entries.firstOrNull { it.name == name }?.let { get(it.labelRes()) } ?: name

@@ -35,7 +35,8 @@ data class ModelDef(
     val rph: Int = 0,
     val rpd: Int = 0,
     val rpmo: Int = 0,
-    val expiresAt: String? = null
+    val expiresAt: String? = null,
+    val caps: List<String> = emptyList()
 )
 
 @Serializable
@@ -67,6 +68,9 @@ enum class ChatMode { AUTO, FAST, SMART, CODE, PINNED }
 
 interface ChatTransport {
     fun stream(target: Target, messages: List<ChatMsg>, maxTokens: Int?): Flow<String>
+
+    fun stream(target: Target, messages: List<ChatMsg>, maxTokens: Int?, temperature: Double?): Flow<String> =
+        stream(target, messages, maxTokens)
 }
 
 data class RouteRequest(
@@ -79,15 +83,32 @@ data class RouteRequest(
     val adaptive: Boolean = false,
     val preferSpeed: Boolean = false,
     val needsVision: Boolean = false,
-    val rating: (String) -> Int = { 0 }
+    val rating: (String) -> Int = { 0 },
+    val proactive: Boolean = false,
+    val estimatedTokens: Int = 0,
+    val wantCaps: List<String> = emptyList(),
+    val temperature: Double? = null
 )
+
+enum class FailKind { NO_PROVIDER, PINNED_MISSING, NO_VISION, ALL_FAILED }
+
+enum class ReasonKind { UNAVAILABLE, COOLING, USAGE_LIMIT, ERROR }
+
+data class FailReason(val provider: String, val reason: ReasonKind, val error: ErrorKind? = null)
 
 sealed class RouteEvent {
     data class Started(val target: Target) : RouteEvent()
     data class Delta(val text: String) : RouteEvent()
     data class Switched(val target: Target) : RouteEvent()
+    data class NearLimit(val target: Target, val percent: Int) : RouteEvent()
     data object Restart : RouteEvent()
     data class AuthFailed(val providerId: String, val code: Int) : RouteEvent()
     data class Done(val target: Target) : RouteEvent()
-    data class Failed(val message: String, val pinned: Boolean) : RouteEvent()
+    data class Failed(
+        val message: String,
+        val pinned: Boolean,
+        val kind: FailKind = FailKind.ALL_FAILED,
+        val reasons: List<FailReason> = emptyList(),
+        val retryInSec: Long? = null
+    ) : RouteEvent()
 }

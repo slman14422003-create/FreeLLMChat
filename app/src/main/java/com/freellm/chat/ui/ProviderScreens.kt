@@ -65,7 +65,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.freellm.chat.FreeLlmApp
 import com.freellm.chat.R
 import com.freellm.chat.data.ProviderStatus
-import com.freellm.chat.domain.arabic
 import kotlinx.coroutines.launch
 
 @Composable
@@ -100,17 +99,17 @@ fun ProvidersScreen(app: FreeLlmApp, onBack: () -> Unit, onOpen: (String) -> Uni
             Modifier.weight(1f),
             state = lazyState,
             contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
             itemsIndexed(local, key = { _, u -> u.def.id }) { index, ui ->
                 ReorderableItem(reorderState, key = ui.def.id) {
                     Card(
                         onClick = { onOpen(ui.def.id) },
                         modifier = Modifier.fillMaxWidth().appear(index),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh), shape = RoundedCornerShape(24.dp)
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh), shape = RoundedCornerShape(Corners.card)
                     ) {
                         Row(
-                            Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
+                            Modifier.padding(start = Spacing.lg, top = Spacing.sm, bottom = Spacing.sm, end = Spacing.sm),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(Modifier.weight(1f)) {
@@ -190,8 +189,8 @@ fun ProviderWizardScreen(app: FreeLlmApp, providerId: String, onBack: () -> Unit
             Modifier
                 .padding(pad)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.lg)
         ) {
             KeysArt(Modifier.fillMaxWidth().height(130.dp).appear(0))
             Text(stringResource(R.string.setup_steps), Modifier.appear(1), style = MaterialTheme.typography.titleMedium)
@@ -210,9 +209,9 @@ fun ProviderWizardScreen(app: FreeLlmApp, providerId: String, onBack: () -> Unit
             if (def.warnings.isNotEmpty()) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh), shape = RoundedCornerShape(24.dp)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh), shape = RoundedCornerShape(Corners.card)
                 ) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Column(Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                         Text(stringResource(R.string.notes), style = MaterialTheme.typography.titleMedium)
                         def.warnings.forEach { w -> Text("• $w", style = MaterialTheme.typography.bodyMedium) }
                     }
@@ -278,7 +277,7 @@ fun ProviderWizardScreen(app: FreeLlmApp, providerId: String, onBack: () -> Unit
                                 if (modelId.isBlank()) modelId = ids.first()
                             } else {
                                 ok = false
-                                result = err?.arabic() ?: noModels
+                                result = err?.let { clipCtx.errorText(it) } ?: noModels
                             }
                         }
                     },
@@ -313,7 +312,7 @@ fun ProviderWizardScreen(app: FreeLlmApp, providerId: String, onBack: () -> Unit
                         val err = app.manager.testAndSave(def, key, base, acct, modelId)
                         busy = false
                         ok = err == null
-                        result = if (err == null) okText else err.arabic()
+                        result = if (err == null) okText else clipCtx.errorText(err)
                         if (err == null) key = ""
                     }
                 },

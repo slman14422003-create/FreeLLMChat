@@ -97,6 +97,28 @@ class UsageLimiter(
     }
 
     @Synchronized
+    fun budgetPressure(t: Target, now: Long): Double {
+        val m = t.model
+        val s = scope(t)
+        var p = 0.0
+        if (m.rpd > 0) p = count("d:$s", dayId(now)).toDouble() / m.rpd
+        if (m.rpmo > 0) p = max(p, count("m:$s", monthId(now)).toDouble() / m.rpmo)
+        return p
+    }
+
+    @Synchronized
+    fun pressure(t: Target, now: Long): Double {
+        val m = t.model
+        var p = budgetPressure(t, now)
+        val q = recent[scope(t)]
+        if (q != null) {
+            if (m.rpm > 0) p = max(p, q.count { now - it < MINUTE }.toDouble() / m.rpm)
+            if (m.rph > 0) p = max(p, q.count { now - it < HOUR }.toDouble() / m.rph)
+        }
+        return p
+    }
+
+    @Synchronized
     fun reset() {
         recent.clear()
         counters.clear()

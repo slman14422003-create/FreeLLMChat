@@ -43,8 +43,8 @@ fun AboutScreen(onBack: () -> Unit, onTour: () -> Unit, onPrivacy: () -> Unit) {
             Modifier
                 .padding(pad)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(horizontal = Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(Modifier.height(8.dp))
@@ -71,7 +71,7 @@ fun AboutScreen(onBack: () -> Unit, onTour: () -> Unit, onPrivacy: () -> Unit) {
             )
             Text(
                 stringResource(R.string.about_desc),
-                Modifier.appear(2).padding(horizontal = 8.dp),
+                Modifier.appear(2).padding(horizontal = Spacing.sm),
                 style = MaterialTheme.typography.bodyLarge,
                 color = cs.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -117,13 +117,13 @@ fun PrivacyScreen(onBack: () -> Unit) {
             Modifier
                 .padding(pad)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
             PrivacyArt(Modifier.fillMaxWidth().height(190.dp).appear(0))
             Text(
                 stringResource(R.string.privacy_intro),
-                Modifier.appear(1).padding(horizontal = 8.dp),
+                Modifier.appear(1).padding(horizontal = Spacing.sm),
                 style = MaterialTheme.typography.bodyLarge,
                 color = cs.onSurfaceVariant
             )
@@ -132,10 +132,10 @@ fun PrivacyScreen(onBack: () -> Unit) {
                     Modifier
                         .appear(i + 2)
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(24.dp))
+                        .clip(RoundedCornerShape(Corners.card))
                         .background(cs.surfaceContainerHigh)
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(Spacing.xl),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm)
                 ) {
                     Text(stringResource(t), style = MaterialTheme.typography.titleMedium, color = cs.onSurface, fontWeight = FontWeight.SemiBold)
                     Text(stringResource(b), style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
@@ -143,7 +143,7 @@ fun PrivacyScreen(onBack: () -> Unit) {
             }
             Text(
                 stringResource(R.string.privacy_updated),
-                Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 28.dp),
+                Modifier.fillMaxWidth().padding(top = Spacing.xxs, bottom = 28.dp),
                 style = MaterialTheme.typography.labelSmall,
                 color = cs.onSurfaceVariant,
                 textAlign = TextAlign.Center

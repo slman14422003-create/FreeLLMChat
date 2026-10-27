@@ -275,13 +275,13 @@ private fun CodeBlock(lang: String, code: String) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(Corners.sm))
                 .background(cs.surfaceVariant)
         ) {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(start = 12.dp, end = 4.dp),
+                    .padding(start = Spacing.md, end = Spacing.xxs),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -298,7 +298,7 @@ private fun CodeBlock(lang: String, code: String) {
                 annotated,
                 Modifier
                     .horizontalScroll(rememberScrollState())
-                    .padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+                    .padding(start = Spacing.md, end = Spacing.md, bottom = Spacing.md),
                 style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 19.sp),
                 softWrap = false
             )
@@ -324,13 +324,13 @@ private fun RenderBlock(b: MdBlock) {
         is MdBlock.Code -> CodeBlock(b.lang, b.code)
         is MdBlock.Item -> Row(Modifier.padding(start = (b.indent * 16).dp)) {
             val marker = if (b.marker.first().isDigit()) b.marker else "•"
-            Text(marker, style = body, modifier = Modifier.padding(end = 8.dp))
+            Text(marker, style = body, modifier = Modifier.padding(end = Spacing.sm))
             InlineText(b.text, body, Modifier.weight(1f))
         }
         is MdBlock.Quote -> Row(Modifier.fillMaxWidth()) {
             Column(
                 Modifier
-                    .padding(end = 10.dp)
+                    .padding(end = Spacing.md)
                     .size(width = 3.dp, height = 22.dp)
                     .background(cs.outline)
             ) {}
@@ -339,7 +339,7 @@ private fun RenderBlock(b: MdBlock) {
         is MdBlock.Table -> Column(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(Corners.sm))
                 .background(cs.surfaceVariant)
         ) {
             val cols = b.header.size
@@ -348,7 +348,7 @@ private fun RenderBlock(b: MdBlock) {
                     InlineText(
                         it,
                         MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                        Modifier.weight(1f).padding(8.dp)
+                        Modifier.weight(1f).padding(Spacing.sm)
                     )
                 }
             }
@@ -359,7 +359,7 @@ private fun RenderBlock(b: MdBlock) {
                         InlineText(
                             row.getOrElse(c) { "" },
                             MaterialTheme.typography.bodyMedium,
-                            Modifier.weight(1f).padding(8.dp)
+                            Modifier.weight(1f).padding(Spacing.sm)
                         )
                     }
                 }
@@ -375,7 +375,7 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
     val dir = detectDirection(text) ?: base
     CompositionLocalProvider(LocalLayoutDirection provides dir) {
         val blocks = remember(text) { parseBlocks(text) }
-        Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             blocks.forEach { RenderBlock(it) }
         }
     }

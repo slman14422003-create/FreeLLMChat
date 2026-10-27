@@ -38,7 +38,7 @@ fun AppRoot(app: FreeLlmApp) {
     FreeLlmTheme(theme) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Box(Modifier.fillMaxSize()) {
-                Crossfade(targetState = welcome, animationSpec = tween(500), label = "welcome") { w ->
+                Crossfade(targetState = welcome, animationSpec = tween(Motion.Slow), label = "welcome") { w ->
                     when (w) {
                         null -> Unit
                         false -> OnboardingScreen { scope.launch { app.settings.setWelcomeDone() } }
@@ -63,7 +63,7 @@ private fun MainNav(app: FreeLlmApp) {
             route == "privacy" -> privacyFrom
             route == "tour" -> "about"
             route == "about" -> "settings"
-            route == "providers" || route == "status" || route == "usage" || route == "brain" -> "settings"
+            route == "providers" || route == "status" || route == "usage" || route == "brain" || route == "search" -> "settings"
             else -> "chat"
         }
     }
@@ -76,10 +76,10 @@ private fun MainNav(app: FreeLlmApp) {
         transitionSpec = {
             val forward = depthOf(targetState) > depthOf(initialState)
             val dir = if (forward) sign else -sign
-            (slideInHorizontally(tween(340, easing = FastOutSlowInEasing)) { w -> dir * (w / 3) } +
-                fadeIn(tween(300)) + scaleIn(tween(340, easing = FastOutSlowInEasing), initialScale = 0.96f)) togetherWith
-                (slideOutHorizontally(tween(280, easing = FastOutSlowInEasing)) { w -> -dir * (w / 5) } +
-                    fadeOut(tween(200)))
+            (slideInHorizontally(tween(Motion.Medium, easing = FastOutSlowInEasing)) { w -> dir * (w / 3) } +
+                fadeIn(tween(Motion.Normal)) + scaleIn(tween(Motion.Medium, easing = FastOutSlowInEasing), initialScale = 0.96f)) togetherWith
+                (slideOutHorizontally(tween(Motion.Normal, easing = FastOutSlowInEasing)) { w -> -dir * (w / 5) } +
+                    fadeOut(tween(Motion.Fast)))
         },
         label = "nav"
     ) { r ->
@@ -96,6 +96,7 @@ private fun MainNav(app: FreeLlmApp) {
                 onStatus = { route = "status" },
                 onUsage = { route = "usage" },
                 onBrain = { route = "brain" },
+                onSearch = { route = "search" },
                 onAbout = { route = "about" },
                 onPrivacy = {
                     privacyFrom = "settings"
@@ -120,6 +121,7 @@ private fun MainNav(app: FreeLlmApp) {
             r == "status" -> StatusScreen(app = app, onBack = { route = "settings" })
             r == "usage" -> UsageScreen(app = app, onBack = { route = "settings" })
             r == "brain" -> BrainScreen(app = app, onBack = { route = "settings" })
+            r == "search" -> SearchSettingsScreen(app = app, onBack = { route = "settings" })
             r.startsWith("provider:") -> ProviderWizardScreen(
                 app = app,
                 providerId = r.removePrefix("provider:"),
@@ -133,6 +135,6 @@ private fun MainNav(app: FreeLlmApp) {
 private fun depthOf(r: String): Int = when {
     r == "chat" -> 0
     r == "settings" -> 1
-    r == "providers" || r == "status" || r == "usage" || r == "brain" || r == "about" -> 2
+    r == "providers" || r == "status" || r == "usage" || r == "brain" || r == "about" || r == "search" -> 2
     else -> 3
 }

@@ -14,7 +14,9 @@ data class ConversationEntity(
     val updatedAt: Long,
     val pinnedModel: String? = null,
     @ColumnInfo(defaultValue = "0") val starred: Boolean = false,
-    val instructions: String? = null
+    val instructions: String? = null,
+    val summary: String? = null,
+    @ColumnInfo(defaultValue = "0") val summarizedUpTo: Long = 0
 )
 
 @Entity(
@@ -39,5 +41,23 @@ data class MessageEntity(
     val modelKey: String? = null,
     val notes: String? = null,
     val createdAt: Long,
-    val attachments: String? = null
+    val attachments: String? = null,
+    val sources: String? = null
+)
+
+@Entity(tableName = "answer_cache")
+data class AnswerCacheEntity(
+    @PrimaryKey val cacheKey: String,
+    val question: String,
+    val answer: String,
+    val modelName: String?,
+    val providerName: String?,
+    val createdAt: Long
+)
+
+@Entity(tableName = "search_cache")
+data class SearchCacheEntity(
+    @PrimaryKey val cacheKey: String,
+    val payload: String,
+    val createdAt: Long
 )

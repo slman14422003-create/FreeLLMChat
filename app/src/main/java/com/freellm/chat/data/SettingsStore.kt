@@ -41,6 +41,20 @@ class SettingsStore(context: Context) {
         val DEEP_THINK = booleanPreferencesKey("deep_think")
         val AVOID_TRAINING = booleanPreferencesKey("avoid_training")
         val KEYLESS_OFF = stringSetPreferencesKey("keyless_off")
+        val CONTEXT_SUMMARY = booleanPreferencesKey("context_summary")
+        val ANSWER_CACHE = booleanPreferencesKey("answer_cache")
+        val CACHE_TTL = stringPreferencesKey("cache_ttl_hours")
+        val DYNAMIC_TOKENS = booleanPreferencesKey("dynamic_tokens")
+        val SMART_ATTACH = booleanPreferencesKey("smart_attachments")
+        val BUDGET_ALERTS = booleanPreferencesKey("budget_alerts")
+        val SMART_ROUTING = booleanPreferencesKey("smart_routing")
+        val COMPARE_MERGE = booleanPreferencesKey("compare_merge")
+        val WEB_SEARCH = booleanPreferencesKey("web_search")
+        val ANSWER_TEMPERATURE = booleanPreferencesKey("answer_temperature")
+        val VERIFY_ANSWERS = booleanPreferencesKey("verify_answers")
+        val SEARCH_PROVIDER = stringPreferencesKey("search_provider")
+        val SEARCH_CACHE_HOURS = stringPreferencesKey("search_cache_hours")
+        val SEARCH_LIMITS = stringPreferencesKey("search_limits")
     }
 
     private val data: Flow<Preferences> = ds.data.catch { emit(emptyPreferences()) }
@@ -68,6 +82,22 @@ class SettingsStore(context: Context) {
     val style: Flow<String> = data.map { it[K.STYLE] ?: "default" }.distinctUntilChanged()
     val facts: Flow<String> = data.map { it[K.FACTS] ?: "" }.distinctUntilChanged()
     val instructions: Flow<String> = data.map { it[K.INSTRUCTIONS] ?: "" }.distinctUntilChanged()
+
+    val contextSummary: Flow<Boolean> = data.map { it[K.CONTEXT_SUMMARY] ?: true }.distinctUntilChanged()
+    val answerCache: Flow<Boolean> = data.map { it[K.ANSWER_CACHE] ?: true }.distinctUntilChanged()
+    val cacheTtlHours: Flow<Int> = data.map { it[K.CACHE_TTL]?.toIntOrNull()?.coerceIn(1, 720) ?: 24 }.distinctUntilChanged()
+    val dynamicTokens: Flow<Boolean> = data.map { it[K.DYNAMIC_TOKENS] ?: true }.distinctUntilChanged()
+    val smartAttachments: Flow<Boolean> = data.map { it[K.SMART_ATTACH] ?: true }.distinctUntilChanged()
+    val smartRouting: Flow<Boolean> = data.map { it[K.SMART_ROUTING] ?: true }.distinctUntilChanged()
+    val budgetAlerts: Flow<Boolean> = data.map { it[K.BUDGET_ALERTS] ?: true }.distinctUntilChanged()
+    val compareMerge: Flow<Boolean> = data.map { it[K.COMPARE_MERGE] ?: true }.distinctUntilChanged()
+    val answerTemperature: Flow<Boolean> = data.map { it[K.ANSWER_TEMPERATURE] ?: true }.distinctUntilChanged()
+    val verifyAnswers: Flow<Boolean> = data.map { it[K.VERIFY_ANSWERS] ?: false }.distinctUntilChanged()
+    val webSearch: Flow<Boolean?> = data.map { it[K.WEB_SEARCH] }.distinctUntilChanged()
+    val searchProvider: Flow<String> = data.map { it[K.SEARCH_PROVIDER] ?: "tavily" }.distinctUntilChanged()
+    val searchCacheHours: Flow<Int> = data.map { it[K.SEARCH_CACHE_HOURS]?.toIntOrNull()?.coerceIn(1, 168) ?: 6 }.distinctUntilChanged()
+    val searchLimits: Flow<Map<com.freellm.chat.domain.SearchKind, Int>> =
+        data.map { com.freellm.chat.domain.SearchLimits.decode(it[K.SEARCH_LIMITS]) }.distinctUntilChanged()
 
     private fun decode(s: String?): Map<String, String> =
         (s ?: "").split(",").mapNotNull { e ->
@@ -187,5 +217,65 @@ class SettingsStore(context: Context) {
 
     suspend fun setDeepThink(v: Boolean) {
         ds.edit { it[K.DEEP_THINK] = v }
+    }
+
+    suspend fun setContextSummary(v: Boolean) {
+        ds.edit { it[K.CONTEXT_SUMMARY] = v }
+    }
+
+    suspend fun setAnswerCache(v: Boolean) {
+        ds.edit { it[K.ANSWER_CACHE] = v }
+    }
+
+    suspend fun setCacheTtlHours(v: Int) {
+        ds.edit { it[K.CACHE_TTL] = v.coerceIn(1, 720).toString() }
+    }
+
+    suspend fun setDynamicTokens(v: Boolean) {
+        ds.edit { it[K.DYNAMIC_TOKENS] = v }
+    }
+
+    suspend fun setSmartAttachments(v: Boolean) {
+        ds.edit { it[K.SMART_ATTACH] = v }
+    }
+
+    suspend fun setSmartRouting(v: Boolean) {
+        ds.edit { it[K.SMART_ROUTING] = v }
+    }
+
+    suspend fun setBudgetAlerts(v: Boolean) {
+        ds.edit { it[K.BUDGET_ALERTS] = v }
+    }
+
+    suspend fun setCompareMerge(v: Boolean) {
+        ds.edit { it[K.COMPARE_MERGE] = v }
+    }
+
+    suspend fun setWebSearch(v: Boolean) {
+        ds.edit { it[K.WEB_SEARCH] = v }
+    }
+
+    suspend fun setSearchProvider(v: String) {
+        ds.edit { it[K.SEARCH_PROVIDER] = v }
+    }
+
+    suspend fun setSearchCacheHours(v: Int) {
+        ds.edit { it[K.SEARCH_CACHE_HOURS] = v.coerceIn(1, 168).toString() }
+    }
+
+    suspend fun setSearchLimit(kind: com.freellm.chat.domain.SearchKind, amount: Int) {
+        ds.edit { p ->
+            val cur = com.freellm.chat.domain.SearchLimits.decode(p[K.SEARCH_LIMITS]).toMutableMap()
+            cur[kind] = amount.coerceIn(1, 1_000_000)
+            p[K.SEARCH_LIMITS] = com.freellm.chat.domain.SearchLimits.encode(cur)
+        }
+    }
+
+    suspend fun setAnswerTemperature(v: Boolean) {
+        ds.edit { it[K.ANSWER_TEMPERATURE] = v }
+    }
+
+    suspend fun setVerifyAnswers(v: Boolean) {
+        ds.edit { it[K.VERIFY_ANSWERS] = v }
     }
 }

@@ -123,7 +123,7 @@ fun SecuritySection(app: FreeLlmApp, modifier: Modifier = Modifier) {
                 local.autoBackupDays = days
             }
         )
-        Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+        Column(Modifier.padding(horizontal = Spacing.xl, vertical = Spacing.sm)) {
             SecureWindow()
             OutlinedTextField(
                 value = pw,

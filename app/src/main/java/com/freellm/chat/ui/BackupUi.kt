@@ -121,7 +121,7 @@ fun BackupSection(app: FreeLlmApp, modifier: Modifier = Modifier) {
                 onDismissRequest = { if (!busy) reset() },
                 title = { Text(stringResource(R.string.backup_password_title)) },
                 text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
                         Text(
                             stringResource(R.string.backup_password_hint),
                             style = MaterialTheme.typography.bodyMedium,

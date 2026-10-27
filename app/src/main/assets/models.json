@@ -1,5 +1,5 @@
 {
-  "version": 7,
+  "version": 6,
   "providers": [
     {
       "id": "gemini",
@@ -249,7 +249,13 @@
       ],
       "vision": true,
       "reasoning": true,
-      "trainsOnData": true
+      "trainsOnData": true,
+      "caps": [
+        "fast",
+        "reasoning",
+        "long_context",
+        "arabic"
+      ]
     },
     {
       "id": "gemini-flash-latest",
@@ -263,7 +269,13 @@
       ],
       "vision": true,
       "reasoning": true,
-      "trainsOnData": true
+      "trainsOnData": true,
+      "caps": [
+        "fast",
+        "reasoning",
+        "long_context",
+        "arabic"
+      ]
     },
     {
       "id": "openai/gpt-oss-120b",
@@ -279,7 +291,12 @@
       "reasoning": true,
       "trainsOnData": false,
       "rpm": 30,
-      "rpd": 1000
+      "rpd": 1000,
+      "caps": [
+        "code",
+        "reasoning",
+        "arabic"
+      ]
     },
     {
       "id": "nvidia/nemotron-3-ultra-550b-a55b:free",
@@ -292,7 +309,11 @@
       ],
       "reasoning": true,
       "trainsOnData": true,
-      "rpm": 20
+      "rpm": 20,
+      "caps": [
+        "reasoning",
+        "long_context"
+      ]
     },
     {
       "id": "qwen/qwen3.8-27b",
@@ -308,7 +329,11 @@
       "reasoning": false,
       "trainsOnData": false,
       "rpm": 30,
-      "rpd": 1000
+      "rpd": 1000,
+      "caps": [
+        "fast",
+        "arabic"
+      ]
     },
     {
       "id": "nvidia/nemotron-3-super-120b-a12b:free",
@@ -321,7 +346,11 @@
       ],
       "reasoning": true,
       "trainsOnData": true,
-      "rpm": 20
+      "rpm": 20,
+      "caps": [
+        "reasoning",
+        "long_context"
+      ]
     },
     {
       "id": "gemini-2.5-pro",
@@ -335,23 +364,13 @@
       ],
       "vision": true,
       "reasoning": true,
-      "trainsOnData": true
-    },
-    {
-      "id": "openai/gpt-4.1",
-      "provider": "github",
-      "displayName": "GPT-4.1 (GitHub)",
-      "priority": 21,
-      "contextWindow": 8000,
-      "modes": [
-        "smart",
-        "code"
-      ],
-      "vision": true,
-      "reasoning": false,
-      "trainsOnData": false,
-      "rpm": 10,
-      "rpd": 50
+      "trainsOnData": true,
+      "caps": [
+        "code",
+        "reasoning",
+        "long_context",
+        "arabic"
+      ]
     },
     {
       "id": "glm-4.5-flash",
@@ -364,23 +383,12 @@
         "smart"
       ],
       "reasoning": true,
-      "trainsOnData": true
-    },
-    {
-      "id": "openai/gpt-4.1-mini",
-      "provider": "github",
-      "displayName": "GPT-4.1 mini (GitHub)",
-      "priority": 24,
-      "contextWindow": 8000,
-      "modes": [
+      "trainsOnData": true,
+      "caps": [
         "fast",
-        "smart"
-      ],
-      "vision": true,
-      "reasoning": false,
-      "trainsOnData": false,
-      "rpm": 15,
-      "rpd": 150
+        "reasoning",
+        "arabic"
+      ]
     },
     {
       "id": "@cf/openai/gpt-oss-120b",
@@ -392,7 +400,12 @@
         "smart",
         "code"
       ],
-      "reasoning": true
+      "reasoning": true,
+      "caps": [
+        "code",
+        "reasoning",
+        "arabic"
+      ]
     },
     {
       "id": "command-a-03-2025",
@@ -406,7 +419,12 @@
       ],
       "trainsOnData": true,
       "rpm": 20,
-      "rpmo": 1000
+      "rpmo": 1000,
+      "caps": [
+        "code",
+        "long_context",
+        "arabic"
+      ]
     },
     {
       "id": "thinkingmachines/inkling:free",
@@ -419,23 +437,10 @@
       ],
       "trainsOnData": true,
       "vision": true,
-      "rpm": 20
-    },
-    {
-      "id": "meta/llama-3.3-70b-instruct",
-      "provider": "github",
-      "displayName": "Llama 3.3 70B (GitHub)",
-      "priority": 33,
-      "contextWindow": 8000,
-      "modes": [
-        "fast",
-        "smart"
-      ],
-      "vision": false,
-      "reasoning": false,
-      "trainsOnData": false,
-      "rpm": 10,
-      "rpd": 50
+      "rpm": 20,
+      "caps": [
+        "long_context"
+      ]
     },
     {
       "id": "nvidia/nemotron-3.5-super-vl:free",
@@ -448,22 +453,10 @@
       ],
       "vision": true,
       "trainsOnData": true,
-      "rpm": 20
-    },
-    {
-      "id": "deepseek/deepseek-r1",
-      "provider": "github",
-      "displayName": "DeepSeek R1 (GitHub)",
-      "priority": 36,
-      "contextWindow": 4000,
-      "modes": [
-        "smart"
-      ],
-      "vision": false,
-      "reasoning": true,
-      "trainsOnData": false,
-      "rpm": 1,
-      "rpd": 8
+      "rpm": 20,
+      "caps": [
+        "long_context"
+      ]
     },
     {
       "id": "openai/gpt-oss-20b",
@@ -478,7 +471,12 @@
       "reasoning": true,
       "trainsOnData": false,
       "rpm": 30,
-      "rpd": 1000
+      "rpd": 1000,
+      "caps": [
+        "fast",
+        "reasoning",
+        "arabic"
+      ]
     },
     {
       "id": "google/gemma-4-31b-it:free",
@@ -491,7 +489,12 @@
       ],
       "vision": true,
       "trainsOnData": true,
-      "rpm": 20
+      "rpm": 20,
+      "caps": [
+        "fast",
+        "long_context",
+        "arabic"
+      ]
     },
     {
       "id": "thinkingmachines/inkling-small:free",
@@ -504,7 +507,11 @@
       ],
       "trainsOnData": true,
       "vision": true,
-      "rpm": 20
+      "rpm": 20,
+      "caps": [
+        "fast",
+        "long_context"
+      ]
     },
     {
       "id": "gemini-2.5-flash",
@@ -518,7 +525,13 @@
       ],
       "vision": true,
       "reasoning": true,
-      "trainsOnData": true
+      "trainsOnData": true,
+      "caps": [
+        "fast",
+        "reasoning",
+        "long_context",
+        "arabic"
+      ]
     },
     {
       "id": "gemini-2.5-flash-lite",
@@ -530,7 +543,12 @@
         "fast"
       ],
       "vision": true,
-      "trainsOnData": true
+      "trainsOnData": true,
+      "caps": [
+        "fast",
+        "long_context",
+        "arabic"
+      ]
     },
     {
       "id": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
@@ -540,6 +558,10 @@
       "contextWindow": 24000,
       "modes": [
         "fast"
+      ],
+      "caps": [
+        "fast",
+        "arabic"
       ]
     },
     {
@@ -554,7 +576,10 @@
       "vision": false,
       "reasoning": false,
       "trainsOnData": true,
-      "rph": 200
+      "rph": 200,
+      "caps": [
+        "long_context"
+      ]
     },
     {
       "id": "poolside/laguna-s-2.1:free",
@@ -568,7 +593,11 @@
       "vision": false,
       "reasoning": false,
       "trainsOnData": true,
-      "rph": 200
+      "rph": 200,
+      "caps": [
+        "code",
+        "long_context"
+      ]
     },
     {
       "id": "kilo-auto/free",
@@ -580,7 +609,10 @@
       "vision": false,
       "reasoning": false,
       "trainsOnData": true,
-      "rph": 200
+      "rph": 200,
+      "caps": [
+        "long_context"
+      ]
     },
     {
       "id": "Qwen3.8-27B",
@@ -595,7 +627,12 @@
       "vision": true,
       "reasoning": false,
       "trainsOnData": false,
-      "rpm": 2
+      "rpm": 2,
+      "caps": [
+        "fast",
+        "long_context",
+        "arabic"
+      ]
     },
     {
       "id": "gpt-oss-120b",
@@ -610,7 +647,12 @@
       "vision": false,
       "reasoning": true,
       "trainsOnData": false,
-      "rpm": 2
+      "rpm": 2,
+      "caps": [
+        "code",
+        "reasoning",
+        "arabic"
+      ]
     },
     {
       "id": "Meta-Llama-3_3-70B-Instruct",
@@ -624,7 +666,10 @@
       "vision": false,
       "reasoning": false,
       "trainsOnData": false,
-      "rpm": 2
+      "rpm": 2,
+      "caps": [
+        "fast"
+      ]
     },
     {
       "id": "Mistral-Small-3.2-24B-Instruct-2506",
@@ -638,7 +683,11 @@
       "vision": true,
       "reasoning": false,
       "trainsOnData": false,
-      "rpm": 2
+      "rpm": 2,
+      "caps": [
+        "fast",
+        "arabic"
+      ]
     },
     {
       "id": "gpt-oss:20b",
@@ -653,7 +702,12 @@
       "reasoning": true,
       "trainsOnData": false,
       "rpm": 60,
-      "rph": 250
+      "rph": 250,
+      "caps": [
+        "fast",
+        "reasoning",
+        "arabic"
+      ]
     },
     {
       "id": "minimax-m2.7",
@@ -668,7 +722,10 @@
       "reasoning": true,
       "trainsOnData": false,
       "rpm": 60,
-      "rph": 250
+      "rph": 250,
+      "caps": [
+        "reasoning"
+      ]
     },
     {
       "id": "codestral-latest",
@@ -683,7 +740,10 @@
       "reasoning": false,
       "trainsOnData": false,
       "rpm": 60,
-      "rph": 250
+      "rph": 250,
+      "caps": [
+        "code"
+      ]
     },
     {
       "id": "openrouter/free",
@@ -693,7 +753,8 @@
       "contextWindow": 32768,
       "modes": [],
       "trainsOnData": true,
-      "rpm": 20
+      "rpm": 20,
+      "caps": []
     },
     {
       "id": "glm-4.7-flash",
@@ -707,7 +768,13 @@
       ],
       "vision": false,
       "reasoning": true,
-      "trainsOnData": true
+      "trainsOnData": true,
+      "caps": [
+        "fast",
+        "reasoning",
+        "long_context",
+        "arabic"
+      ]
     },
     {
       "id": "glm-4.6v-flash",
@@ -720,7 +787,11 @@
       ],
       "vision": true,
       "reasoning": false,
-      "trainsOnData": true
+      "trainsOnData": true,
+      "caps": [
+        "fast",
+        "arabic"
+      ]
     },
     {
       "id": "google/gemma-4-26b-a4b-it:free",
@@ -734,7 +805,12 @@
       "vision": true,
       "reasoning": false,
       "trainsOnData": true,
-      "rpm": 20
+      "rpm": 20,
+      "caps": [
+        "fast",
+        "long_context",
+        "arabic"
+      ]
     },
     {
       "id": "@cf/openai/gpt-oss-20b",
@@ -747,7 +823,12 @@
       ],
       "vision": false,
       "reasoning": true,
-      "trainsOnData": false
+      "trainsOnData": false,
+      "caps": [
+        "fast",
+        "reasoning",
+        "arabic"
+      ]
     },
     {
       "id": "command-a-plus-05-2026",
@@ -762,7 +843,10 @@
       "reasoning": false,
       "trainsOnData": true,
       "rpm": 20,
-      "rpmo": 1000
+      "rpmo": 1000,
+      "caps": [
+        "arabic"
+      ]
     },
     {
       "id": "@cf/meta/llama-4-scout-17b-16e-instruct",
@@ -775,7 +859,10 @@
       ],
       "vision": true,
       "reasoning": false,
-      "trainsOnData": false
+      "trainsOnData": false,
+      "caps": [
+        "arabic"
+      ]
     },
     {
       "id": "cohere/north-mini-code:free",
@@ -790,7 +877,12 @@
       "vision": false,
       "reasoning": false,
       "trainsOnData": true,
-      "rpm": 20
+      "rpm": 20,
+      "caps": [
+        "code",
+        "fast",
+        "long_context"
+      ]
     },
     {
       "id": "command-r-plus-08-2024",
@@ -805,7 +897,10 @@
       "reasoning": false,
       "trainsOnData": true,
       "rpm": 20,
-      "rpmo": 1000
+      "rpmo": 1000,
+      "caps": [
+        "arabic"
+      ]
     },
     {
       "id": "gemini-3.6-flash",
@@ -818,7 +913,12 @@
       ],
       "vision": true,
       "reasoning": false,
-      "trainsOnData": true
+      "trainsOnData": true,
+      "caps": [
+        "fast",
+        "long_context",
+        "arabic"
+      ]
     },
     {
       "id": "mistral-Nemo-Instruct-2407",
@@ -833,7 +933,10 @@
       "reasoning": false,
       "trainsOnData": false,
       "rpm": 60,
-      "rph": 250
+      "rph": 250,
+      "caps": [
+        "arabic"
+      ]
     },
     {
       "id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
@@ -848,7 +951,11 @@
       "vision": true,
       "reasoning": false,
       "trainsOnData": true,
-      "rph": 200
+      "rph": 200,
+      "caps": [
+        "fast",
+        "long_context"
+      ]
     },
     {
       "id": "Qwen3.5-397B-A17B",
@@ -862,7 +969,11 @@
       "vision": true,
       "reasoning": false,
       "trainsOnData": false,
-      "rpm": 2
+      "rpm": 2,
+      "caps": [
+        "long_context",
+        "arabic"
+      ]
     },
     {
       "id": "@cf/google/gemma-4-26b-a4b-it",
@@ -875,7 +986,11 @@
       ],
       "vision": true,
       "reasoning": false,
-      "trainsOnData": false
+      "trainsOnData": false,
+      "caps": [
+        "long_context",
+        "arabic"
+      ]
     },
     {
       "id": "gemini-3.5-flash-lite",
@@ -888,7 +1003,12 @@
       ],
       "vision": true,
       "reasoning": false,
-      "trainsOnData": true
+      "trainsOnData": true,
+      "caps": [
+        "fast",
+        "long_context",
+        "arabic"
+      ]
     },
     {
       "id": "gpt-oss-20b",
@@ -902,7 +1022,11 @@
       "vision": false,
       "reasoning": false,
       "trainsOnData": false,
-      "rpm": 2
+      "rpm": 2,
+      "caps": [
+        "fast",
+        "arabic"
+      ]
     },
     {
       "id": "nemotron-3-nano:30b",
@@ -918,7 +1042,12 @@
       "reasoning": true,
       "trainsOnData": false,
       "rpm": 60,
-      "rph": 250
+      "rph": 250,
+      "caps": [
+        "fast",
+        "reasoning",
+        "long_context"
+      ]
     },
     {
       "id": "poolside/laguna-s-2.1:free",
@@ -933,7 +1062,11 @@
       "vision": false,
       "reasoning": false,
       "trainsOnData": true,
-      "rpm": 20
+      "rpm": 20,
+      "caps": [
+        "code",
+        "long_context"
+      ]
     },
     {
       "id": "poolside/laguna-xs-2.1:free",
@@ -948,7 +1081,11 @@
       "vision": false,
       "reasoning": false,
       "trainsOnData": true,
-      "rph": 200
+      "rph": 200,
+      "caps": [
+        "code",
+        "long_context"
+      ]
     },
     {
       "id": "@cf/zai-org/glm-4.7-flash",
@@ -961,7 +1098,11 @@
       ],
       "vision": false,
       "reasoning": false,
-      "trainsOnData": false
+      "trainsOnData": false,
+      "caps": [
+        "fast",
+        "arabic"
+      ]
     },
     {
       "id": "gemini-3.1-flash-lite",
@@ -975,7 +1116,12 @@
       "vision": true,
       "reasoning": false,
       "trainsOnData": true,
-      "expiresAt": "2027-05-07"
+      "expiresAt": "2027-05-07",
+      "caps": [
+        "fast",
+        "long_context",
+        "arabic"
+      ]
     },
     {
       "id": "poolside/laguna-xs-2.1:free",
@@ -990,7 +1136,11 @@
       "vision": false,
       "reasoning": false,
       "trainsOnData": true,
-      "rpm": 20
+      "rpm": 20,
+      "caps": [
+        "code",
+        "long_context"
+      ]
     },
     {
       "id": "dots-studio/dots-3-note-preview:free",
@@ -1004,7 +1154,89 @@
       "vision": true,
       "reasoning": false,
       "trainsOnData": true,
-      "rpm": 20
+      "rpm": 20,
+      "caps": [
+        "long_context"
+      ]
+    },
+    {
+      "id": "openai/gpt-4.1",
+      "provider": "github",
+      "displayName": "GPT-4.1 (GitHub)",
+      "priority": 21,
+      "contextWindow": 8000,
+      "modes": [
+        "smart",
+        "code"
+      ],
+      "vision": true,
+      "reasoning": false,
+      "trainsOnData": false,
+      "rpm": 10,
+      "rpd": 50,
+      "caps": [
+        "code",
+        "arabic"
+      ]
+    },
+    {
+      "id": "openai/gpt-4.1-mini",
+      "provider": "github",
+      "displayName": "GPT-4.1 mini (GitHub)",
+      "priority": 24,
+      "contextWindow": 8000,
+      "modes": [
+        "fast",
+        "smart"
+      ],
+      "vision": true,
+      "reasoning": false,
+      "trainsOnData": false,
+      "rpm": 15,
+      "rpd": 150,
+      "caps": [
+        "fast",
+        "arabic"
+      ]
+    },
+    {
+      "id": "meta/llama-3.3-70b-instruct",
+      "provider": "github",
+      "displayName": "Llama 3.3 70B (GitHub)",
+      "priority": 33,
+      "contextWindow": 8000,
+      "modes": [
+        "fast",
+        "smart"
+      ],
+      "vision": false,
+      "reasoning": false,
+      "trainsOnData": false,
+      "rpm": 10,
+      "rpd": 50,
+      "caps": [
+        "fast",
+        "arabic"
+      ]
+    },
+    {
+      "id": "deepseek/deepseek-r1",
+      "provider": "github",
+      "displayName": "DeepSeek R1 (GitHub)",
+      "priority": 36,
+      "contextWindow": 4000,
+      "modes": [
+        "smart"
+      ],
+      "vision": false,
+      "reasoning": true,
+      "trainsOnData": false,
+      "rpm": 1,
+      "rpd": 8,
+      "caps": [
+        "reasoning",
+        "arabic"
+      ]
     }
   ]
 }

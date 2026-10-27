@@ -213,7 +213,7 @@ class LocalBrain(initial: List<BrainEntry> = emptyList(), private val capacity: 
             return sb.toString().trim().replace(Regex("\\s+"), " ")
         }
 
-        private fun stem(w: String): String {
+        internal fun stem(w: String): String {
             var x = w
             if (x.length > 4 && x.startsWith("ال")) x = x.substring(2)
             if (x.length > 5 && (x.startsWith("وال") || x.startsWith("بال") || x.startsWith("كال") || x.startsWith("فال"))) x = x.substring(3)
@@ -224,6 +224,6 @@ class LocalBrain(initial: List<BrainEntry> = emptyList(), private val capacity: 
         }
 
         fun tokens(text: String): List<String> =
-            normalize(text).split(' ').filter { it.isNotEmpty() && it !in stop }.map { stem(it) }.filter { it.isNotEmpty() }
+            normalize(text).split(' ').filter { it.isNotEmpty() && it !in stop }.map { Concepts.canonical(stem(it)) }.filter { it.isNotEmpty() }
     }
 }

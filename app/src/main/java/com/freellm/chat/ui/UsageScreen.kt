@@ -46,6 +46,7 @@ fun UsageScreen(app: FreeLlmApp, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     var targets by remember { mutableStateOf<List<Target>>(emptyList()) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val failCtx = androidx.compose.ui.platform.LocalContext.current
     var failures by remember { mutableStateOf<List<FailureEntry>>(emptyList()) }
     var checks by remember { mutableStateOf<List<KeyCheck>?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -74,8 +75,8 @@ fun UsageScreen(app: FreeLlmApp, onBack: () -> Unit) {
             Modifier
                 .padding(pad)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
             UsageArt(Modifier.fillMaxWidth().height(100.dp).appear(0))
             if (nearLimit) {
@@ -108,7 +109,7 @@ fun UsageScreen(app: FreeLlmApp, onBack: () -> Unit) {
             if (failures.isEmpty()) Text(stringResource(R.string.no_failures), color = cs.onSurfaceVariant)
             failures.take(30).forEach { f ->
                 Text(
-                    fmt.format(Date(f.time)) + " · " + f.provider + " · " + f.reason,
+                    fmt.format(Date(f.time)) + " · " + f.provider + " · " + com.freellm.chat.domain.labelOf(f.reason) { r -> failCtx.getString(r) },
                     style = MaterialTheme.typography.bodySmall
                 )
             }
@@ -127,7 +128,7 @@ private fun ratio(used: Int, limit: Int): Float = if (limit <= 0) 0f else (used.
 private fun UsageRow(t: Target, s: UsageSnap) {
     val cs = MaterialTheme.colorScheme
     val name = if (t.perModelLimits && !t.sharedLimits) t.model.displayName else t.providerName
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
         Text(name, style = MaterialTheme.typography.titleSmall)
         if (s.minLimit > 0) {
             val r = ratio(s.minUsed, s.minLimit)

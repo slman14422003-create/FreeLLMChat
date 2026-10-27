@@ -2,6 +2,7 @@ package com.freellm.chat.data.db
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
@@ -69,6 +70,39 @@ interface ChatDao {
         notes: String?
     )
 
+    @Query("UPDATE messages SET notes = :notes WHERE id = :id")
+    suspend fun setNotes(id: Long, notes: String?)
+
     @Query("DELETE FROM conversations")
     suspend fun deleteAllConversations()
+
+    @Query("UPDATE conversations SET summary = :summary, summarizedUpTo = :upTo WHERE id = :id")
+    suspend fun setSummary(id: Long, summary: String?, upTo: Long)
+
+    @Query("SELECT * FROM answer_cache WHERE cacheKey = :key")
+    suspend fun cacheGet(key: String): AnswerCacheEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun cachePut(e: AnswerCacheEntity)
+
+    @Query("DELETE FROM answer_cache WHERE createdAt < :before")
+    suspend fun cachePrune(before: Long)
+
+    @Query("DELETE FROM answer_cache WHERE question = :question")
+    suspend fun cacheForget(question: String)
+
+    @Query("DELETE FROM answer_cache")
+    suspend fun cacheClear()
+
+    @Query("SELECT * FROM search_cache WHERE cacheKey = :key")
+    suspend fun searchGet(key: String): SearchCacheEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun searchPut(e: SearchCacheEntity)
+
+    @Query("DELETE FROM search_cache WHERE createdAt < :before")
+    suspend fun searchPrune(before: Long)
+
+    @Query("DELETE FROM search_cache")
+    suspend fun searchClear()
 }

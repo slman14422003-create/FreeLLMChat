@@ -124,7 +124,7 @@ fun Modifier.bounceClick(onClick: () -> Unit): Modifier = composed {
 fun Modifier.appear(index: Int = 0): Modifier = composed {
     val a = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
-        delay(index.coerceIn(0, 10) * 55L)
+        delay(index.coerceIn(0, 10) * Motion.Stagger)
         a.animateTo(1f, spring(dampingRatio = 0.82f, stiffness = 170f))
     }
     graphicsLayer {
@@ -178,14 +178,14 @@ fun TypingDots(modifier: Modifier = Modifier, color: Color = Accent) {
         t.animateFloat(
             0f, 1f,
             infiniteRepeatable(
-                tween(520, easing = FastOutSlowInEasing),
+                tween(Motion.Slow, easing = FastOutSlowInEasing),
                 RepeatMode.Reverse,
                 initialStartOffset = StartOffset(i * 160)
             ),
             label = "dot$i"
         )
     }
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(Spacing.xxs), verticalAlignment = Alignment.CenterVertically) {
         phases.forEach { p ->
             Box(
                 Modifier
@@ -229,7 +229,7 @@ fun AppTopBar(title: String, onBack: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.statusBars)
-            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .padding(horizontal = Spacing.lg, vertical = Spacing.md)
             .heightIn(min = 48.dp)
     ) {
         CircleButton(onClick = onBack, modifier = Modifier.align(Alignment.CenterStart), size = 44.dp) {
@@ -310,8 +310,8 @@ fun SettingsGroup(modifier: Modifier = Modifier, content: @Composable ColumnScop
     Column(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp)),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+            .clip(RoundedCornerShape(Corners.card)),
+        verticalArrangement = Arrangement.spacedBy(Spacing.hairline),
         content = content
     )
 }
@@ -329,7 +329,7 @@ fun SettingsRow(
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .padding(horizontal = Spacing.xl, vertical = Spacing.lg),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(icon, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurface)
@@ -355,7 +355,7 @@ fun SettingsRow(
 fun SectionLabel(text: String) {
     Text(
         text,
-        Modifier.padding(start = 8.dp, top = 22.dp, bottom = 8.dp),
+        Modifier.padding(start = Spacing.sm, top = 22.dp, bottom = Spacing.sm),
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )

@@ -142,15 +142,14 @@ object ContextTrimmer {
 
 private class Chunk(val text: String?, val error: Throwable?)
 
-private const val MSG_NO_PROVIDER = "لا يوجد أي مزود مُعدّ. افتح الإعدادات ← المزودون وأضف مفتاح API مجانياً."
-private const val MSG_PINNED_MISSING = "المودل المثبّت غير متاح. تأكد من تفعيل مزوده أو اختر وضعاً آخر."
 private const val CONTINUE_PROMPT =
     "Continue your previous reply exactly where it stopped. Do not repeat anything and do not add an introduction. أكمل ردك السابق من حيث توقفت تماماً دون تكرار ودون مقدمة."
-private const val MSG_NO_VISION =
-    "لا يوجد مودل يدعم الصور بين المزودين المفعّلين. فعّل Gemini أو OpenRouter أو Z.ai من الإعدادات ← المزودون."
 private const val HOLD_CHARS = 48
 private const val QUALITY_CHECK_BELOW = 200
 private const val TAIL_CHARS = 240
+private const val ALERT_AT = 0.8
+private const val PROACTIVE_AT = 0.9
+private const val DAY_MS = 86_400_000L
 
 class Router(
     private val transport: ChatTransport,
@@ -161,6 +160,8 @@ class Router(
 ) {
     val health = Health(config)
     val stats = ModelStats()
+    var onOutcome: ((String, Boolean, Long?) -> Unit)? = null
+    private val alerted = HashSet<String>()
 
     internal fun order(req: RouteRequest): List<Target> {
         val pool = if (req.needsVision) req.candidates.filter { it.model.vision } else req.candidates
@@ -173,8 +174,11 @@ class Router(
         }
         return pool.sortedWith(
             compareBy<Target>(
+                { if (req.estimatedTokens > 0 && !RequestFitter.fits(it, req.estimatedTokens)) 1 else 0 },
                 { if (req.preferredKey != null && it.key == req.preferredKey) 0 else 1 },
+                { if (req.proactive && limiter.pressure(it, clock()) >= PROACTIVE_AT) 1 else 0 },
                 { if (wanted != null && wanted in it.model.modes) 0 else 1 },
+                { -ModelCaps.matches(it.model, req.wantCaps) },
                 { if (req.adaptive) stats.failTier(it.key) else 0 },
                 { -req.rating(it.key).coerceIn(-3, 3) },
                 { if (req.adaptive && req.preferSpeed) stats.latencyBucket(it.key) else 0 },
@@ -203,17 +207,11 @@ class Router(
         else -> LlmException(ErrorKind.SERVER, message = e.javaClass.simpleName)
     }
 
-    private fun duration(sec: Long): String =
-        if (sec < 60) "$sec ثانية" else "${(sec + 59) / 60} دقيقة"
-
-    private fun failureMessage(reasons: Map<String, String>, soonest: Long, now: Long): String {
-        val sb = StringBuilder("تعذّر الحصول على رد: فشلت كل المودلات المتاحة.")
-        reasons.forEach { (p, r) -> sb.append("\n• ").append(p).append(": ").append(r) }
-        if (soonest != Long.MAX_VALUE) {
-            val s = max(1L, (soonest - now + 999) / 1000)
-            sb.append("\nأقرب عودة متوقعة بعد ").append(duration(s))
-        }
-        return sb.toString()
+    private fun failure(reasons: List<FailReason>, soonest: Long, now: Long, pinned: Boolean): RouteEvent.Failed {
+        val retry = if (soonest != Long.MAX_VALUE) max(1L, (soonest - now + 999) / 1000) else null
+        val text = reasons.joinToString("; ") { it.provider + ":" + (it.error?.name ?: it.reason.name) } +
+            (if (retry != null) " retry=" + retry + "s" else "")
+        return RouteEvent.Failed(text, pinned, FailKind.ALL_FAILED, reasons, retry)
     }
 
     fun stream(req: RouteRequest): Flow<RouteEvent> = flow {
@@ -221,15 +219,15 @@ class Router(
         val ordered = order(req)
         if (ordered.isEmpty()) {
             val none = when {
-                req.needsVision && req.candidates.isNotEmpty() -> MSG_NO_VISION
-                pinned -> MSG_PINNED_MISSING
-                else -> MSG_NO_PROVIDER
+                req.needsVision && req.candidates.isNotEmpty() -> FailKind.NO_VISION
+                pinned -> FailKind.PINNED_MISSING
+                else -> FailKind.NO_PROVIDER
             }
-            emit(RouteEvent.Failed(none, pinned))
+            emit(RouteEvent.Failed(none.name, pinned, none))
             return@flow
         }
         val partial = StringBuilder()
-        val reasons = LinkedHashMap<String, String>()
+        val reasons = LinkedHashMap<String, FailReason>()
         var shown: Target? = null
         var soonest = Long.MAX_VALUE
         var qualityRetried = false
@@ -239,9 +237,9 @@ class Router(
                 val until = health.blockedUntil(t, clock())
                 if (until != null) {
                     if (until == Long.MAX_VALUE) {
-                        reasons.putIfAbsent(t.providerName, "غير متاح")
+                        reasons.putIfAbsent(t.providerName, FailReason(t.providerName, ReasonKind.UNAVAILABLE))
                     } else {
-                        reasons.putIfAbsent(t.providerName, "في فترة تبريد")
+                        reasons.putIfAbsent(t.providerName, FailReason(t.providerName, ReasonKind.COOLING))
                         soonest = min(soonest, until)
                     }
                     continue
@@ -250,10 +248,15 @@ class Router(
             if (!pinned) {
                 val lim = limiter.blockedUntil(t, clock())
                 if (lim != null) {
-                    reasons.putIfAbsent(t.providerName, "بلغ حد الاستخدام")
+                    reasons.putIfAbsent(t.providerName, FailReason(t.providerName, ReasonKind.USAGE_LIMIT))
                     soonest = min(soonest, lim)
                     continue
                 }
+            }
+            if (req.proactive) {
+                val bp = limiter.budgetPressure(t, clock())
+                val tag = (if (t.perModelLimits) t.key else t.providerId) + "|" + clock() / DAY_MS
+                if (bp >= ALERT_AT && alerted.add(tag)) emit(RouteEvent.NearLimit(t, (bp * 100).toInt()))
             }
             limiter.record(t, clock())
             val msgs = buildMessages(req, t, partial.toString())
@@ -280,7 +283,7 @@ class Router(
 
             try {
                 coroutineScope {
-                    val ch = transport.stream(t, msgs, req.maxTokens)
+                    val ch = transport.stream(t, msgs, req.maxTokens, if (t.model.reasoning) null else req.temperature)
                         .map { Chunk(it, null) }
                         .catch { emit(Chunk(null, it)) }
                         .produceIn(this)
@@ -332,15 +335,16 @@ class Router(
                 throw e
             } catch (e: Throwable) {
                 val ex = classify(e)
-                reasons[t.providerName] = ex.kind.label()
-                failLog.add(clock(), t.providerName, ex.kind.label())
+                reasons[t.providerName] = FailReason(t.providerName, ReasonKind.ERROR, ex.kind)
+                failLog.add(clock(), t.providerName, ex.kind.name)
                 health.onFailure(t, ex, clock())
                 stats.onFail(t.key)
+                onOutcome?.invoke(t.key, false, null)
                 val after = health.blockedUntil(t, clock())
                 if (after != null && after != Long.MAX_VALUE) soonest = min(soonest, after)
                 if (ex.kind == ErrorKind.AUTH) emit(RouteEvent.AuthFailed(t.providerId, ex.httpCode))
                 if (pinned) {
-                    emit(RouteEvent.Failed(failureMessage(reasons, soonest, clock()), true))
+                    emit(failure(reasons.values.toList(), soonest, clock(), true))
                     return@flow
                 }
                 if (got && (partial.length < config.restartBelowChars || ex.message == "poor output")) {
@@ -352,10 +356,11 @@ class Router(
             if (completed) {
                 health.onSuccess(t)
                 stats.onOk(t.key)
+                onOutcome?.invoke(t.key, true, stats.latencyMs(t.key))
                 emit(RouteEvent.Done(t))
                 return@flow
             }
         }
-        emit(RouteEvent.Failed(failureMessage(reasons, soonest, clock()), pinned))
+        emit(failure(reasons.values.toList(), soonest, clock(), pinned))
     }
 }

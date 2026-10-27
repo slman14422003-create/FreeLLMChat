@@ -72,7 +72,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
         }
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars)) {
             Row(
-                Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 12.dp),
+                Modifier.fillMaxWidth().height(52.dp).padding(horizontal = Spacing.md),
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -93,10 +93,10 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                 ) { OnboardingPage(page, pager.currentPage == page) }
             }
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp),
+                Modifier.fillMaxWidth().padding(horizontal = Spacing.xxl, vertical = Spacing.xl),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
                     repeat(PAGES) { i ->
                         val sel = pager.currentPage == i
                         val w by animateDpAsState(

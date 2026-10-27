@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material3.CircularProgressIndicator
@@ -84,8 +85,10 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.outlined.Compare
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Settings
@@ -130,6 +133,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
@@ -142,7 +146,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.freellm.chat.R
 import com.freellm.chat.data.db.ConversationEntity
 import com.freellm.chat.data.db.MessageEntity
+import com.freellm.chat.domain.SourcesPrompt
+import com.freellm.chat.domain.StoredSource
 import com.freellm.chat.domain.Target
+import com.freellm.chat.domain.UrlPolicy
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
@@ -152,6 +159,7 @@ private sealed class Picker {
     data object Continue : Picker()
     data object Retry : Picker()
     data class Regen(val m: MessageEntity) : Picker()
+    data object Compare : Picker()
 }
 
 @Composable
@@ -213,6 +221,27 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
     }
     val pickPdfImages = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) vm.attachPdfAsImages(uri)
+    }
+    var cardMsg by remember { mutableStateOf<MessageEntity?>(null) }
+    val darkCard = androidx.compose.foundation.isSystemInDarkTheme()
+    val saveCard = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/png")) { uri ->
+        val msg = cardMsg
+        cardMsg = null
+        if (uri != null && msg != null) {
+            val rtl = androidx.compose.ui.text.intl.Locale.current.language == "ar"
+            vm.saveCard(uri, msg, rtl, darkCard) { ok ->
+                if (ok) {
+                    val i = Intent(Intent.ACTION_SEND).apply {
+                        type = "image/png"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    runCatching {
+                        ctx.startActivity(Intent.createChooser(i, ctx.getString(R.string.share_card_chooser)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }
+                }
+            }
+        }
     }
     val savePdf = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
         val j = pdfJob
@@ -302,7 +331,7 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                                         input = if (input.isBlank()) t else input.trimEnd() + "\n" + t
                                         templatesOpen = false
                                     }
-                                    .padding(vertical = 10.dp),
+                                    .padding(vertical = Spacing.md),
                                 maxLines = 3,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -417,7 +446,7 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(20.dp)
+                        verticalArrangement = Arrangement.spacedBy(Spacing.xl)
                     ) {
                         items(visible, key = { it.id }) { m ->
                             MessageItem(
@@ -426,11 +455,16 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                                 canSwitch = lastIsAssistant && m.id == lastAssistantId && !generating,
                                 onRegenerate = { picker = Picker.Regen(it) },
                                 onSwitch = { picker = Picker.Continue },
+                                onCompare = { picker = Picker.Compare },
                                 onEdit = { editing = it },
                                 onDelete = { vm.deleteMessage(it) },
                                 onPdf = {
                                     pdfJob = PdfJob(it.content, emptyList())
                                     savePdf.launch("chat.pdf")
+                                },
+                                onCard = {
+                                    cardMsg = it
+                                    saveCard.launch("reply.png")
                                 },
                                 onSpeak = { speaker.toggle(it.content) },
                                 onRate = { msg, good -> vm.rate(msg, good) }
@@ -505,6 +539,21 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
         }
     }
 
+    val cmp by vm.compareUi.collectAsStateWithLifecycle()
+    val mergeOn by (ctx.applicationContext as com.freellm.chat.FreeLlmApp).settings.compareMerge
+        .collectAsStateWithLifecycle(initialValue = true)
+    val cu = cmp
+    if (cu != null) {
+        CompareScreen(
+            ui = cu,
+            mergeEnabled = mergeOn,
+            onChoose = { vm.choose(it) },
+            onMerge = { vm.merge() },
+            onChooseMerged = { vm.chooseMerged() },
+            onClose = { vm.dismissCompare() }
+        )
+    }
+
     val p = picker
     if (p != null) {
         ModelSheet(
@@ -514,6 +563,7 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                 is Picker.Continue -> PickPurpose.CONTINUE
                 is Picker.Retry -> PickPurpose.RETRY
                 is Picker.Regen -> PickPurpose.REGENERATE
+                is Picker.Compare -> PickPurpose.COMPARE
             },
             selection = selection,
             targets = targets,
@@ -525,8 +575,13 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                     is Picker.Continue -> vm.continueWith(code)
                     is Picker.Retry -> vm.retryPending(code)
                     is Picker.Regen -> vm.regenerate(p.m, code)
+                    is Picker.Compare -> Unit
                 }
                 picker = null
+            },
+            onCompare = { a, b ->
+                picker = null
+                vm.compare(a, b)
             },
             onPrivacy = { privacy = true },
             onProviders = {
@@ -546,7 +601,7 @@ private fun ChatTopBar(active: Boolean, label: String, onMenu: () -> Unit, onMod
             .fillMaxWidth()
             .background(cs.background)
             .windowInsetsPadding(WindowInsets.statusBars)
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .padding(horizontal = Spacing.md, vertical = Spacing.sm)
             .height(52.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -560,9 +615,9 @@ private fun ChatTopBar(active: Boolean, label: String, onMenu: () -> Unit, onMod
         Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
             Row(
                 Modifier
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(Corners.lg))
                     .clickable(onClick = onModel)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(horizontal = Spacing.md, vertical = Spacing.sm),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 LiveOrb(active)
@@ -611,10 +666,10 @@ private fun EmptyState(hasProviders: Boolean, onProviders: () -> Unit) {
         Spacer(Modifier.height(28.dp))
         Row(
             Modifier
-                .clip(RoundedCornerShape(26.dp))
+                .clip(RoundedCornerShape(Corners.xl))
                 .background(cs.surfaceContainerHigh)
                 .clickable(onClick = onProviders)
-                .padding(horizontal = 22.dp, vertical = 14.dp),
+                .padding(horizontal = 22.dp, vertical = Spacing.lg),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(stringResource(R.string.plan_free), color = cs.onSurfaceVariant, fontSize = 16.sp)
@@ -650,18 +705,18 @@ private fun SuggestionRow(onPick: (String) -> Unit) {
         Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 14.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(horizontal = Spacing.lg, vertical = Spacing.xxs),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
     ) {
         items.forEachIndexed { idx, (label, prompt) ->
             Text(
                 label,
                 Modifier
                     .appear(idx)
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(Corners.lg))
                     .background(cs.surfaceContainerHigh)
                     .bounceClick { onPick(prompt) }
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .padding(horizontal = Spacing.lg, vertical = Spacing.md),
                 fontSize = 14.sp,
                 color = cs.onSurface
             )
@@ -696,14 +751,14 @@ private fun Composer(
         infiniteRepeatable(tween(850, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "glowPulse"
     )
-    val focusAmt = animateFloatAsState(if (focused) 1f else 0f, tween(260), label = "focusAmt")
+    val focusAmt = animateFloatAsState(if (focused) 1f else 0f, tween(Motion.Normal), label = "focusAmt")
     val accent = cs.primary
     Surface(
-        shape = RoundedCornerShape(30.dp),
+        shape = RoundedCornerShape(Corners.xl),
         color = cs.surfaceContainerHigh,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .padding(horizontal = Spacing.md, vertical = Spacing.sm)
             .drawWithContent {
                 drawContent()
                 val a = if (generating) pulse.value else focusAmt.value * 0.85f
@@ -721,8 +776,8 @@ private fun Composer(
             Row(
                 Modifier
                     .horizontalScroll(rememberScrollState())
-                    .padding(start = 12.dp, end = 12.dp, top = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(start = Spacing.md, end = Spacing.md, top = Spacing.md),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 pending.forEach { a -> PendingChip(a, onRemove = { onRemove(a) }) }
@@ -735,8 +790,8 @@ private fun Composer(
             Row(
                 Modifier
                     .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
                 QuickChip(stringResource(R.string.qa_translate)) { onQuick(qTranslate) }
                 QuickChip(stringResource(R.string.qa_summarize)) { onQuick(qSummary) }
@@ -745,7 +800,7 @@ private fun Composer(
                 if (pending.any { it.isImage }) QuickChip(stringResource(R.string.qa_images_pdf)) { onImagesToPdf() }
             }
         }
-        Row(Modifier.padding(8.dp), verticalAlignment = Alignment.Bottom) {
+        Row(Modifier.padding(Spacing.sm), verticalAlignment = Alignment.Bottom) {
             CircleButton(onClick = onPlus, background = cs.surfaceContainerHighest, size = 40.dp) {
                 Icon(Icons.Filled.Add, stringResource(R.string.pick_title_select), Modifier.size(22.dp))
             }
@@ -773,7 +828,7 @@ private fun Composer(
                 Modifier
                     .weight(1f)
                     .heightIn(min = 40.dp)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(horizontal = Spacing.md, vertical = Spacing.sm),
                 contentAlignment = Alignment.CenterStart
             ) {
                 if (input.isEmpty()) {
@@ -803,8 +858,8 @@ private fun Composer(
             AnimatedContent(
                 targetState = trailing,
                 transitionSpec = {
-                    (scaleIn(tween(220, easing = FastOutSlowInEasing), initialScale = 0.4f) + fadeIn(tween(180))) togetherWith
-                        (scaleOut(tween(160), targetScale = 0.4f) + fadeOut(tween(120)))
+                    (scaleIn(tween(Motion.Normal, easing = FastOutSlowInEasing), initialScale = 0.4f) + fadeIn(tween(Motion.Fast))) togetherWith
+                        (scaleOut(tween(Motion.Fast), targetScale = 0.4f) + fadeOut(tween(Motion.Fast)))
                 },
                 label = "trailing"
             ) { st ->
@@ -832,10 +887,10 @@ private fun QuickChip(label: String, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(Corners.md),
         color = cs.surfaceContainerHighest
     ) {
-        Text(label, Modifier.padding(horizontal = 12.dp, vertical = 7.dp), style = MaterialTheme.typography.labelLarge)
+        Text(label, Modifier.padding(horizontal = Spacing.md, vertical = 7.dp), style = MaterialTheme.typography.labelLarge)
     }
 }
 
@@ -852,7 +907,7 @@ private fun AttachThumb(a: Attachment, size: androidx.compose.ui.unit.Dp) {
         Box(
             Modifier
                 .size(size)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(Corners.sm))
                 .background(cs.surfaceContainerHighest)
         ) {
             bmp?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
@@ -862,9 +917,9 @@ private fun AttachThumb(a: Attachment, size: androidx.compose.ui.unit.Dp) {
             Modifier
                 .height(size)
                 .widthIn(max = 180.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(Corners.sm))
                 .background(cs.surfaceContainerHighest)
-                .padding(horizontal = 10.dp),
+                .padding(horizontal = Spacing.md),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(Icons.Outlined.Description, null, Modifier.size(20.dp))
@@ -883,7 +938,7 @@ private fun PendingChip(a: Attachment, onRemove: () -> Unit) {
             Modifier
                 .align(Alignment.TopEnd)
                 .size(20.dp)
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(Corners.sm))
                 .background(cs.inverseSurface)
                 .clickable { onRemove() },
             contentAlignment = Alignment.Center
@@ -915,14 +970,14 @@ private fun ChatDrawer(
             Modifier
                 .fillMaxHeight()
                 .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(12.dp)
+                .padding(Spacing.md)
         ) {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp))
+                    .clip(RoundedCornerShape(Corners.card))
                     .background(cs.surfaceContainerHigh)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(horizontal = Spacing.lg, vertical = Spacing.md),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(Icons.Filled.Search, null, Modifier.size(20.dp), tint = cs.onSurfaceVariant)
@@ -944,10 +999,10 @@ private fun ChatDrawer(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp)
-                    .clip(RoundedCornerShape(14.dp))
+                    .padding(top = Spacing.sm)
+                    .clip(RoundedCornerShape(Corners.md))
                     .clickable(onClick = onNew)
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                    .padding(horizontal = Spacing.md, vertical = Spacing.md),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(Icons.Outlined.Edit, null, Modifier.size(22.dp))
@@ -957,9 +1012,9 @@ private fun ChatDrawer(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(Corners.md))
                     .clickable(onClick = onTemplates)
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                    .padding(horizontal = Spacing.md, vertical = Spacing.md),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(Icons.Outlined.Edit, null, Modifier.size(22.dp))
@@ -968,7 +1023,7 @@ private fun ChatDrawer(
             }
             Text(
                 stringResource(R.string.chats_label),
-                Modifier.padding(start = 12.dp, top = 14.dp, bottom = 6.dp),
+                Modifier.padding(start = Spacing.md, top = Spacing.lg, bottom = Spacing.xs),
                 style = MaterialTheme.typography.labelLarge,
                 color = cs.onSurfaceVariant
             )
@@ -989,9 +1044,9 @@ private fun ChatDrawer(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(Corners.md))
                     .clickable(onClick = onSettings)
-                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                    .padding(horizontal = Spacing.sm, vertical = Spacing.md),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
@@ -1032,10 +1087,10 @@ private fun ConversationRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(Corners.md))
             .background(if (selected) cs.surfaceContainerHigh else Color.Transparent)
             .clickable(onClick = onOpen)
-            .padding(start = 12.dp),
+            .padding(start = Spacing.md),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (c.starred) {
@@ -1046,7 +1101,7 @@ private fun ConversationRow(
             c.title,
             Modifier
                 .weight(1f)
-                .padding(vertical = 12.dp),
+                .padding(vertical = Spacing.md),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             style = MaterialTheme.typography.bodyLarge
@@ -1114,9 +1169,11 @@ private fun MessageItem(
     canSwitch: Boolean,
     onRegenerate: (MessageEntity) -> Unit,
     onSwitch: () -> Unit,
+    onCompare: () -> Unit = {},
     onEdit: (MessageEntity) -> Unit,
     onDelete: (MessageEntity) -> Unit,
     onPdf: (MessageEntity) -> Unit,
+    onCard: (MessageEntity) -> Unit,
     onSpeak: (MessageEntity) -> Unit,
     onRate: (MessageEntity, Boolean) -> Unit = { _, _ -> }
 ) {
@@ -1155,22 +1212,22 @@ private fun MessageItem(
         if (isUser) {
             val dir = detectDirection(m.content) ?: LocalLayoutDirection.current
             val atts = remember(m.attachments) { AttachmentCodec.decode(m.attachments) }
-            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
               if (atts.isNotEmpty()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs), modifier = Modifier.horizontalScroll(rememberScrollState())) {
                     atts.forEach { AttachThumb(it, 72.dp) }
                 }
               }
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
                 CompositionLocalProvider(LocalLayoutDirection provides dir) {
                     Surface(
-                        shape = RoundedCornerShape(22.dp),
+                        shape = RoundedCornerShape(Corners.card),
                         color = cs.surfaceContainerHigh,
                         modifier = Modifier.widthIn(max = 320.dp)
                     ) {
                         Text(
                             m.content,
-                            Modifier.padding(horizontal = 16.dp, vertical = 11.dp),
+                            Modifier.padding(horizontal = Spacing.lg, vertical = 11.dp),
                             style = MaterialTheme.typography.bodyLarge
                         )
                     }
@@ -1178,15 +1235,29 @@ private fun MessageItem(
             }
             }
         } else {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 MarkdownText(m.content)
+                if (!m.modelName.isNullOrBlank()) ModelBadge(m.modelName)
+                val srcs = remember(m.sources) { SourcesPrompt.decode(m.sources) }
+                if (srcs.isNotEmpty()) SourcesRow(srcs)
+                val warn = m.notes?.lines()?.firstOrNull { it.startsWith("⚠") }
+                if (warn != null) {
+                    Text(
+                        warn,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = cs.secondary,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
                 if (!isLocal) {
-                    m.notes?.split("\n")?.filter { it.isNotBlank() }?.take(1)?.forEach { NoteChip(it) }
+                    m.notes?.split("\n")?.filter { it.isNotBlank() && !it.startsWith("⚠") }?.take(1)?.forEach { NoteChip(it) }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     ActionIcon(Icons.Outlined.ContentCopy, stringResource(R.string.copy)) { doCopy() }
                     ActionIcon(Icons.AutoMirrored.Outlined.VolumeUp, stringResource(R.string.read_aloud)) { onSpeak(m) }
                     ActionIcon(Icons.Outlined.Refresh, stringResource(R.string.regenerate_other)) { onRegenerate(m) }
+                    if (canSwitch) ActionIcon(Icons.Outlined.Compare, stringResource(R.string.compare_action)) { onCompare() }
                     Box {
                         ActionIcon(Icons.Filled.MoreVert, stringResource(R.string.more)) { more = true }
                         DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
@@ -1224,6 +1295,14 @@ private fun MessageItem(
                                     onPdf(m)
                                 }
                             )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.share_card)) },
+                                leadingIcon = { Icon(Icons.Outlined.Image, null) },
+                                onClick = {
+                                    more = false
+                                    onCard(m)
+                                }
+                            )
                             if (canSwitch) {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.switch_continue)) },
@@ -1236,15 +1315,7 @@ private fun MessageItem(
                             }
                         }
                     }
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        m.modelName ?: "",
-                        Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = cs.onSurfaceVariant.copy(alpha = 0.8f)
-                    )
+                    Spacer(Modifier.weight(1f))
                 }
             }
         }
@@ -1274,10 +1345,67 @@ private fun MessageItem(
                 menu = false
                 onPdf(m)
             })
+            if (!isUser) {
+                DropdownMenuItem(text = { Text(stringResource(R.string.share_card)) }, onClick = {
+                    menu = false
+                    onCard(m)
+                })
+            }
             DropdownMenuItem(text = { Text(stringResource(R.string.delete), color = cs.error) }, onClick = {
                 menu = false
                 onDelete(m)
             })
+        }
+    }
+}
+
+@Composable
+private fun ModelBadge(name: String) {
+    val cs = MaterialTheme.colorScheme
+    Text(
+        name,
+        Modifier
+            .clip(RoundedCornerShape(Corners.chip))
+            .background(cs.surfaceContainerHigh)
+            .padding(horizontal = Spacing.sm, vertical = Spacing.xxs),
+        style = MaterialTheme.typography.labelSmall,
+        color = cs.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+    )
+}
+
+@Composable
+private fun SourcesRow(sources: List<StoredSource>, modifier: Modifier = Modifier) {
+    val cs = MaterialTheme.colorScheme
+    val uri = LocalUriHandler.current
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.Language, null, Modifier.size(14.dp), tint = cs.tertiary)
+            Spacer(Modifier.width(4.dp))
+            Text(stringResource(R.string.search_badge), style = MaterialTheme.typography.labelSmall, color = cs.tertiary)
+        }
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            sources.forEachIndexed { i, s ->
+                Row(
+                    Modifier
+                        .clip(RoundedCornerShape(Corners.md))
+                        .background(cs.surfaceContainerHigh)
+                        .clickable { runCatching { uri.openUri(s.url) } }
+                        .padding(horizontal = Spacing.md, vertical = Spacing.xs),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("[" + (i + 1) + "]", style = MaterialTheme.typography.labelSmall, color = cs.tertiary)
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        UrlPolicy.host(s.url).ifEmpty { s.title },
+                        Modifier.widthIn(max = 160.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
         }
     }
 }
@@ -1288,13 +1416,13 @@ private fun PendingCard(onRetry: () -> Unit, onPick: () -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
+            .clip(RoundedCornerShape(Corners.card))
             .background(cs.surfaceContainerHigh)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .padding(Spacing.lg),
+        verticalArrangement = Arrangement.spacedBy(Spacing.md)
     ) {
         Text(stringResource(R.string.pending_title), color = cs.onSurface)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Button(onClick = onRetry) { Text(stringResource(R.string.retry)) }
             OutlinedButton(onClick = onPick) { Text(stringResource(R.string.pick_model)) }
         }
@@ -1310,18 +1438,19 @@ private fun StreamItem(
     onDismiss: () -> Unit
 ) {
     val cs = MaterialTheme.colorScheme
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         if (s.text.isNotEmpty()) {
             MarkdownText(s.text)
         } else if (s.active) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 StarBurst(size = 20.dp, spinning = true)
                 Spacer(Modifier.width(10.dp))
-                Text(stringResource(R.string.typing), color = cs.onSurfaceVariant)
+                Text(s.status ?: stringResource(R.string.typing), color = cs.onSurfaceVariant)
                 Spacer(Modifier.width(8.dp))
                 TypingDots()
             }
         }
+        if (s.sources.isNotEmpty()) SourcesRow(s.sources)
         if (s.active && s.text.isNotEmpty()) StarBurst(size = 18.dp, spinning = true)
         s.notes.take(1).forEach { NoteChip(it) }
         val t = s.target
@@ -1337,21 +1466,19 @@ private fun StreamItem(
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(22.dp))
+                    .clip(RoundedCornerShape(Corners.card))
                     .background(cs.surfaceContainerHigh)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    .padding(Spacing.lg),
+                verticalArrangement = Arrangement.spacedBy(Spacing.md)
             ) {
                 Text(err, color = cs.error)
                 Text(stringResource(R.string.request_saved), style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     Button(onClick = onRetry) { Text(stringResource(R.string.retry)) }
                     OutlinedButton(onClick = onPick) { Text(stringResource(R.string.pick_model)) }
                 }
                 Row {
-                    if (s.pinnedFailure) {
-                        TextButton(onClick = onTryOther) { Text(stringResource(R.string.try_other_model)) }
-                    }
+                    TextButton(onClick = onTryOther) { Text(stringResource(R.string.try_other_model)) }
                     TextButton(onClick = onDismiss) { Text(stringResource(R.string.dismiss)) }
                 }
             }

@@ -109,3 +109,32 @@ fun FreeLlmTheme(mode: String, content: @Composable () -> Unit) {
         content = content
     )
 }
+
+object Motion {
+    const val Fast = 180
+    const val Normal = 280
+    const val Medium = 340
+    const val Slow = 520
+    const val Stagger = 55L
+}
+
+object Spacing {
+    val hairline = 2.dp
+    val xxs = 4.dp
+    val xs = 6.dp
+    val sm = 8.dp
+    val md = 12.dp
+    val lg = 16.dp
+    val xl = 20.dp
+    val xxl = 24.dp
+}
+
+object Corners {
+    val xs = 8.dp
+    val sm = 12.dp
+    val chip = 12.dp
+    val md = 16.dp
+    val lg = 20.dp
+    val card = 24.dp
+    val xl = 28.dp
+}

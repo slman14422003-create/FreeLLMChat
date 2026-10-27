@@ -4,6 +4,7 @@ package com.freellm.chat.ui
 
 import android.app.Activity
 import android.content.Context
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +21,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.Icon
 import androidx.compose.foundation.layout.size
@@ -86,7 +89,7 @@ private fun ChoiceDialog(
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(Corners.sm))
                             .clickable { onPick(key) },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -100,13 +103,26 @@ private fun ChoiceDialog(
 }
 
 @Composable
-fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit, onStatus: () -> Unit, onUsage: () -> Unit, onBrain: () -> Unit, onAbout: () -> Unit, onPrivacy: () -> Unit) {
+fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit, onStatus: () -> Unit, onUsage: () -> Unit, onBrain: () -> Unit, onSearch: () -> Unit, onAbout: () -> Unit, onPrivacy: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     val theme by app.settings.theme.collectAsStateWithLifecycle(initialValue = "system")
     val proxy by app.settings.proxyUrl.collectAsStateWithLifecycle(initialValue = "")
     val autoSwitch by app.settings.autoSwitch.collectAsStateWithLifecycle(initialValue = true)
     val autoResume by app.settings.autoResume.collectAsStateWithLifecycle(initialValue = true)
     val tokenSaver by app.settings.tokenSaver.collectAsStateWithLifecycle(initialValue = true)
+    val ctxSummary by app.settings.contextSummary.collectAsStateWithLifecycle(initialValue = true)
+    val answerCache by app.settings.answerCache.collectAsStateWithLifecycle(initialValue = true)
+    val cacheTtl by app.settings.cacheTtlHours.collectAsStateWithLifecycle(initialValue = 24)
+    val dynTokens by app.settings.dynamicTokens.collectAsStateWithLifecycle(initialValue = true)
+    val smartAttach by app.settings.smartAttachments.collectAsStateWithLifecycle(initialValue = true)
+    val smartRouting by app.settings.smartRouting.collectAsStateWithLifecycle(initialValue = true)
+    val budgetAlerts by app.settings.budgetAlerts.collectAsStateWithLifecycle(initialValue = true)
+    val compareMerge by app.settings.compareMerge.collectAsStateWithLifecycle(initialValue = true)
+    val answerTemp by app.settings.answerTemperature.collectAsStateWithLifecycle(initialValue = true)
+    val verifyAnswers by app.settings.verifyAnswers.collectAsStateWithLifecycle(initialValue = false)
+    val webSearchRaw: Boolean? by app.settings.webSearch.collectAsStateWithLifecycle(initialValue = null)
+    val secretChanges by app.secrets.changes.collectAsStateWithLifecycle()
+    val hasSearchKey = remember(secretChanges) { com.freellm.chat.data.SearchFactory.anyConfigured(app.secrets) }
     val avoidTraining by app.settings.avoidTraining.collectAsStateWithLifecycle(initialValue = false)
     val brainLearn by app.settings.brainLearn.collectAsStateWithLifecycle(initialValue = true)
     val brainLocalFirst by app.settings.brainLocalFirst.collectAsStateWithLifecycle(initialValue = true)
@@ -122,6 +138,7 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
         ctx.getSharedPreferences("ui_prefs", Context.MODE_PRIVATE).getString("lang", "ar") ?: "ar"
     }
     var dialog by remember { mutableStateOf<String?>(null) }
+    var advanced by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
 
     val themeOptions = listOf(
         "system" to stringResource(R.string.theme_system),
@@ -197,7 +214,7 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
                 onDismissRequest = { dialog = null },
                 title = { Text(stringResource(R.string.proxy_url)) },
                 text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
                         OutlinedTextField(
                             value = text,
                             onValueChange = { text = it },
@@ -240,8 +257,8 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
             Modifier
                 .padding(pad)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
             val allEnabled = providers.isNotEmpty() && providers.all { it.enabled }
             if (allEnabled) {
@@ -250,9 +267,9 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
                         .appear(0)
                         .clip(CircleShape)
                         .background(cs.surfaceContainerHigh)
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                        .padding(horizontal = Spacing.lg, vertical = Spacing.md),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
                 ) {
                     Icon(
                         Icons.Filled.CheckCircle,
@@ -267,10 +284,10 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
                     Modifier
                         .appear(0)
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(24.dp))
+                        .clip(RoundedCornerShape(Corners.card))
                         .background(cs.surfaceContainerHigh)
-                        .padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(Spacing.xxl),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm)
                 ) {
                     Text(stringResource(R.string.want_more), style = MaterialTheme.typography.titleLarge)
                     Text(stringResource(R.string.want_more_body), color = cs.onSurfaceVariant)
@@ -342,6 +359,71 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
                         )
                     }
                 )
+                SettingsRow(
+                    Icons.Outlined.Language,
+                    stringResource(R.string.search_settings_title),
+                    stringResource(R.string.search_settings_desc),
+                    onClick = onSearch
+                )
+                SettingsRow(
+                    Icons.Outlined.Psychology,
+                    stringResource(R.string.advanced_title),
+                    stringResource(R.string.advanced_desc),
+                    onClick = { advanced = !advanced },
+                    trailing = {
+                        Icon(
+                            if (advanced) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                            null
+                        )
+                    }
+                )
+                AnimatedVisibility(visible = advanced) {
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.hairline)) {
+                        ToggleRow(Icons.Outlined.AutoAwesome, R.string.context_summary, R.string.context_summary_desc, ctxSummary) {
+                            scope.launch { app.settings.setContextSummary(it) }
+                        }
+                        ToggleRow(Icons.Outlined.Speed, R.string.answer_cache, R.string.answer_cache_desc, answerCache) {
+                            scope.launch { app.settings.setAnswerCache(it) }
+                        }
+                        if (answerCache) {
+                            SettingsRow(
+                                Icons.Outlined.Speed,
+                                stringResource(R.string.cache_ttl),
+                                stringResource(R.string.cache_ttl_desc),
+                                onClick = {
+                                    val steps = listOf(6, 24, 72, 168)
+                                    val next = steps.firstOrNull { it > cacheTtl } ?: steps.first()
+                                    scope.launch { app.settings.setCacheTtlHours(next) }
+                                },
+                                trailing = { Text(stringResource(R.string.cache_ttl_value, cacheTtl), color = cs.onSurfaceVariant) }
+                            )
+                        }
+                        ToggleRow(Icons.Outlined.AutoAwesome, R.string.dynamic_tokens, R.string.dynamic_tokens_desc, dynTokens) {
+                            scope.launch { app.settings.setDynamicTokens(it) }
+                        }
+                        ToggleRow(Icons.Outlined.AutoAwesome, R.string.smart_attach, R.string.smart_attach_desc, smartAttach) {
+                            scope.launch { app.settings.setSmartAttachments(it) }
+                        }
+                        ToggleRow(Icons.Outlined.Psychology, R.string.smart_routing, R.string.smart_routing_desc, smartRouting) {
+                            scope.launch { app.settings.setSmartRouting(it) }
+                        }
+                        ToggleRow(Icons.Outlined.Info, R.string.budget_alerts, R.string.budget_alerts_desc, budgetAlerts) {
+                            scope.launch { app.settings.setBudgetAlerts(it) }
+                        }
+                        ToggleRow(Icons.Outlined.Language, R.string.web_search, R.string.web_search_desc, webSearchRaw ?: hasSearchKey) {
+                            scope.launch { app.settings.setWebSearch(it) }
+                        }
+                        ToggleRow(Icons.Outlined.Speed, R.string.answer_temperature, R.string.answer_temperature_desc, answerTemp) {
+                            scope.launch { app.settings.setAnswerTemperature(it) }
+                        }
+                        ToggleRow(Icons.Outlined.Psychology, R.string.verify_answers, R.string.verify_answers_desc, verifyAnswers) {
+                            scope.launch { app.settings.setVerifyAnswers(it) }
+                        }
+                        ToggleRow(Icons.Outlined.SwapHoriz, R.string.compare_merge_setting, R.string.compare_merge_setting_desc, compareMerge) {
+                            scope.launch { app.settings.setCompareMerge(it) }
+                        }
+                    }
+                }
                 SettingsRow(
                     Icons.Outlined.Info,
                     stringResource(R.string.avoid_training),
@@ -516,7 +598,7 @@ fun StatusScreen(app: FreeLlmApp, onBack: () -> Unit) {
                 stringResource(R.string.no_models),
                 Modifier
                     .padding(pad)
-                    .padding(24.dp),
+                    .padding(Spacing.xxl),
                 color = cs.onSurfaceVariant
             )
         } else {
@@ -524,7 +606,7 @@ fun StatusScreen(app: FreeLlmApp, onBack: () -> Unit) {
                 Modifier
                     .padding(pad)
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = Spacing.lg)
             ) {
                 StatusArt(Modifier.fillMaxWidth().height(90.dp).appear(0))
                 Spacer(Modifier.height(8.dp))
@@ -547,7 +629,7 @@ fun StatusScreen(app: FreeLlmApp, onBack: () -> Unit) {
                             Modifier
                                 .fillMaxWidth()
                                 .background(cs.surfaceContainerHigh)
-                                .padding(horizontal = 20.dp, vertical = 14.dp),
+                                .padding(horizontal = Spacing.xl, vertical = Spacing.lg),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(Modifier.weight(1f)) {
@@ -566,4 +648,31 @@ fun StatusScreen(app: FreeLlmApp, onBack: () -> Unit) {
             }
         }
     }
+}
+
+@Composable
+private fun ToggleRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: Int,
+    desc: Int,
+    checked: Boolean,
+    onChange: (Boolean) -> Unit
+) {
+    val cs = MaterialTheme.colorScheme
+    SettingsRow(
+        icon,
+        stringResource(title),
+        stringResource(desc),
+        onClick = { onChange(!checked) },
+        trailing = {
+            Switch(
+                checked = checked,
+                onCheckedChange = onChange,
+                colors = SwitchDefaults.colors(
+                    checkedTrackColor = cs.tertiary,
+                    checkedThumbColor = androidx.compose.ui.graphics.Color.White
+                )
+            )
+        }
+    )
 }

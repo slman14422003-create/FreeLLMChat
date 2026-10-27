@@ -38,11 +38,12 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
 
     private fun endpoint(base: String): String = base.trim().trimEnd('/') + "/chat/completions"
 
-    private fun body(t: Target, msgs: List<ChatMsg>, stream: Boolean, maxTokens: Int?): String =
+    private fun body(t: Target, msgs: List<ChatMsg>, stream: Boolean, maxTokens: Int?, temperature: Double? = null): String =
         buildJsonObject {
             put("model", t.model.id)
             put("stream", stream)
             if (maxTokens != null) put("max_tokens", maxTokens)
+            if (temperature != null) put("temperature", temperature)
             putJsonArray("messages") {
                 msgs.forEach { m ->
                     add(buildJsonObject {
@@ -139,12 +140,15 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
         else -> false
     }
 
-    override fun stream(target: Target, messages: List<ChatMsg>, maxTokens: Int?): Flow<String> = flow {
+    override fun stream(target: Target, messages: List<ChatMsg>, maxTokens: Int?): Flow<String> =
+        stream(target, messages, maxTokens, null)
+
+    override fun stream(target: Target, messages: List<ChatMsg>, maxTokens: Int?, temperature: Double?): Flow<String> = flow {
         val all = bases(target)
         for ((i, base) in all.withIndex()) {
             var emitted = false
             try {
-                streamOnce(target, base, messages, maxTokens).collect {
+                streamOnce(target, base, messages, maxTokens, temperature).collect {
                     emitted = true
                     emit(it)
                 }
@@ -155,9 +159,9 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
         }
     }.flowOn(Dispatchers.IO)
 
-    private fun streamOnce(target: Target, base: String, messages: List<ChatMsg>, maxTokens: Int?): Flow<String> = flow {
+    private fun streamOnce(target: Target, base: String, messages: List<ChatMsg>, maxTokens: Int?, temperature: Double?): Flow<String> = flow {
         val req = try {
-            request(target, base, body(target, messages, true, maxTokens))
+            request(target, base, body(target, messages, true, maxTokens, temperature))
         } catch (e: IllegalArgumentException) {
             throw LlmException(ErrorKind.BAD_REQUEST, message = "invalid url or key format")
         }

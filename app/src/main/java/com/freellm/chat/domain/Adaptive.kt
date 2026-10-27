@@ -3,9 +3,9 @@ package com.freellm.chat.domain
 import kotlin.math.min
 
 enum class TaskKind(val mode: ChatMode, val keepFull: Int, val hint: String) {
-    QUICK(ChatMode.FAST, 4, "Answer briefly and directly."),
-    CODE(ChatMode.CODE, 10, "For code, give the code first with minimal explanation unless asked."),
-    REASON(ChatMode.SMART, 8, "Think carefully and show only the essential steps."),
+    QUICK(ChatMode.FAST, 4, "Be brief."),
+    CODE(ChatMode.CODE, 10, "Code first, minimal prose."),
+    REASON(ChatMode.SMART, 8, "Reason carefully; show key steps only."),
     WRITE(ChatMode.SMART, 6, ""),
     GENERAL(ChatMode.AUTO, 8, "")
 }
