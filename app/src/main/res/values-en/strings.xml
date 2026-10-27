@@ -429,7 +429,7 @@
     <string name="err_msg_network">Could not reach the network. Check your internet or whether the provider is blocked in your country. (%1$s)</string>
     <string name="err_msg_server">Provider server error. Try later. %1$s</string>
     <string name="err_msg_bad_request">The provider rejected the request (400). %1$s</string>
-    <string name="err_msg_empty">The provider's reply was empty.</string>
+    <string name="err_msg_empty">The provider\'s reply was empty.</string>
     <string name="err_msg_interrupted">The connection dropped during the reply.</string>
     <string name="fail_no_provider">No provider is set up. Open Settings, Providers and add a free API key.</string>
     <string name="fail_pinned_missing">The pinned model is unavailable. Make sure its provider is enabled or pick another mode.</string>
