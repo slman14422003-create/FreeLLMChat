@@ -827,7 +827,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         val temp = if (app.settings.answerTemperature.first()) TemperaturePolicy.pick(kind, cls, bundle != null) else null
         val maxTok = when {
             cont != null -> null
-            app.settings.dynamicTokens.first() -> MaxTokensPlanner.plan(kind, lastUser, app.settings.style.first(), hasAtt)
+            app.settings.dynamicTokens.first() -> MaxTokensPlanner.plan(kind, lastUser, app.settings.style.first(), hasAtt, bundle != null)
             saver && kind == TaskKind.QUICK -> QUICK_MAX_TOKENS
             else -> null
         }
@@ -1048,7 +1048,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         private const val MAX_HISTORY_IMAGES = 4
         private const val MAX_RESUME = 2
         private const val RESUME_DELAY_MS = 15_000L
-        private const val QUICK_MAX_TOKENS = 1200
+        private const val QUICK_MAX_TOKENS = 1800
         private const val FILE_BUDGET_LAST = 2200
         private const val FILE_BUDGET_OLD = 350
         private const val LOCAL_CONFIDENT = 0.86

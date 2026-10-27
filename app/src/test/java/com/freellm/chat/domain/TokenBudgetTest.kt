@@ -61,4 +61,18 @@ class TokenBudgetTest {
         val msgs = listOf(ChatMsg("user", "hello"))
         assertEquals(msgs, RequestFitter.clampLast(msgs, 3_000))
     }
+
+    @Test fun arabicQuestionsGetMoreRoomThanEnglish() {
+        val ar = MaxTokensPlanner.plan(TaskKind.GENERAL, "ما هي أسباب التصلب اللويحي", "default", false)
+        val en = MaxTokensPlanner.plan(TaskKind.GENERAL, "what causes multiple sclerosis", "default", false)
+        assertTrue(ar > en)
+    }
+
+    @Test fun referenceRequestsGetLongReplies() {
+        assertTrue(MaxTokensPlanner.plan(TaskKind.QUICK, "ابحث عن مراجع في التصلب اللويحي", "default", false) >= 3500)
+    }
+
+    @Test fun sourcesRaiseTheFloor() {
+        assertTrue(MaxTokensPlanner.plan(TaskKind.QUICK, "hi", "concise", false, true) >= 2500)
+    }
 }

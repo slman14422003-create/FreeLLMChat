@@ -200,6 +200,52 @@ fun SearchSettingsScreen(app: FreeLlmApp, onBack: () -> Unit) {
                     style = MaterialTheme.typography.labelMedium,
                     color = cs.onSurfaceVariant
                 )
+                var localBusy by remember { mutableStateOf(false) }
+                var localMsg by remember { mutableStateOf<String?>(null) }
+                var localOk by remember { mutableStateOf(false) }
+                val localOkFmt = stringResource(R.string.search_local_test_ok)
+                val localFail = stringResource(R.string.search_local_test_fail)
+                OutlinedButton(
+                    onClick = {
+                        scope.launch {
+                            localBusy = true
+                            localMsg = null
+                            try {
+                                val r = app.localSearch.search("kotlin coroutines", 5)
+                                if (r.isEmpty()) {
+                                    localOk = false
+                                    localMsg = localFail
+                                } else {
+                                    localOk = true
+                                    localMsg = localOkFmt.replace("%1\$d", r.size.toString())
+                                        .replace("%2\$s", com.freellm.chat.data.LocalSearchParse.host(r.first().url))
+                                }
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: LlmException) {
+                                localOk = false
+                                localMsg = localFail + " (" + ctx.errorText(e) + ")"
+                            } catch (e: Throwable) {
+                                localOk = false
+                                localMsg = localFail + " (" + e.javaClass.simpleName + ")"
+                            }
+                            localBusy = false
+                        }
+                    },
+                    enabled = !localBusy,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (localBusy) {
+                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.testing))
+                    } else {
+                        Text(stringResource(R.string.search_local_test))
+                    }
+                }
+                localMsg?.let {
+                    Text(it, color = if (localOk) cs.tertiary else cs.error, style = MaterialTheme.typography.bodyMedium)
+                }
             }
             StepCard(1, stringResource(R.string.search_step_provider), Modifier.appear(1)) {
                 SearchKind.entries.filter { it != SearchKind.LOCAL }.forEach { k ->

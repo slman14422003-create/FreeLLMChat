@@ -455,4 +455,7 @@
     <string name="search_local_title">بحث محلي بدون مفتاح</string>
     <string name="search_local_desc">يستخدم متصفحاً مخفياً داخل التطبيق مثل WebView، ثم يقرأ النموذج المصادر ويجمع الرد</string>
     <string name="search_local_warn">قد يكون أبطأ وأقل ثباتاً من المفاتيح، وقد تعرض محركات البحث تحقق الروبوت أحياناً. إن وُجد مفتاح يُستخدم أولاً ويبقى البحث المحلي احتياطاً تلقائياً إن فشل أو انتهت حصته.</string>
+    <string name="search_local_test">اختبر البحث المحلي</string>
+    <string name="search_local_test_ok">يعمل: وُجدت %1$d نتائج، أولها من %2$s</string>
+    <string name="search_local_test_fail">لم يعمل البحث المحلي الآن، قد تكون المحركات حاجبة الطلب</string>
 </resources>

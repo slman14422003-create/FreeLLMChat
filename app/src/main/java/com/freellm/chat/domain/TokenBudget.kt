@@ -10,14 +10,14 @@ object TokenEstimator {
 
 object MaxTokensPlanner {
     const val MIN = 256
-    const val MAX = 4096
+    const val MAX = 6000
 
     private val longAsk = Regex(
-        "\\b(detailed|in detail|thorough|long|comprehensive|full|step by step)\\b|مفصل|بالتفصيل|شامل|طويل|كامل|خطوة بخطوة",
+        "\\b(detailed|in detail|thorough|long|comprehensive|full|step by step|references|list|examples)\\b|مفصل|بالتفصيل|شامل|طويل|كامل|خطوة بخطوة|مراجع|قائمة|أمثلة|امثلة|اذكر",
         RegexOption.IGNORE_CASE
     )
 
-    fun plan(kind: TaskKind, question: String, style: String, hasAttachment: Boolean): Int {
+    fun plan(kind: TaskKind, question: String, style: String, hasAttachment: Boolean, sources: Boolean = false): Int {
         var base = when (kind) {
             TaskKind.QUICK -> if (question.trim().length <= 25) 500 else 700
             TaskKind.GENERAL -> 1800
@@ -31,6 +31,8 @@ object MaxTokensPlanner {
             "detailed", "teacher" -> base * 3 / 2
             else -> base
         }
+        if (QuestionClassifier.arabicRatio(question) > 0.5) base = base * 3 / 2
+        if (sources) base = max(base, 2500)
         if (longAsk.containsMatchIn(question)) base = max(base, 3500)
         return base.coerceIn(MIN, MAX)
     }

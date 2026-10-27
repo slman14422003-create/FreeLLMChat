@@ -455,4 +455,7 @@
     <string name="search_local_title">Local search without a key</string>
     <string name="search_local_desc">Uses a hidden in-app browser (WebView), then the model reads the sources and writes the answer</string>
     <string name="search_local_warn">May be slower and less reliable than keys, and search engines sometimes show a bot check. If a key exists it is used first and local search is the automatic backup when it fails or its quota runs out.</string>
+    <string name="search_local_test">Test local search</string>
+    <string name="search_local_test_ok">Working: found %1$d results, first from %2$s</string>
+    <string name="search_local_test_fail">Local search did not work now, the engines may be blocking the request</string>
 </resources>
