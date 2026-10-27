@@ -8,8 +8,8 @@ import org.junit.Test
 class LocalBrainConceptTest {
     @Test fun synonymQuestionMatchesByMeaning() {
         val b = LocalBrain()
-        b.learn("ما هو سعر الاشتراك؟", "الاشتراك يبدأ من 5 دولارات.")
-        assertNotNull(b.best("كم ثمن الاشتراك", 0.5))
+        b.learn("ما هي طريقة حذف الملف؟", "اضغط مطولا ثم اختر حذف.")
+        assertNotNull(b.best("ما هي طريقة مسح الملف", 0.5))
     }
 
     @Test fun crossLanguageSynonymsShareConcept() {
