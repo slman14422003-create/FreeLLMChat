@@ -313,12 +313,12 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
             notice.value = app.getString(R.string.compare_need_two)
             return
         }
-        val all = manager.activeTargets()
-        val a = all.firstOrNull { it.key == k1 } ?: return
-        val b = all.firstOrNull { it.key == k2 } ?: return
         compareJob?.cancel()
         mergeJob?.cancel()
         compareJob = viewModelScope.launch {
+            val all = manager.activeTargets()
+            val a = all.firstOrNull { it.key == k1 } ?: return@launch
+            val b = all.firstOrNull { it.key == k2 } ?: return@launch
             val stored = repo.messagesOnce(cid).filter { it.role == "user" || it.role == "assistant" }
             val lastIdx = stored.indexOfLast { it.role == "user" }
             if (lastIdx < 0) {
