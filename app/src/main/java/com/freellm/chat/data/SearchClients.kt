@@ -6,7 +6,9 @@ import com.freellm.chat.domain.SearchKind
 import com.freellm.chat.domain.SearchParsers
 import com.freellm.chat.domain.SearchProvider
 import com.freellm.chat.domain.SearchResult
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.Call
@@ -50,7 +52,7 @@ abstract class HttpSearch(private val http: OkHttpClient, private val proxy: Str
             extra.forEach { (k, v) -> put(k, v) }
         }.toString().toRequestBody(mediaJson)
 
-    protected suspend fun run(req: Request): String {
+    protected suspend fun run(req: Request): String = withContext(Dispatchers.IO) {
         val resp = try {
             http.newCall(req).await()
         } catch (e: SocketTimeoutException) {
@@ -58,7 +60,7 @@ abstract class HttpSearch(private val http: OkHttpClient, private val proxy: Str
         } catch (e: IOException) {
             throw LlmException(ErrorKind.NETWORK, message = e.javaClass.simpleName)
         }
-        return resp.use { r ->
+        resp.use { r ->
             val text = try {
                 r.peekBody(MAX_BODY).string()
             } catch (e: IOException) {
