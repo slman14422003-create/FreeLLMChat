@@ -458,4 +458,21 @@
     <string name="search_local_test">Test local search</string>
     <string name="search_local_test_ok">Working: found %1$d results, first from %2$s</string>
     <string name="search_local_test_fail">Local search did not work now, the engines may be blocking the request</string>
+    <string name="worker_check">Check the Worker</string>
+    <string name="worker_check_none">No proxy URL is set in Settings</string>
+    <string name="worker_check_ok">The Worker is up (%1$d) from colo %2$s</string>
+    <string name="worker_check_fail">The Worker is not responding, check the URL and secret</string>
+    <string name="err_label_policy">Privacy settings block the model</string>
+    <string name="err_msg_policy">The provider refuses free models because of privacy settings. On OpenRouter open Settings, Privacy and enable Free model publication, then test the key again. %1$s</string>
+    <string name="zip_save">Save project as ZIP</string>
+    <string name="zip_failed">Could not create the ZIP file</string>
+    <string name="zip_saved">ZIP saved (%1$d files)</string>
+    <string name="zip_chooser">Share project ZIP</string>
+    <string name="voice_chat">Voice conversation</string>
+    <string name="voice_end">End voice conversation</string>
+    <string name="voice_listening">Listening…</string>
+    <string name="voice_thinking">Thinking…</string>
+    <string name="voice_speaking">Speaking…</string>
+    <string name="voice_tap_skip">Tap the circle to skip the reply</string>
+    <string name="voice_denied">Voice conversation needs microphone permission</string>
 </resources>

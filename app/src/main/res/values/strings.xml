@@ -458,4 +458,21 @@
     <string name="search_local_test">اختبر البحث المحلي</string>
     <string name="search_local_test_ok">يعمل: وُجدت %1$d نتائج، أولها من %2$s</string>
     <string name="search_local_test_fail">لم يعمل البحث المحلي الآن، قد تكون المحركات حاجبة الطلب</string>
+    <string name="worker_check">فحص الـ Worker</string>
+    <string name="worker_check_none">لم تضبط رابط البروكسي في الإعدادات</string>
+    <string name="worker_check_ok">الـ Worker يعمل (%1$d) من مركز %2$s</string>
+    <string name="worker_check_fail">الـ Worker لا يرد، تحقق من الرابط والسر</string>
+    <string name="err_label_policy">إعدادات الخصوصية تمنع المودل</string>
+    <string name="err_msg_policy">المزود يرفض المودلات المجانية بسبب إعدادات الخصوصية. في OpenRouter افتح Settings ثم Privacy وفعّل خيار نشر المودلات المجانية (Free model publication) ثم أعد اختبار المفتاح. %1$s</string>
+    <string name="zip_save">مشاركة المشروع كملف ZIP</string>
+    <string name="zip_failed">تعذّر إنشاء ملف ZIP</string>
+    <string name="zip_saved">تم حفظ ملف ZIP (%1$d ملف)</string>
+    <string name="zip_chooser">مشاركة ملف المشروع</string>
+    <string name="voice_chat">محادثة صوتية</string>
+    <string name="voice_end">إنهاء المحادثة الصوتية</string>
+    <string name="voice_listening">أستمع إليك…</string>
+    <string name="voice_thinking">أفكر…</string>
+    <string name="voice_speaking">أتحدث…</string>
+    <string name="voice_tap_skip">اضغط على الدائرة لتخطي الرد</string>
+    <string name="voice_denied">لا يمكن بدء المحادثة الصوتية دون إذن الميكروفون</string>
 </resources>

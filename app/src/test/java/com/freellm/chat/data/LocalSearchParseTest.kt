@@ -62,7 +62,7 @@ class LocalSearchParseTest {
     @Test fun googleIsTriedFirstAndOthersFollow() {
         val e = LocalSearchParse.engines("abc")
         assertTrue(e[0].contains("google.com/search?q=abc"))
-        assertEquals(3, e.size)
+        assertEquals(4, e.size)
     }
 
     @Test fun captchaAndConsentPagesAreDetected() {
@@ -82,5 +82,14 @@ class LocalSearchParseTest {
 
     @Test fun engineNamesMatchEngineUrls() {
         assertEquals(LocalSearchParse.NAMES.size, LocalSearchParse.engines("q").size)
+    }
+
+    @Test fun yahooRedirectIsUnwrapped() {
+        val u = "https://r.search.yahoo.com/_ylt=A0/RV=2/RE=1/RO=10/RU=https%3a%2f%2fexample.com%2fp/RK=2/RS=abc"
+        assertEquals("https://example.com/p", LocalSearchParse.unwrap(u))
+    }
+
+    @Test fun yahooConsentPageIsBlocked() {
+        assertTrue(LocalSearchParse.isBlockedPage("https://guce.yahoo.com/consent?x=1"))
     }
 }
