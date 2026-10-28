@@ -246,6 +246,58 @@ fun SearchSettingsScreen(app: FreeLlmApp, onBack: () -> Unit) {
                 localMsg?.let {
                     Text(it, color = if (localOk) cs.tertiary else cs.error, style = MaterialTheme.typography.bodyMedium)
                 }
+                var wBusy by remember { mutableStateOf(false) }
+                var wMsg by remember { mutableStateOf<String?>(null) }
+                var wOk by remember { mutableStateOf(false) }
+                val wNone = stringResource(R.string.worker_check_none)
+                val wOkFmt = stringResource(R.string.worker_check_ok)
+                val wFail = stringResource(R.string.worker_check_fail)
+                OutlinedButton(
+                    onClick = {
+                        scope.launch {
+                            wBusy = true
+                            wMsg = null
+                            val px = app.settings.proxyUrl.first().trim().trimEnd('/')
+                            if (px.isEmpty()) {
+                                wOk = false
+                                wMsg = wNone
+                            } else {
+                                val res = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    try {
+                                        val req = okhttp3.Request.Builder().url(px + "/_debug").build()
+                                        app.searchHttp.newCall(req).execute().use { r ->
+                                            val body = r.body?.string().orEmpty()
+                                            val colo = Regex("\"colo\"\\s*:\\s*\"([^\"]+)\"").find(body)?.groupValues?.get(1).orEmpty()
+                                            Triple(r.isSuccessful, r.code, colo)
+                                        }
+                                    } catch (e: Exception) {
+                                        Triple(false, 0, e.javaClass.simpleName)
+                                    }
+                                }
+                                wOk = res.first
+                                wMsg = if (res.first) {
+                                    wOkFmt.replace("%1\$d", res.second.toString()).replace("%2\$s", res.third)
+                                } else {
+                                    wFail + " (" + (if (res.second > 0) res.second.toString() else res.third) + ")"
+                                }
+                            }
+                            wBusy = false
+                        }
+                    },
+                    enabled = !wBusy,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (wBusy) {
+                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.testing))
+                    } else {
+                        Text(stringResource(R.string.worker_check))
+                    }
+                }
+                wMsg?.let {
+                    Text(it, color = if (wOk) cs.tertiary else cs.error, style = MaterialTheme.typography.bodyMedium)
+                }
             }
             StepCard(1, stringResource(R.string.search_step_provider), Modifier.appear(1)) {
                 SearchKind.entries.filter { it != SearchKind.LOCAL }.forEach { k ->

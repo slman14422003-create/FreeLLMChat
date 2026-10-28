@@ -91,9 +91,10 @@ class WebSearchPipeline(
         technical: Boolean,
         ttlMs: Long,
         resultCount: Int = RESULTS,
-        pages: Int = PAGES
+        pages: Int = PAGES,
+        maxQueries: Int = QueryBuilder.MAX_QUERIES
     ): SearchOutcome {
-        val queries = QueryBuilder.generate(side, candidates, question, technical)
+        val queries = QueryBuilder.generate(side, candidates, question, technical).take(maxQueries.coerceAtLeast(1))
         if (queries.isEmpty()) return SearchOutcome(null)
         val all = ArrayList<SearchResult>()
         var error: LlmException? = null

@@ -3,7 +3,7 @@ package com.freellm.chat.domain
 import com.freellm.chat.R
 
 enum class ErrorKind {
-    RATE_LIMIT, PAYMENT, SERVER, AUTH, NOT_FOUND, TIMEOUT, NETWORK, EMPTY, INTERRUPTED, BAD_REQUEST
+    RATE_LIMIT, PAYMENT, SERVER, AUTH, NOT_FOUND, TIMEOUT, NETWORK, EMPTY, INTERRUPTED, BAD_REQUEST, POLICY
 }
 
 class LlmException(
@@ -24,6 +24,7 @@ fun ErrorKind.labelRes(): Int = when (this) {
     ErrorKind.EMPTY -> R.string.err_label_empty
     ErrorKind.INTERRUPTED -> R.string.err_label_interrupted
     ErrorKind.BAD_REQUEST -> R.string.err_label_bad_request
+    ErrorKind.POLICY -> R.string.err_label_policy
 }
 
 fun LlmException.messageRes(): Int = when (kind) {
@@ -37,6 +38,7 @@ fun LlmException.messageRes(): Int = when (kind) {
     ErrorKind.BAD_REQUEST -> R.string.err_msg_bad_request
     ErrorKind.EMPTY -> R.string.err_msg_empty
     ErrorKind.INTERRUPTED -> R.string.err_msg_interrupted
+    ErrorKind.POLICY -> R.string.err_msg_policy
 }
 
 fun LlmException.localized(get: (Int, String) -> String): String = get(messageRes(), message.orEmpty()).trim()

@@ -498,6 +498,25 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         }
     }
 
+    fun saveZip(uri: Uri, m: MessageEntity, done: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            var count = 0
+            val ok = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    val files = com.freellm.chat.domain.CodeFiles.extract(m.content)
+                    if (files.isEmpty()) return@withContext false
+                    val out = app.contentResolver.openOutputStream(uri) ?: return@withContext false
+                    count = out.use { com.freellm.chat.data.ZipExport.write(files, it) }
+                    true
+                } catch (e: Throwable) {
+                    false
+                }
+            }
+            notice.value = if (ok) app.getString(R.string.zip_saved, count) else app.getString(R.string.zip_failed)
+            done(ok)
+        }
+    }
+
     private suspend fun toChat(list: List<MessageEntity>, lastUserId: Long?, smart: Boolean): List<ChatMsg> =
         withContext(kotlinx.coroutines.Dispatchers.IO) {
             var budget = MAX_HISTORY_IMAGES
@@ -583,6 +602,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         val convo = vars(repo.conversation(cid)?.instructions.orEmpty().trim())
         return listOf(
             SYSTEM_PROMPT,
+            com.freellm.chat.domain.CodeFiles.SYSTEM,
             style,
             if (facts.isNotEmpty()) "User facts (use naturally): $facts" else "",
             if (custom.isNotEmpty()) "User rules: $custom" else "",
@@ -801,7 +821,8 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                     val out = kotlinx.coroutines.withTimeoutOrNull(SEARCH_BUDGET_MS) {
                         app.webSearch.run(
                             prov, limit, lastUser, all, QueryBuilder.isTechnical(lastUser, cls.type),
-                            CachePolicy.ttlMs(app.settings.searchCacheHours.first())
+                            CachePolicy.ttlMs(app.settings.searchCacheHours.first()),
+                            maxQueries = if (prov.kind == com.freellm.chat.domain.SearchKind.LOCAL) 2 else QueryBuilder.MAX_QUERIES
                         )
                     } ?: com.freellm.chat.domain.SearchOutcome(
                         null, com.freellm.chat.domain.LlmException(com.freellm.chat.domain.ErrorKind.TIMEOUT, message = "search budget")
@@ -1043,7 +1064,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
     }
 
     companion object {
-        private const val SEARCH_BUDGET_MS = 20_000L
+        private const val SEARCH_BUDGET_MS = 40_000L
         private const val MAX_PENDING = 6
         private const val MAX_HISTORY_IMAGES = 4
         private const val MAX_RESUME = 2

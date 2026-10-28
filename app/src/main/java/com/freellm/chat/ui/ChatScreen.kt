@@ -243,6 +243,30 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
             }
         }
     }
+    var voiceOn by remember { mutableStateOf(false) }
+    val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) voiceOn = true else Toast.makeText(ctx, ctx.getString(R.string.voice_denied), Toast.LENGTH_LONG).show()
+    }
+    if (voiceOn) VoiceChat(vm, speaker) { voiceOn = false; speaker.stop() }
+    var zipMsg by remember { mutableStateOf<MessageEntity?>(null) }
+    val saveZip = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        val msg = zipMsg
+        zipMsg = null
+        if (uri != null && msg != null) {
+            vm.saveZip(uri, msg) { ok ->
+                if (ok) {
+                    val i = Intent(Intent.ACTION_SEND).apply {
+                        type = "application/zip"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    runCatching {
+                        ctx.startActivity(Intent.createChooser(i, ctx.getString(R.string.zip_chooser)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }
+                }
+            }
+        }
+    }
     val savePdf = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
         val j = pdfJob
         if (uri != null && j != null) vm.savePdf(uri, j.text, j.images)
@@ -466,6 +490,10 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                                     cardMsg = it
                                     saveCard.launch("reply.png")
                                 },
+                                onZip = {
+                                    zipMsg = it
+                                    saveZip.launch(com.freellm.chat.domain.CodeFiles.projectName(com.freellm.chat.domain.CodeFiles.extract(it.content)) + ".zip")
+                                },
                                 onSpeak = { speaker.toggle(it.content) },
                                 onRate = { msg, good -> vm.rate(msg, good) }
                             )
@@ -522,6 +550,12 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                         savePdf.launch("images.pdf")
                     },
                     onPlus = { picker = if (generating) Picker.Continue else Picker.Model },
+                    onVoiceChat = {
+                        val has = androidx.core.content.ContextCompat.checkSelfPermission(
+                            ctx, android.Manifest.permission.RECORD_AUDIO
+                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                        if (has) voiceOn = true else askMic.launch(android.Manifest.permission.RECORD_AUDIO)
+                    },
                     onMic = {
                         try {
                             speech.launch(
@@ -740,6 +774,7 @@ private fun Composer(
     onQuick: (String) -> Unit,
     onImagesToPdf: () -> Unit,
     onPlus: () -> Unit,
+    onVoiceChat: () -> Unit = {},
     onMic: () -> Unit
 ) {
     val cs = MaterialTheme.colorScheme
@@ -822,6 +857,10 @@ private fun Composer(
                         attachMenu = false
                         onPickPdfImages()
                     })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.voice_chat)) }, onClick = {
+                        attachMenu = false
+                        onVoiceChat()
+                    })
                 }
             }
             Box(
@@ -895,7 +934,7 @@ private fun QuickChip(label: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun AttachThumb(a: Attachment, size: androidx.compose.ui.unit.Dp) {
+private fun AttachThumb(a: Attachment, size: androidx.compose.ui.unit.Dp, onClick: (() -> Unit)? = null) {
     val ctx = LocalContext.current
     val cs = MaterialTheme.colorScheme
     if (a.isImage) {
@@ -909,6 +948,7 @@ private fun AttachThumb(a: Attachment, size: androidx.compose.ui.unit.Dp) {
                 .size(size)
                 .clip(RoundedCornerShape(Corners.sm))
                 .background(cs.surfaceContainerHighest)
+                .let { if (onClick != null) it.clickable(onClick = onClick) else it }
         ) {
             bmp?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
         }
@@ -1174,11 +1214,13 @@ private fun MessageItem(
     onDelete: (MessageEntity) -> Unit,
     onPdf: (MessageEntity) -> Unit,
     onCard: (MessageEntity) -> Unit,
+    onZip: (MessageEntity) -> Unit = {},
     onSpeak: (MessageEntity) -> Unit,
     onRate: (MessageEntity, Boolean) -> Unit = { _, _ -> }
 ) {
     val cs = MaterialTheme.colorScheme
     var rated by remember(m.id) { mutableStateOf<Boolean?>(null) }
+    val hasZip = remember(m.content) { m.role != "user" && com.freellm.chat.domain.CodeFiles.extract(m.content).isNotEmpty() }
     val clip = LocalClipboardManager.current
     val ctx = LocalContext.current
     var menu by remember { mutableStateOf(false) }
@@ -1212,10 +1254,12 @@ private fun MessageItem(
         if (isUser) {
             val dir = detectDirection(m.content) ?: LocalLayoutDirection.current
             val atts = remember(m.attachments) { AttachmentCodec.decode(m.attachments) }
+            var preview by remember { mutableStateOf<Attachment?>(null) }
+            preview?.let { ImagePreview(it) { preview = null } }
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
               if (atts.isNotEmpty()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs), modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                    atts.forEach { AttachThumb(it, 72.dp) }
+                    atts.forEach { att -> AttachThumb(att, 96.dp, if (att.isImage) ({ preview = att }) else null) }
                 }
               }
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
@@ -1295,6 +1339,16 @@ private fun MessageItem(
                                     onPdf(m)
                                 }
                             )
+                            if (hasZip) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.zip_save)) },
+                                    leadingIcon = { Icon(Icons.Outlined.Image, null) },
+                                    onClick = {
+                                        more = false
+                                        onZip(m)
+                                    }
+                                )
+                            }
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.share_card)) },
                                 leadingIcon = { Icon(Icons.Outlined.Image, null) },
@@ -1345,6 +1399,12 @@ private fun MessageItem(
                 menu = false
                 onPdf(m)
             })
+            if (hasZip) {
+                DropdownMenuItem(text = { Text(stringResource(R.string.zip_save)) }, onClick = {
+                    menu = false
+                    onZip(m)
+                })
+            }
             if (!isUser) {
                 DropdownMenuItem(text = { Text(stringResource(R.string.share_card)) }, onClick = {
                     menu = false

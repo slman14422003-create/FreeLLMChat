@@ -87,7 +87,7 @@ class Health(private val config: RouterConfig) {
                     providerBackoff[t.providerId] = n + 1
                 }
             }
-            ErrorKind.AUTH -> authFailed.add(t.providerId)
+            ErrorKind.AUTH, ErrorKind.POLICY -> authFailed.add(t.providerId)
             ErrorKind.NOT_FOUND -> dead.add(t.key)
             else -> {
                 val f = (modelFails[t.key] ?: 0) + 1
