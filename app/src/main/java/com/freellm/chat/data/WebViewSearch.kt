@@ -91,11 +91,25 @@ class WebViewSearch(private val context: Context, private val health: EngineHeal
                 if (cont.isActive) cont.resume(value)
             }
 
-            fun next(reason: String) {
+            lateinit var next: (String) -> Unit
+
+            fun arm() {
+                val at = pos
+                main.postDelayed({
+                    if (!done && at == pos) next("timeout")
+                }, ENGINE_MS)
+            }
+
+            next = { reason ->
                 trail += LocalSearchParse.NAMES[order[pos]] + ":" + reason + " "
                 health.block(order[pos])
                 pos++
-                if (pos >= order.size) finish(null) else wv.loadUrl(urls[order[pos]])
+                if (pos >= order.size) {
+                    finish(null)
+                } else {
+                    wv.loadUrl(urls[order[pos]])
+                    arm()
+                }
             }
 
             wipe(wv)
@@ -141,6 +155,7 @@ class WebViewSearch(private val context: Context, private val health: EngineHeal
             }
             cont.invokeOnCancellation { finish(null) }
             wv.loadUrl(urls[order[0]])
+            arm()
         }
     }
 
@@ -156,7 +171,8 @@ class WebViewSearch(private val context: Context, private val health: EngineHeal
     }
 
     private companion object {
-        const val TOTAL_MS = 18_000L
+        const val TOTAL_MS = 28_000L
+        const val ENGINE_MS = 6_000L
         const val SETTLE_MS = 500L
     }
 }

@@ -22,6 +22,7 @@ import okhttp3.Dns
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import java.net.Inet4Address
+import kotlinx.coroutines.flow.first
 import java.net.InetAddress
 import java.util.concurrent.TimeUnit
 
@@ -58,7 +59,7 @@ class FreeLlmApp : Application() {
     }
     val searchQuota: com.freellm.chat.domain.SearchQuota by lazy { com.freellm.chat.domain.SearchQuota(usage) }
     val webSearch: com.freellm.chat.domain.WebSearchPipeline by lazy {
-        val fetcher = com.freellm.chat.data.PageFetcher(http)
+        val fetcher = com.freellm.chat.data.PageFetcher(http) { settings.proxyUrl.first() }
         com.freellm.chat.domain.WebSearchPipeline(
             sideTasks,
             com.freellm.chat.data.RoomSearchCache(db.dao()),

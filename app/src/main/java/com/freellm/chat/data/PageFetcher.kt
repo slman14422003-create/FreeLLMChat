@@ -11,10 +11,11 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
 import java.net.InetAddress
+import java.net.URLEncoder
 import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
 
-class PageFetcher(base: OkHttpClient) {
+class PageFetcher(base: OkHttpClient, private val proxy: suspend () -> String = { "" }) {
     private val client: OkHttpClient = base.newBuilder()
         .connectTimeout(6, TimeUnit.SECONDS)
         .readTimeout(8, TimeUnit.SECONDS)
@@ -37,32 +38,51 @@ class PageFetcher(base: OkHttpClient) {
 
     suspend fun fetch(url: String): String? {
         if (!UrlPolicy.allowedUrl(url)) return null
+        val px = try {
+            proxy().trim().trimEnd('/')
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            ""
+        }
+        if (px.isNotEmpty()) {
+            val via = try {
+                Request.Builder().url(px + "/fetch?url=" + URLEncoder.encode(url, "UTF-8"))
+                    .header("Accept", "text/html,application/xhtml+xml,text/plain;q=0.9")
+                    .build()
+            } catch (e: IllegalArgumentException) {
+                null
+            }
+            if (via != null) get(via)?.let { return it }
+        }
         val req = Request.Builder().url(url)
             .header("Accept", "text/html,application/xhtml+xml,text/plain;q=0.9")
             .header("User-Agent", USER_AGENT)
             .build()
-        return try {
-            client.newCall(req).await().use { r ->
-                if (!r.isSuccessful) return null
-                val type = r.header("Content-Type").orEmpty().lowercase()
-                val html = type.isEmpty() || type.contains("html") || type.contains("xml")
-                if (!html && !type.startsWith("text/plain")) return null
-                val body = r.body ?: return null
-                val charset = body.contentType()?.charset(Charsets.UTF_8) ?: Charsets.UTF_8
-                val bytes = withContext(Dispatchers.IO) {
-                    val src = body.source()
-                    src.request(MAX_BYTES)
-                    src.buffer.readByteArray(minOf(src.buffer.size, MAX_BYTES))
-                }
-                val raw = String(bytes, charset)
-                val text = if (html) HtmlText.extract(raw) else raw.trim()
-                text.takeIf { it.length >= MIN_CHARS }
+        return get(req)
+    }
+
+    private suspend fun get(req: Request): String? = try {
+        client.newCall(req).await().use { r ->
+            if (!r.isSuccessful) return@use null
+            val type = r.header("Content-Type").orEmpty().lowercase()
+            val html = type.isEmpty() || type.contains("html") || type.contains("xml")
+            if (!html && !type.startsWith("text/plain")) return@use null
+            val body = r.body ?: return@use null
+            val charset = body.contentType()?.charset(Charsets.UTF_8) ?: Charsets.UTF_8
+            val bytes = withContext(Dispatchers.IO) {
+                val src = body.source()
+                src.request(MAX_BYTES)
+                src.buffer.readByteArray(minOf(src.buffer.size, MAX_BYTES))
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Throwable) {
-            null
+            val raw = String(bytes, charset)
+            val text = if (html) HtmlText.extract(raw) else raw.trim()
+            text.takeIf { it.length >= MIN_CHARS }
         }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Throwable) {
+        null
     }
 
     private companion object {

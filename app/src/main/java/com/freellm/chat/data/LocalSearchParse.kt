@@ -27,24 +27,30 @@ object LocalSearchParse {
         "var r=a.closest('.result');add(a.textContent,a.href,txt(r?r.querySelector('.result__snippet'):null));});}" +
         "if(out.length==0){document.querySelectorAll('li.b_algo').forEach(function(li){" +
         "var h=li.querySelector('h2 a');if(h)add(h.textContent,h.href,txt(li.querySelector('.b_caption p, p')));});}" +
+        "if(out.length==0){document.querySelectorAll('div.algo, div.dd.algo').forEach(function(d){" +
+        "var h=d.querySelector('h3 a, .compTitle a');if(h)add(h.textContent,h.href,txt(d.querySelector('.compText p, p')));});}" +
+        "if(out.length==0){document.querySelectorAll('a').forEach(function(a){" +
+        "var h=a.querySelector('h2, h3');if(h&&a.href&&a.href.indexOf('http')==0)add(h.textContent,a.href,'');});}" +
         "return JSON.stringify(out);" +
         "})()"
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
-    private val blockedHosts = listOf("duckduckgo.com", "bing.com", "microsoft.com", "google.com", "gstatic.com", "googleusercontent.com")
+    private val blockedHosts = listOf("duckduckgo.com", "bing.com", "microsoft.com", "yahoo.com", "yimg.com", "google.com", "gstatic.com", "googleusercontent.com")
 
-    val NAMES = listOf("google", "ddg", "bing")
+    val NAMES = listOf("google", "ddg", "bing", "yahoo")
 
     fun engines(encodedQuery: String): List<String> = listOf(
         "https://www.google.com/search?q=$encodedQuery&udm=14&pws=0&nfpr=1&hl=en",
         "https://html.duckduckgo.com/html/?q=$encodedQuery",
-        "https://www.bing.com/search?q=$encodedQuery"
+        "https://www.bing.com/search?q=$encodedQuery",
+        "https://search.yahoo.com/search?p=$encodedQuery&ei=UTF-8"
     )
 
     fun isBlockedPage(url: String?): Boolean {
         val u = url.orEmpty().lowercase()
         val h = host(u)
         return (h.endsWith("google.com") && (u.contains("/sorry/") || h.startsWith("consent."))) ||
+            h.startsWith("guce.") ||
             u.contains("/captcha") || u.contains("anomaly")
     }
 
@@ -79,6 +85,13 @@ object LocalSearchParse {
         val h = host(u)
         if (h.endsWith("google.com") && u.substringAfter("://").substringAfter('/').startsWith("url")) {
             (queryParam(u, "q") ?: queryParam(u, "url"))?.let { return it }
+        }
+        if (h.endsWith("yahoo.com") && u.contains("/RU=")) {
+            val enc = u.substringAfter("/RU=").substringBefore("/RK=").substringBefore("/RS=")
+            try {
+                return URLDecoder.decode(enc, "UTF-8")
+            } catch (e: Exception) {
+            }
         }
         if (h.endsWith("duckduckgo.com")) {
             queryParam(u, "uddg")?.let { return it }

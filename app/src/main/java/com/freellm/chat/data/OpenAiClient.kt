@@ -4,6 +4,7 @@ import com.freellm.chat.domain.ChatMsg
 import com.freellm.chat.domain.ChatTransport
 import com.freellm.chat.domain.ErrorKind
 import com.freellm.chat.domain.LlmException
+import com.freellm.chat.domain.ProviderErrors
 import com.freellm.chat.domain.Target
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -34,7 +35,7 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
     private val json = Json { ignoreUnknownKeys = true }
     private val mediaJson = "application/json; charset=utf-8".toMediaType()
 
-    private class Parsed(val content: String?, val finished: Boolean, val error: String?)
+    internal class Parsed(val content: String?, val finished: Boolean, val error: String?, val length: Boolean = false)
 
     private fun endpoint(base: String): String = base.trim().trimEnd('/') + "/chat/completions"
 
@@ -42,7 +43,7 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
         buildJsonObject {
             put("model", t.model.id)
             put("stream", stream)
-            if (maxTokens != null) put("max_tokens", maxTokens)
+            if (maxTokens != null) put("max_tokens", if (t.model.reasoning) maxOf(maxTokens, REASONING_MIN_TOKENS) else maxTokens)
             if (temperature != null) put("temperature", temperature)
             putJsonArray("messages") {
                 msgs.forEach { m ->
@@ -84,21 +85,9 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
 
     private fun httpError(code: Int, retryAfter: String?, bodyText: String, key: String): LlmException {
         val snippet = redact(bodyText.replace("\n", " ").take(200), key)
-        val lower = bodyText.lowercase()
-        val modelMissing = lower.contains("model") && (
-            lower.contains("not found") || lower.contains("does not exist") ||
-                lower.contains("not_found") || lower.contains("no endpoints found") ||
-                lower.contains("decommissioned")
-            )
-        val kind = when {
-            code == 429 -> ErrorKind.RATE_LIMIT
-            code == 402 -> ErrorKind.PAYMENT
-            code == 401 || code == 403 -> ErrorKind.AUTH
-            code == 404 || modelMissing -> ErrorKind.NOT_FOUND
-            code == 408 || code >= 500 -> ErrorKind.SERVER
-            else -> ErrorKind.BAD_REQUEST
-        }
-        return LlmException(kind, code, retryAfter?.trim()?.toLongOrNull(), snippet)
+        val kind = ProviderErrors.kind(code, bodyText)
+        val wait = ProviderErrors.retryAfter(code, bodyText, retryAfter?.trim()?.toLongOrNull(), System.currentTimeMillis())
+        return LlmException(kind, code, wait, snippet)
     }
 
     private fun hostOf(base: String): String = base.substringAfter("://").substringBefore("/")
@@ -112,7 +101,7 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
         }
     }
 
-    private fun parseChunk(data: String): Parsed? = try {
+    internal fun parseChunk(data: String): Parsed? = try {
         val obj = json.parseToJsonElement(data) as JsonObject
         val err = obj["error"]
         if (err != null && err !is JsonNull) {
@@ -122,8 +111,9 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
             val delta = choice?.get("delta") as? JsonObject
             val prim = delta?.get("content") as? JsonPrimitive
             val content = if (prim == null || prim is JsonNull) null else prim.content
-            val fin = choice?.get("finish_reason")?.let { it !is JsonNull } ?: false
-            Parsed(content, fin, null)
+            val reason = choice?.get("finish_reason") as? JsonPrimitive
+            val fin = reason != null && reason !is JsonNull
+            Parsed(content, fin, null, fin && reason?.content == "length")
         }
     } catch (e: Exception) {
         null
@@ -148,9 +138,24 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
         for ((i, base) in all.withIndex()) {
             var emitted = false
             try {
-                streamOnce(target, base, messages, maxTokens, temperature).collect {
-                    emitted = true
-                    emit(it)
+                val acc = StringBuilder()
+                var msgs = messages
+                var round = 0
+                while (true) {
+                    var cut = false
+                    try {
+                        streamOnce(target, base, msgs, maxTokens, temperature) { cut = true }.collect {
+                            emitted = true
+                            acc.append(it)
+                            emit(it)
+                        }
+                    } catch (e: LlmException) {
+                        if (round == 0) throw e
+                        break
+                    }
+                    if (!cut || round >= MAX_AUTO_CONTINUE || acc.isEmpty()) break
+                    round++
+                    msgs = messages + ChatMsg("assistant", acc.toString()) + ChatMsg("user", AUTO_CONTINUE)
                 }
                 return@flow
             } catch (e: LlmException) {
@@ -159,7 +164,14 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
         }
     }.flowOn(Dispatchers.IO)
 
-    private fun streamOnce(target: Target, base: String, messages: List<ChatMsg>, maxTokens: Int?, temperature: Double?): Flow<String> = flow {
+    private fun streamOnce(
+        target: Target,
+        base: String,
+        messages: List<ChatMsg>,
+        maxTokens: Int?,
+        temperature: Double?,
+        onLength: () -> Unit = {}
+    ): Flow<String> = flow {
         val req = try {
             request(target, base, body(target, messages, true, maxTokens, temperature))
         } catch (e: IllegalArgumentException) {
@@ -202,12 +214,13 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
                     val p = parseChunk(data) ?: continue
                     if (p.error != null) {
                         val msg = redact(p.error, target.apiKey).take(200)
-                        val l = msg.lowercase()
-                        val kind = if (l.contains("429") || l.contains("rate") || l.contains("quota"))
-                            ErrorKind.RATE_LIMIT else ErrorKind.SERVER
-                        throw LlmException(kind, 0, null, msg)
+                        throw LlmException(
+                            ProviderErrors.streamKind(msg), 0,
+                            ProviderErrors.streamRetryAfter(msg, System.currentTimeMillis()), msg
+                        )
                     }
                     if (!p.content.isNullOrEmpty()) emit(p.content)
+                    if (p.length) onLength()
                     if (p.finished) finished = true
                 }
                 if (!finished) throw LlmException(ErrorKind.INTERRUPTED, message = "no terminator")
@@ -292,3 +305,9 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
         emptyList<String>() to last
     }
 }
+
+private const val MAX_AUTO_CONTINUE = 2
+private const val AUTO_CONTINUE =
+    "Continue exactly where your previous message stopped. Do not repeat anything already written and do not add any preface."
+
+private const val REASONING_MIN_TOKENS = 3000

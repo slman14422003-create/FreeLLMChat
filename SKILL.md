@@ -55,6 +55,21 @@ description: Progress log and working notes for the FreeLLMChat Android project 
 - data/WebViewSearch.kt (hidden WebView, engines google then ddg then bing, EngineHealth cooldown, wipes cookies/cache/history after every search), data/LocalSearchParse.kt (EXTRACT_JS, unwrap, parse), domain ChainSearch (key first, local as backup). Key: local_search.
 - EXTRACT_JS must stay balanced: LocalSearchParseTest.extractScriptIsBalanced guards it.
 
+# Round 3
+- OpenAiClient auto-continues up to 2 times when finish_reason is length (internal parseChunk is tested in OpenAiParseTest).
+- worker.js has a /fetch?url= route (https only, private hosts refused, 700KB cap); PageFetcher tries it first when a proxy URL is set, then direct.
+- Local search engines: google, ddg, bing, yahoo (NAMES parallel to engines()).
+- Search settings has a Worker check button hitting <proxy>/_debug.
+- Not done on purpose: new search provider, QR provider export, LaTeX/Mermaid rendering, MCP.
+
 # Next
 - Run `./gradlew testDebugUnitTest` once and fix any compile error first.
 - Then a manual pass on device: compare dialog on phone and tablet, search wizard per provider, share card with RTL text.
+
+## Round 4
+- ProviderErrors.kt: maps HTTP/stream errors to ErrorKind; POLICY (OpenRouter free-model data policy) disables the provider until settings change; daily 429 waits until UTC midnight; "No endpoints found" is SERVER (transient).
+- OpenAiClient: reasoning models get max_tokens >= 3000.
+- ImagePreview.kt: tap a sent image to open a zoomable dialog (AttachThumb onClick).
+- CodeFiles.kt + ZipExport.kt: file blocks in a reply (label line "File: path", info string, or first-line comment) are extracted; message menu "save as ZIP" appears only when files are found; CodeFiles.SYSTEM is appended to the system prompt.
+- VoiceChat.kt + Speaker.say + SpeechText: hands-free loop listen -> send -> speak -> listen using the on-device recognizer and TTS (works with every provider); entry from the attach menu; needs RECORD_AUDIO.
+- Tests: CodeFilesTest, ZipExportTest, SpeechTextTest, ProviderErrorsTest.
