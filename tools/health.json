@@ -1,5 +1,23 @@
 {
-  "runs": [],
+  "runs": [
+    "2026-10-28"
+  ],
   "streaks": {},
-  "dead": []
+  "dead": [],
+  "latency": {
+    "kilo/nvidia/nemotron-3-ultra-550b-a55b:free": 1126,
+    "kilo/kilo-auto/free": 1896,
+    "kilo/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": 918,
+    "ovh/Qwen3.8-27B": 1356,
+    "ovh/gpt-oss-120b": 379,
+    "ovh/Meta-Llama-3_3-70B-Instruct": 368,
+    "ovh/Mistral-Small-3.2-24B-Instruct-2506": 1047,
+    "ovh/Qwen3.5-397B-A17B": 1823,
+    "ovh/gpt-oss-20b": 250,
+    "llm7/gpt-oss:20b": 2836,
+    "llm7/minimax-m2.7": 749,
+    "llm7/codestral-latest": 484,
+    "llm7/mistral-Nemo-Instruct-2407": 886,
+    "llm7/nemotron-3-nano:30b": 2165
+  }
 }
