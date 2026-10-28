@@ -21,6 +21,78 @@ const UPSTREAMS = {
   google: "https://www.googleapis.com",
 };
 
+const MAX_PAGE_BYTES = 700000;
+
+function privateHost(h) {
+  h = h.toLowerCase();
+  if (h === "localhost" || h.endsWith(".local") || h.endsWith(".internal") || h.endsWith(".lan") || !h.includes(".")) return true;
+  if (h.includes(":")) return true;
+  const m = h.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (m) {
+    const a = +m[1], b = +m[2];
+    return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224;
+  }
+  return false;
+}
+
+async function fetchPage(raw) {
+  const fail = (status, msg) =>
+    new Response(msg, { status, headers: { "content-type": "text/plain", "Access-Control-Allow-Origin": "*" } });
+  let target;
+  try {
+    target = new URL(raw || "");
+  } catch (e) {
+    return fail(400, "bad url");
+  }
+  if (target.protocol !== "https:" || privateHost(target.hostname)) return fail(400, "blocked url");
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort("upstream_timeout"), 9000);
+  try {
+    const r = await fetch(target.toString(), {
+      headers: {
+        accept: "text/html,application/xhtml+xml,text/plain;q=0.9",
+        "user-agent": "Mozilla/5.0 (Linux; Android 14; Mobile) FreeLLMChat/1.0",
+      },
+      redirect: "follow",
+      signal: ctrl.signal,
+    });
+    const type = (r.headers.get("content-type") || "").toLowerCase();
+    if (type && !type.includes("html") && !type.includes("xml") && !type.startsWith("text/plain")) {
+      return fail(415, "unsupported type");
+    }
+    const reader = r.body.getReader();
+    const chunks = [];
+    let size = 0;
+    while (size < MAX_PAGE_BYTES) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      size += value.length;
+    }
+    reader.cancel().catch(() => {});
+    const buf = new Uint8Array(Math.min(size, MAX_PAGE_BYTES));
+    let off = 0;
+    for (const c of chunks) {
+      const room = buf.length - off;
+      if (room <= 0) break;
+      buf.set(c.length > room ? c.subarray(0, room) : c, off);
+      off += Math.min(c.length, room);
+    }
+    return new Response(buf, {
+      status: r.status,
+      headers: {
+        "content-type": type || "text/html; charset=utf-8",
+        "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "no-store",
+      },
+    });
+  } catch (e) {
+    return fail(502, "fetch failed");
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const STRIP = [
   "x-forwarded-host",
   "cf-connecting-ipv6",
@@ -78,6 +150,9 @@ export default {
       return new Response(JSON.stringify(info, null, 2), {
         headers: { "content-type": "application/json; charset=utf-8" },
       });
+    }
+    if (parts[0] === "fetch") {
+      return await fetchPage(url.searchParams.get("url"));
     }
     const id = parts.shift();
     const base = UPSTREAMS[id];
