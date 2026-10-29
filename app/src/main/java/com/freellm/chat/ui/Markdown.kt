@@ -6,6 +6,7 @@ import dev.snipme.highlights.model.SyntaxLanguage
 import dev.snipme.highlights.model.SyntaxThemes
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -316,7 +317,6 @@ private fun InlineText(text: String, style: TextStyle, modifier: Modifier = Modi
     }
 }
 
-@Composable
 @Composable
 private fun FileCard(lang: String, code: String, title: String) {
     val cs = MaterialTheme.colorScheme
