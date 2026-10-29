@@ -92,3 +92,11 @@ description: Progress log and working notes for the FreeLLMChat Android project 
 - cloudflare-worker: request body is buffered so one automatic retry on network errors and 502/503/504/52x is possible; 25 s header timeout inside a 40 s budget; /_ping endpoint; x-worker-ms header; 30 MB request cap.
 - CrashLog: last fatal or handled coroutine exception saved to files/last_crash.txt, shown in Settings with a share button; every viewModelScope launch and appScope use CrashLog.guard. Room falls back to destructive migration only on downgrade.
 - Tests: RouterHedgeTest (race, failure, reasoning window, blip retry, health).
+
+## Round 7 (continuity, voice terms, switch speed)
+- ChatViewModel.generate: short follow-ups (<= 80 chars in a chat with history) are classified together with the previous user message, skip the local brain (local-first, fallback, past-answer memory) and the ambiguity LLM call; TokenSaver never uses QUICK compaction in a chat with history; CONTINUITY_PROMPT is added to the system prompt once the chat has more than one message so a newly selected or fallback model continues the same conversation.
+- ContextPlanner.KEEP_RECENT 8 -> 14, digest 1100 chars / 160 per message.
+- Speed: first token 12 s, idle 10 s, hedge 3 s (min 1.8 s), worker TTFB 7 s; one TIMEOUT or INTERRUPTED now cools a model down (weight 3); latency bucket is used for every adaptive request.
+- Groq voice: mapHttp checks "terms" before 401/403; VoiceException carries the model; GroqVoice.termsUrl and checkTts; Settings > Voice has a terms section (open EN/AR playground page, check now); the voice screen shows the two link buttons when TERMS fails.
+- Test added: GroqTermsTest.
+- Not compiled locally: run `./gradlew testDebugUnitTest` first.

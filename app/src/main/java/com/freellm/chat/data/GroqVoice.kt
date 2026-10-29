@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit
 
 enum class VoiceFail { NO_KEY, AUTH, RATE, TERMS, NETWORK, EMPTY, OTHER }
 
-class VoiceException(val kind: VoiceFail, message: String = "") : Exception(message)
+class VoiceException(val kind: VoiceFail, message: String = "", val model: String = "") : Exception(message)
 
 class GroqVoice(private val app: FreeLlmApp) {
     private val json = Json { ignoreUnknownKeys = true }
@@ -45,9 +45,9 @@ class GroqVoice(private val app: FreeLlmApp) {
     private fun mapHttp(code: Int, body: String): VoiceException {
         val low = body.lowercase()
         val kind = when {
+            low.contains("terms") || low.contains("model_terms_required") -> VoiceFail.TERMS
             code == 401 || code == 403 -> VoiceFail.AUTH
             code == 429 -> VoiceFail.RATE
-            low.contains("terms") -> VoiceFail.TERMS
             else -> VoiceFail.OTHER
         }
         return VoiceException(kind, "HTTP $code " + body.replace('\n', ' ').take(140))
@@ -107,8 +107,9 @@ class GroqVoice(private val app: FreeLlmApp) {
     }
 
     suspend fun speak(text: String, arabic: Boolean, voice: String): ByteArray = withKeys { base, key ->
+        val payloadModel = if (arabic) AR_MODEL else EN_MODEL
         val payload = buildJsonObject {
-            put("model", if (arabic) AR_MODEL else EN_MODEL)
+            put("model", payloadModel)
             put("input", text)
             put("voice", voice)
             put("response_format", "wav")
@@ -117,10 +118,26 @@ class GroqVoice(private val app: FreeLlmApp) {
             .header("Authorization", "Bearer $key")
             .post(payload.toRequestBody("application/json".toMediaType()))
             .build()
-        send(req)
+        try {
+            send(req)
+        } catch (e: VoiceException) {
+            throw VoiceException(e.kind, e.message.orEmpty(), payloadModel)
+        }
+    }
+
+    suspend fun checkTts(arabic: Boolean): VoiceFail? = try {
+        speak(if (arabic) "مرحبا" else "Hello", arabic, if (arabic) AR_VOICES.first() else EN_VOICES.first())
+        null
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: VoiceException) {
+        e.kind
     }
 
     companion object {
+        fun termsUrl(arabic: Boolean): String =
+            "https://console.groq.com/playground?model=" + if (arabic) AR_MODEL else EN_MODEL
+
         const val EN_MODEL = "canopylabs/orpheus-v1-english"
         const val AR_MODEL = "canopylabs/orpheus-arabic-saudi"
         val EN_VOICES = listOf("autumn", "diana", "hannah", "austin", "daniel", "troy")

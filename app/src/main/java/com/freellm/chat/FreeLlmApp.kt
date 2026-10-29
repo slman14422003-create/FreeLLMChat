@@ -52,7 +52,7 @@ class FreeLlmApp : Application() {
     val router: Router by lazy {
         Router(
             client,
-            config = com.freellm.chat.domain.RouterConfig(firstTokenTimeoutMs = 18_000, idleTimeoutMs = 15_000, hedgeMs = 6_000),
+            config = com.freellm.chat.domain.RouterConfig(firstTokenTimeoutMs = 12_000, idleTimeoutMs = 10_000, hedgeMs = 3_000),
             limiter = UsageLimiter(usage),
             failLog = com.freellm.chat.domain.FailureLog(usage)
         ).also { r ->
@@ -90,7 +90,7 @@ class FreeLlmApp : Application() {
         super.onCreate()
         com.freellm.chat.data.CrashLog.init(filesDir)
         appScope.launch { catalog.load() }
-        appScope.launch { settings.fastSwitch.collect { router.hedgeMs = if (it) 6_000L else 0L } }
+        appScope.launch { settings.fastSwitch.collect { router.hedgeMs = if (it) 3_000L else 0L } }
         runCatching {
             val cm = getSystemService(android.net.ConnectivityManager::class.java)
             cm.registerDefaultNetworkCallback(object : android.net.ConnectivityManager.NetworkCallback() {

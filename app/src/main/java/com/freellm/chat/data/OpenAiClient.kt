@@ -343,6 +343,6 @@ private const val AUTO_CONTINUE =
     "Continue exactly where your previous message stopped. Do not repeat anything already written and do not add any preface."
 
 private const val REASONING_MIN_TOKENS = 3000
-private const val TTFB_MS = 10_000L
+private const val TTFB_MS = 7_000L
 private const val TTFB_REASONING_MS = 30_000L
 private const val BAD_BASE_MS = 120_000L
