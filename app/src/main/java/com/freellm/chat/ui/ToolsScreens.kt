@@ -75,6 +75,12 @@ private fun toolName(id: String): Int = when (id) {
     "web_search" -> R.string.tool_web_search
     "fetch_url" -> R.string.tool_fetch_url
     "wikipedia" -> R.string.tool_wikipedia
+    "weather" -> R.string.tool_weather
+    "encode" -> R.string.tool_encode
+    "random" -> R.string.tool_random
+    "regex_test" -> R.string.tool_regex_test
+    "json_query" -> R.string.tool_json_query
+    "text_stats" -> R.string.tool_text_stats
     "run_js" -> R.string.tool_run_js
     "run_code" -> R.string.tool_run_code
     "check_syntax" -> R.string.tool_check_syntax
@@ -92,6 +98,12 @@ private fun toolDesc(id: String): Int = when (id) {
     "web_search" -> R.string.tool_web_search_desc
     "fetch_url" -> R.string.tool_fetch_url_desc
     "wikipedia" -> R.string.tool_wikipedia_desc
+    "weather" -> R.string.tool_weather_desc
+    "encode" -> R.string.tool_encode_desc
+    "random" -> R.string.tool_random_desc
+    "regex_test" -> R.string.tool_regex_test_desc
+    "json_query" -> R.string.tool_json_query_desc
+    "text_stats" -> R.string.tool_text_stats_desc
     "run_js" -> R.string.tool_run_js_desc
     "run_code" -> R.string.tool_run_code_desc
     "check_syntax" -> R.string.tool_check_syntax_desc
@@ -114,7 +126,7 @@ fun ToolsSettingsScreen(app: FreeLlmApp, onBack: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
     val enabled by app.settings.toolsEnabled.collectAsStateWithLifecycle(initialValue = true)
-    val mode by app.settings.toolsMode.collectAsStateWithLifecycle(initialValue = ToolPolicy.MODE_SMART)
+    val mode by app.settings.toolsMode.collectAsStateWithLifecycle(initialValue = ToolPolicy.MODE_ALWAYS)
     val off by app.settings.toolsOff.collectAsStateWithLifecycle(initialValue = emptySet())
     val runner by app.settings.runnerUrl.collectAsStateWithLifecycle(initialValue = "")
     var dialog by remember { mutableStateOf<String?>(null) }

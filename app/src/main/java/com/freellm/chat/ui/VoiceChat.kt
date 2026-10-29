@@ -311,7 +311,7 @@ class VoiceSession(
         }
         var consumed = ""
         while (true) {
-            val cur = vm.stream.value?.text.orEmpty()
+            val cur = com.freellm.chat.domain.ThinkSplit.strip(vm.stream.value?.text.orEmpty())
             if (cur.length > consumed.length && cur.startsWith(consumed)) {
                 enqueue(splitter.push(cur.substring(consumed.length)))
                 consumed = cur
@@ -325,7 +325,7 @@ class VoiceSession(
         while (waited <= 900) {
             val list = vm.messages.value.filter { it.role == "assistant" }
             if (list.size > assistantBefore) {
-                final = list.last().content
+                final = com.freellm.chat.domain.ThinkSplit.strip(list.last().content)
                 break
             }
             delay(60)
