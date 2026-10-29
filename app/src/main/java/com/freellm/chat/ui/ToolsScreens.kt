@@ -250,6 +250,16 @@ fun VoiceSettingsScreen(app: FreeLlmApp, onBack: () -> Unit) {
     val barge by app.settings.voiceBargeIn.collectAsStateWithLifecycle(initialValue = false)
     val silence by app.settings.voiceSilenceMs.collectAsStateWithLifecycle(initialValue = 900)
     val dictation by app.settings.voiceDictation.collectAsStateWithLifecycle(initialValue = true)
+    val uri = androidx.compose.ui.platform.LocalUriHandler.current
+    var checking by remember { mutableStateOf(false) }
+    var termsResult by remember { mutableStateOf<Map<String, com.freellm.chat.data.VoiceFail?>>(emptyMap()) }
+    fun termsLabel(f: com.freellm.chat.data.VoiceFail?): Int = when (f) {
+        null -> R.string.voice_terms_ok
+        com.freellm.chat.data.VoiceFail.TERMS -> R.string.voice_terms_needed
+        com.freellm.chat.data.VoiceFail.RATE -> R.string.voice_terms_rate
+        com.freellm.chat.data.VoiceFail.AUTH -> R.string.voice_terms_auth
+        else -> R.string.voice_terms_error
+    }
 
     val modes = listOf("auto", "groq", "device")
     fun modeLabel(m: String): Int = when (m) {
@@ -333,6 +343,40 @@ fun VoiceSettingsScreen(app: FreeLlmApp, onBack: () -> Unit) {
                     scope.launch { app.settings.setVoiceBargeIn(it) }
                 }
             }
+            SectionLabel(stringResource(R.string.voice_terms_title))
+            SettingsGroup(Modifier.appear(3)) {
+                SettingsRow(
+                    Icons.Outlined.Language,
+                    stringResource(R.string.voice_terms_en),
+                    stringResource(R.string.voice_terms_open_desc),
+                    onClick = { uri.openUri(GroqVoice.termsUrl(false)) },
+                    trailing = { termsResult["en"]?.let { Text(stringResource(termsLabel(it)), color = cs.onSurfaceVariant) } }
+                )
+                SettingsRow(
+                    Icons.Outlined.Language,
+                    stringResource(R.string.voice_terms_ar),
+                    stringResource(R.string.voice_terms_open_desc),
+                    onClick = { uri.openUri(GroqVoice.termsUrl(true)) },
+                    trailing = { termsResult["ar"]?.let { Text(stringResource(termsLabel(it)), color = cs.onSurfaceVariant) } }
+                )
+                SettingsRow(
+                    Icons.Outlined.Info,
+                    stringResource(R.string.voice_terms_check),
+                    stringResource(if (checking) R.string.voice_terms_checking else R.string.voice_terms_check_desc),
+                    onClick = {
+                        if (!checking && hasKey) {
+                            checking = true
+                            scope.launch {
+                                val en = app.groqVoice.checkTts(false)
+                                val ar = app.groqVoice.checkTts(true)
+                                termsResult = mapOf("en" to en, "ar" to ar)
+                                checking = false
+                            }
+                        }
+                    }
+                )
+            }
+            Text(stringResource(R.string.voice_terms_help), style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant, modifier = Modifier.padding(Spacing.sm))
             Text(stringResource(R.string.voice_note), style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant, modifier = Modifier.padding(Spacing.sm))
         }
     }

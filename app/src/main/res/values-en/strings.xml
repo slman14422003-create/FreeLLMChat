@@ -480,7 +480,7 @@
     <string name="voice_err_key">Add a Groq key to use Whisper</string>
     <string name="voice_err_auth">The Groq key was rejected</string>
     <string name="voice_err_rate">Groq limit reached for now, try again shortly</string>
-    <string name="voice_err_terms">Accept the voice model terms in the Groq console and retry (device voice is used for now)</string>
+    <string name="voice_err_terms">Voice model terms are not accepted. Tap a button to open the Groq acceptance page (device voice is used for now)</string>
     <string name="voice_err_net">Could not reach the voice service</string>
     <string name="voice_err_empty">Could not understand the audio</string>
     <string name="voice_err_other">The voice service returned an error</string>
@@ -567,4 +567,17 @@
     <string name="crash_report_desc">A report about a previous error exists, share it to get it fixed</string>
     <string name="crash_share">Share</string>
     <string name="crash_clear">Clear</string>
+    <string name="voice_terms_title">Groq voice terms</string>
+    <string name="voice_terms_en">Accept English voice terms</string>
+    <string name="voice_terms_ar">Accept Arabic voice terms</string>
+    <string name="voice_terms_open_desc">Opens the model page directly in the Groq console</string>
+    <string name="voice_terms_check">Check voice now</string>
+    <string name="voice_terms_check_desc">Tests both models and shows whether the terms are accepted</string>
+    <string name="voice_terms_checking">Checking…</string>
+    <string name="voice_terms_help">The terms do not appear on Groq\'s home page. Tap one of the buttons above, sign in with the account that owns the key, and the terms dialog appears inside the Playground. Accept it, then come back and tap Check voice now. If the account belongs to an organization, an admin must accept it.</string>
+    <string name="voice_terms_ok">Ready</string>
+    <string name="voice_terms_needed">Terms not accepted</string>
+    <string name="voice_terms_rate">Limit reached</string>
+    <string name="voice_terms_auth">Key rejected</string>
+    <string name="voice_terms_error">Error</string>
 </resources>

@@ -480,7 +480,7 @@
     <string name="voice_err_key">أضف مفتاح Groq لتفعيل Whisper</string>
     <string name="voice_err_auth">مفتاح Groq غير صالح</string>
     <string name="voice_err_rate">تم بلوغ حد Groq مؤقتاً، حاول بعد قليل</string>
-    <string name="voice_err_terms">اقبل شروط نموذج الصوت من لوحة Groq ثم أعد المحاولة (يستخدم صوت الجهاز الآن)</string>
+    <string name="voice_err_terms">الشروط غير مقبولة لنموذج الصوت. اضغط أحد الزرين لفتح صفحة القبول في Groq (يستخدم صوت الجهاز الآن)</string>
     <string name="voice_err_net">تعذر الاتصال بخدمة الصوت</string>
     <string name="voice_err_empty">لم أستطع فهم الصوت</string>
     <string name="voice_err_other">حدث خطأ في خدمة الصوت</string>
@@ -567,4 +567,17 @@
     <string name="crash_report_desc">يوجد تقرير عن خطأ سابق، يمكنك مشاركته لإصلاحه</string>
     <string name="crash_share">مشاركة</string>
     <string name="crash_clear">مسح</string>
+    <string name="voice_terms_title">شروط صوت Groq</string>
+    <string name="voice_terms_en">قبول شروط الصوت الإنجليزي</string>
+    <string name="voice_terms_ar">قبول شروط الصوت العربي</string>
+    <string name="voice_terms_open_desc">يفتح صفحة النموذج مباشرة في لوحة Groq</string>
+    <string name="voice_terms_check">فحص الصوت الآن</string>
+    <string name="voice_terms_check_desc">يجرب النموذجين ويعرض هل الشروط مقبولة</string>
+    <string name="voice_terms_checking">جارٍ الفحص…</string>
+    <string name="voice_terms_help">الشروط لا تظهر في الصفحة الرئيسية لـ Groq. اضغط أحد الزرين أعلاه، سجّل الدخول بنفس حساب المفتاح، وستظهر نافذة قبول الشروط داخل Playground. اقبلها ثم ارجع واضغط فحص الصوت الآن. إن كان الحساب ضمن منظمة فيجب أن يقبلها مدير المنظمة.</string>
+    <string name="voice_terms_ok">جاهز</string>
+    <string name="voice_terms_needed">الشروط غير مقبولة</string>
+    <string name="voice_terms_rate">بلغ الحد</string>
+    <string name="voice_terms_auth">المفتاح مرفوض</string>
+    <string name="voice_terms_error">خطأ</string>
 </resources>

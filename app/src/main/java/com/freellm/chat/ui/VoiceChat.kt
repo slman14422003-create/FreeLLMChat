@@ -52,6 +52,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.freellm.chat.FreeLlmApp
 import com.freellm.chat.R
 import com.freellm.chat.data.VoiceException
+import com.freellm.chat.data.GroqVoice
 import com.freellm.chat.data.VoiceFail
 import com.freellm.chat.domain.SpeechSplitter
 import com.freellm.chat.domain.SpeechText
@@ -421,6 +422,17 @@ fun VoiceChat(vm: ChatViewModel, speaker: Speaker, onClose: () -> Unit) {
                     Text(reply, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center, maxLines = 5)
                 }
                 status?.let { Text(stringResource(it), style = MaterialTheme.typography.labelMedium, color = cs.error, textAlign = TextAlign.Center) }
+                if (status == R.string.voice_err_terms) {
+                    val uri = androidx.compose.ui.platform.LocalUriHandler.current
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        androidx.compose.material3.TextButton(onClick = { uri.openUri(GroqVoice.termsUrl(false)) }) {
+                            Text(stringResource(R.string.voice_terms_en))
+                        }
+                        androidx.compose.material3.TextButton(onClick = { uri.openUri(GroqVoice.termsUrl(true)) }) {
+                            Text(stringResource(R.string.voice_terms_ar))
+                        }
+                    }
+                }
                 if (phase == VoicePhase.SPEAKING) {
                     Text(stringResource(R.string.voice_tap_skip), style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant)
                 }
