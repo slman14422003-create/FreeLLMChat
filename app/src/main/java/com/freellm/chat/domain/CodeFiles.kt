@@ -11,6 +11,42 @@ object CodeFiles {
             "and write its relative path alone on the line right before the fence, exactly like: File: app/src/Main.kt. " +
             "Include every file needed to build and run the project. Never shorten a file with placeholders or ellipses."
 
+    const val ZIP_SYSTEM =
+        "The user wants a ZIP of the result. Give every file in its own fenced code block with its relative path alone on the line right before the fence, like: File: app/src/Main.kt. " +
+            "Put each file's complete content in the block, no placeholders. " +
+            "After the last file, end the whole reply with exactly one final line: [[EXPORT_ZIP:project-name.zip]] using a short ascii name. " +
+            "The app reads that line and builds the ZIP from your files by itself. Never describe manual zipping and never print zip shell commands."
+
+    private val zipWord = Regex("\\bzip\\b|\u0645\u0636\u063a\u0648\u0637|\u0636\u063a\u0637|\u0632\u064a\u0628", RegexOption.IGNORE_CASE)
+    private val zipCmd = Regex("\\[\\[\\s*EXPORT_ZIP\\s*(?::\\s*([^\\]\\s]*))?\\s*]]", RegexOption.IGNORE_CASE)
+    private val badName = Regex("[^A-Za-z0-9._\\-]")
+
+    fun wantsZip(question: String): Boolean = zipWord.containsMatchIn(question)
+
+    fun zipCommand(content: String): String? {
+        val m = zipCmd.find(content) ?: return null
+        var n = badName.replace(m.groupValues[1].trim(), "").trim('.', '-', '_')
+        if (n.isEmpty()) n = "project"
+        if (!n.endsWith(".zip", true)) n += ".zip"
+        return n
+    }
+
+    fun stripCommand(text: String): String {
+        if (text.indexOf('[') < 0) return text
+        var t = zipCmd.replace(text, "")
+        val i = t.lastIndexOf("[[")
+        if (i >= 0) {
+            val tail = t.substring(i)
+            if (tail.indexOf(']') < 0 && tail.length <= 60) {
+                val head = tail.take(12).uppercase()
+                if ("[[EXPORT_ZIP".startsWith(head) || head.startsWith("[[EXPORT_ZIP")) t = t.substring(0, i)
+            }
+        }
+        return t.trimEnd()
+    }
+
+    fun fileLabel(line: String): String? = label(line)
+
     private val fence = Regex("^\\s{0,3}(`{3,}|~{3,})\\s*(.*)$")
     private val pathSeg = Regex("^[\\w@+.\\-]+(?:/[\\w@+.\\-]+)*$")
     private val extension = Regex(".*\\.[A-Za-z][A-Za-z0-9]{0,11}$")
@@ -65,7 +101,7 @@ object CodeFiles {
     }
 
     fun extract(markdown: String): List<CodeFile> {
-        val lines = markdown.lines()
+        val lines = ThinkSplit.strip(markdown).lines()
         val out = LinkedHashMap<String, String>()
         var total = 0
         var i = 0

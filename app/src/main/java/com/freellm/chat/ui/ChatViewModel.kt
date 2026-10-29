@@ -539,7 +539,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
             list.asReversed().map { m ->
                 val atts = AttachmentCodec.decode(m.attachments)
                 if (m.role != "user" || atts.isEmpty()) {
-                    ChatMsg(m.role, m.content)
+                    ChatMsg(m.role, if (m.role == "assistant") com.freellm.chat.domain.ThinkSplit.strip(m.content) else m.content)
                 } else {
                     val imgs = ArrayList<String>()
                     for (a in atts.filter { it.isImage }.asReversed()) {
@@ -640,7 +640,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                 val out = app.sideTasks.run(
                     manager.activeTargets(),
                     ContextPlanner.SUMMARY_SYSTEM,
-                    ContextPlanner.summaryPrompt(conv.summary, pending.map { ChatMsg(it.role, it.content) }),
+                    ContextPlanner.summaryPrompt(conv.summary, pending.map { ChatMsg(it.role, com.freellm.chat.domain.ThinkSplit.strip(it.content)) }),
                     260
                 ) ?: return@launch
                 repo.setSummary(cid, ContextPlanner.clean(out), pending.last().id)
@@ -697,7 +697,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                 val have = conv?.summary.orEmpty()
                 val upTo = conv?.summarizedUpTo ?: 0L
                 val pending = older.filter { it.id > upTo }
-                val extra = if (pending.isEmpty() && have.isNotEmpty()) "" else ContextPlanner.digest(pending.map { ChatMsg(it.role, it.content) })
+                val extra = if (pending.isEmpty() && have.isNotEmpty()) "" else ContextPlanner.digest(pending.map { ChatMsg(it.role, com.freellm.chat.domain.ThinkSplit.strip(it.content)) })
                 summaryLine = listOf(have, extra).filter { it.isNotEmpty() }.joinToString("\n")
             }
         }
@@ -878,7 +878,8 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
             systemPrompt(cid, !projectMode), if (followUp) CONTINUITY_PROMPT else "", hint, deep, memory, summaryText,
             AnswerPolicy.build(AnswerPolicy.spec(lastUser, styleNow, bundle)),
             if (toolSpecs.isNotEmpty()) ToolProtocol.system(toolSpecs, projectMode) else "",
-            if (voiceMode) VOICE_PROMPT else ""
+            if (voiceMode) VOICE_PROMPT else "",
+            if (!projectMode && com.freellm.chat.domain.CodeFiles.wantsZip(lastUser)) com.freellm.chat.domain.CodeFiles.ZIP_SYSTEM else ""
         ).filter { it.isNotEmpty() }.joinToString("\n")
         val temp = if (app.settings.answerTemperature.first()) TemperaturePolicy.pick(kind, cls, bundle != null) else null
         val maxTok = when {

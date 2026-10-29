@@ -9,6 +9,8 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
+import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.BorderStroke
@@ -18,8 +20,18 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -59,6 +71,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
@@ -101,7 +114,7 @@ fun CameraCapture(onDone: (List<Uri>) -> Unit, onClose: () -> Unit) {
     val executor = remember { ContextCompat.getMainExecutor(ctx) }
     val previewView = remember {
         PreviewView(ctx).apply {
-            scaleType = PreviewView.ScaleType.FILL_CENTER
+            scaleType = PreviewView.ScaleType.FIT_CENTER
             implementationMode = PreviewView.ImplementationMode.COMPATIBLE
         }
     }
@@ -128,8 +141,10 @@ fun CameraCapture(onDone: (List<Uri>) -> Unit, onClose: () -> Unit) {
             try {
                 val p = future.get()
                 provider = p
-                val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
+                val sel = ResolutionSelector.Builder().setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY).build()
+                val preview = Preview.Builder().setResolutionSelector(sel).build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
                 val ic = ImageCapture.Builder()
+                    .setResolutionSelector(sel)
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
                     .setFlashMode(flash)
                     .build()
@@ -150,6 +165,7 @@ fun CameraCapture(onDone: (List<Uri>) -> Unit, onClose: () -> Unit) {
         val ic = capture ?: return
         if (busy || shots.size >= MAX_SHOTS) return
         busy = true
+        previewView.display?.let { ic.targetRotation = it.rotation }
         val f = File(ctx.cacheDir, "cam_" + System.currentTimeMillis() + ".jpg")
         ic.takePicture(
             ImageCapture.OutputFileOptions.Builder(f).build(),
@@ -169,17 +185,22 @@ fun CameraCapture(onDone: (List<Uri>) -> Unit, onClose: () -> Unit) {
     }
 
     val chosen = shots.count { it.selected }
+    val full = busy || shots.size >= MAX_SHOTS
 
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Box(Modifier.fillMaxSize().background(Color.Black)) {
-            AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+    Dialog(
+        onDismissRequest = onClose,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+    ) {
+        BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
+            val landscape = maxWidth > maxHeight
+            val shortSide = if (landscape) maxHeight else maxWidth
+            val shutter = (shortSide * 0.2f).coerceIn(56.dp, 80.dp)
+            val thumb = if (shortSide < 360.dp) 52.dp else 64.dp
 
-            Row(
-                Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            val closeBtn: @Composable () -> Unit = {
                 RoundTool(onClose) { Icon(Icons.Outlined.Close, stringResource(R.string.camera_close), tint = Color.White) }
+            }
+            val flashBtn: @Composable () -> Unit = {
                 RoundTool({
                     flash = when (flash) {
                         ImageCapture.FLASH_MODE_OFF -> ImageCapture.FLASH_MODE_AUTO
@@ -198,65 +219,129 @@ fun CameraCapture(onDone: (List<Uri>) -> Unit, onClose: () -> Unit) {
                     )
                 }
             }
-
-            if (failed) {
-                Text(
-                    stringResource(R.string.camera_error),
-                    Modifier.align(Alignment.Center).padding(24.dp),
-                    color = Color.White,
-                    textAlign = TextAlign.Center
+            val flipBtn: @Composable () -> Unit = {
+                RoundTool({ lens = if (lens == CameraSelector.LENS_FACING_BACK) CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK }) {
+                    Icon(Icons.Outlined.FlipCameraAndroid, stringResource(R.string.camera_flip), tint = Color.White)
+                }
+            }
+            val shutterBtn: @Composable () -> Unit = {
+                Box(
+                    Modifier
+                        .size(shutter)
+                        .clip(CircleShape)
+                        .border(BorderStroke(4.dp, Color.White), CircleShape)
+                        .padding(6.dp)
+                        .clip(CircleShape)
+                        .background(if (full) Color.Gray else Color.White)
+                        .clickable(enabled = !full && capture != null) { shoot() }
                 )
             }
+            val doneBtn: @Composable () -> Unit = {
+                Button(onClick = { onDone(shots.filter { it.selected }.map { Uri.fromFile(it.file) }) }, enabled = chosen > 0) {
+                    Text(stringResource(R.string.camera_done, chosen), maxLines = 1)
+                }
+            }
+            val preview: @Composable (Modifier) -> Unit = { mod ->
+                Box(mod.background(Color.Black), contentAlignment = Alignment.Center) {
+                    AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+                    if (failed) {
+                        Text(
+                            stringResource(R.string.camera_error),
+                            Modifier.padding(24.dp),
+                            color = Color.White,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+            val hint: @Composable () -> Unit = {
+                Text(
+                    stringResource(R.string.camera_hint),
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2
+                )
+            }
+            val toggleShot: (Int) -> Unit = { i -> shots = shots.mapIndexed { j, x -> if (j == i) x.copy(selected = !x.selected) else x } }
+            val deleteShot: (Int) -> Unit = { i ->
+                shots[i].file.delete()
+                shots = shots.filterIndexed { j, _ -> j != i }
+            }
 
-            Column(
-                Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color(0x66000000)).padding(vertical = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                if (shots.isNotEmpty()) {
-                    Text(
-                        stringResource(R.string.camera_hint),
-                        Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                        color = Color.White,
-                        style = MaterialTheme.typography.labelMedium,
-                        textAlign = TextAlign.Center
-                    )
-                    LazyRow(
-                        Modifier.fillMaxWidth(),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            if (!landscape) {
+                Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        itemsIndexed(shots, key = { _, s -> s.file.path }) { i, s ->
-                            ShotThumb(
-                                s,
-                                onToggle = { shots = shots.mapIndexed { j, x -> if (j == i) x.copy(selected = !x.selected) else x } },
-                                onDelete = {
-                                    s.file.delete()
-                                    shots = shots.filterIndexed { j, _ -> j != i }
+                        closeBtn()
+                        flashBtn()
+                    }
+                    preview(Modifier.weight(1f).fillMaxWidth())
+                    Column(
+                        Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (shots.isNotEmpty()) {
+                            hint()
+                            LazyRow(
+                                Modifier.fillMaxWidth(),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                itemsIndexed(shots, key = { _, s -> s.file.path }) { i, s ->
+                                    ShotThumb(s, thumb, onToggle = { toggleShot(i) }, onDelete = { deleteShot(i) })
                                 }
-                            )
+                            }
+                        }
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) { flipBtn() }
+                            shutterBtn()
+                            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) { doneBtn() }
                         }
                     }
                 }
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RoundTool({ lens = if (lens == CameraSelector.LENS_FACING_BACK) CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK }) {
-                        Icon(Icons.Outlined.FlipCameraAndroid, stringResource(R.string.camera_flip), tint = Color.White)
-                    }
-                    Box(
-                        Modifier
-                            .size(76.dp)
-                            .clip(CircleShape)
-                            .border(BorderStroke(4.dp, Color.White), CircleShape)
-                            .padding(7.dp)
-                            .clip(CircleShape)
-                            .background(if (busy || shots.size >= MAX_SHOTS) Color.Gray else Color.White)
-                            .clickable(enabled = !busy && capture != null && shots.size < MAX_SHOTS) { shoot() }
-                    )
-                    Button(onClick = { onDone(shots.filter { it.selected }.map { Uri.fromFile(it.file) }) }, enabled = chosen > 0) {
-                        Text(stringResource(R.string.camera_done, chosen))
+            } else {
+                Row(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+                    preview(Modifier.weight(1f).fillMaxHeight())
+                    Column(
+                        Modifier.fillMaxHeight().width(if (shortSide < 360.dp) 132.dp else 156.dp).padding(horizontal = 10.dp, vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            closeBtn()
+                            flashBtn()
+                        }
+                        if (shots.isNotEmpty()) {
+                            LazyColumn(
+                                Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                items(shots.size, key = { shots[it].file.path }) { i ->
+                                    ShotThumb(shots[i], thumb, onToggle = { toggleShot(i) }, onDelete = { deleteShot(i) })
+                                }
+                            }
+                        } else {
+                            Spacer(Modifier.weight(1f))
+                        }
+                        shutterBtn()
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            flipBtn()
+                            doneBtn()
+                        }
                     }
                 }
             }
@@ -273,14 +358,14 @@ private fun RoundTool(onClick: () -> Unit, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun ShotThumb(shot: Shot, onToggle: () -> Unit, onDelete: () -> Unit) {
+private fun ShotThumb(shot: Shot, size: Dp, onToggle: () -> Unit, onDelete: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     val bmp by produceState<Bitmap?>(null, shot.file) {
         value = withContext(Dispatchers.IO) { decodeThumb(shot.file, 240) }
     }
     Box(
         Modifier
-            .size(68.dp)
+            .size(size)
             .clip(RoundedCornerShape(12.dp))
             .border(BorderStroke(if (shot.selected) 3.dp else 1.dp, if (shot.selected) cs.primary else Color.Gray), RoundedCornerShape(12.dp))
             .clickable { onToggle() }

@@ -293,6 +293,20 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
             }
         }
     }
+    val latestMessages by androidx.compose.runtime.rememberUpdatedState(messages)
+    var wasGenerating by remember { mutableStateOf(false) }
+    LaunchedEffect(generating) {
+        if (wasGenerating && !generating) {
+            kotlinx.coroutines.delay(400)
+            val last = latestMessages.lastOrNull { it.role != "user" }
+            val name = last?.let { com.freellm.chat.domain.CodeFiles.zipCommand(it.content) }
+            if (last != null && name != null && com.freellm.chat.domain.CodeFiles.extract(last.content).isNotEmpty()) {
+                zipMsg = last
+                saveZip.launch(name)
+            }
+        }
+        wasGenerating = generating
+    }
     val savePdf = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
         val j = pdfJob
         if (uri != null && j != null) vm.savePdf(uri, j.text, j.images)
@@ -509,7 +523,7 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                                 onEdit = { editing = it },
                                 onDelete = { vm.deleteMessage(it) },
                                 onPdf = {
-                                    pdfJob = PdfJob(it.content, emptyList())
+                                    pdfJob = PdfJob(com.freellm.chat.domain.ThinkSplit.strip(it.content), emptyList())
                                     savePdf.launch("chat.pdf")
                                 },
                                 onCard = {
@@ -520,7 +534,7 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                                     zipMsg = it
                                     saveZip.launch(com.freellm.chat.domain.CodeFiles.projectName(com.freellm.chat.domain.CodeFiles.extract(it.content)) + ".zip")
                                 },
-                                onSpeak = { speaker.toggle(it.content) },
+                                onSpeak = { speaker.toggle(com.freellm.chat.domain.CodeFiles.stripCommand(com.freellm.chat.domain.ThinkSplit.strip(it.content))) },
                                 onRate = { msg, good -> vm.rate(msg, good) }
                             )
                         }
@@ -1296,6 +1310,11 @@ private fun MessageItem(
     val hasZip = remember(m.content, m.notes) {
         m.role != "user" && (m.notes?.contains("📁") == true || com.freellm.chat.domain.CodeFiles.extract(m.content).isNotEmpty())
     }
+    val parts = remember(m.content) {
+        if (m.role == "user") com.freellm.chat.domain.ThinkParts("", false, m.content) else com.freellm.chat.domain.ThinkSplit.split(m.content)
+    }
+    val clean = remember(parts) { if (m.role == "user") m.content else com.freellm.chat.domain.CodeFiles.stripCommand(parts.answer) }
+    val zipName = remember(m.content) { if (m.role != "user") com.freellm.chat.domain.CodeFiles.zipCommand(m.content) else null }
     val clip = LocalClipboardManager.current
     val ctx = LocalContext.current
     var menu by remember { mutableStateOf(false) }
@@ -1304,13 +1323,13 @@ private fun MessageItem(
     val isUser = m.role == "user"
     val copiedMsg = stringResource(R.string.copied)
     val doCopy = {
-        clip.setText(AnnotatedString(m.content))
+        clip.setText(AnnotatedString(clean))
         Toast.makeText(ctx, copiedMsg, Toast.LENGTH_SHORT).show()
     }
     val doShare = {
         val send = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
-            putExtra(Intent.EXTRA_TEXT, m.content)
+            putExtra(Intent.EXTRA_TEXT, clean)
         }
         ctx.startActivity(Intent.createChooser(send, null))
     }
@@ -1355,7 +1374,13 @@ private fun MessageItem(
             }
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                MarkdownText(m.content)
+                if (parts.thoughts.isNotEmpty()) ThinkChip(parts)
+                if (clean.isNotEmpty()) MarkdownText(clean)
+                if (zipName != null && hasZip) {
+                    androidx.compose.material3.OutlinedButton(onClick = { onZip(m) }) {
+                        Text(stringResource(R.string.zip_ready, zipName))
+                    }
+                }
                 if (!m.modelName.isNullOrBlank()) ModelBadge(m.modelName)
                 val srcs = remember(m.sources) { SourcesPrompt.decode(m.sources) }
                 if (srcs.isNotEmpty()) SourcesRow(srcs)
@@ -1576,9 +1601,11 @@ private fun StreamItem(
 ) {
     val cs = MaterialTheme.colorScheme
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        if (s.text.isNotEmpty()) {
-            MarkdownText(s.text)
-        } else if (s.active) {
+        val parts = remember(s.text) { com.freellm.chat.domain.ThinkSplit.split(s.text) }
+        if (parts.thoughts.isNotEmpty()) ThinkChip(parts)
+        if (parts.answer.isNotEmpty()) {
+            MarkdownText(com.freellm.chat.domain.CodeFiles.stripCommand(parts.answer))
+        } else if (s.active && !parts.thinking) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 StarBurst(size = 20.dp, spinning = true)
                 Spacer(Modifier.width(10.dp))
