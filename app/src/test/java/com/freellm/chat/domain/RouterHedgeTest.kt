@@ -9,6 +9,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class RouterHedgeTest {
     private fun tgt(provider: String, priority: Int, reasoning: Boolean = false) = Target(
         providerId = provider,
