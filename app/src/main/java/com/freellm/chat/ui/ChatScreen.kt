@@ -256,6 +256,19 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
             onClose = { dictOn = false }
         )
     }
+    var cameraOn by remember { mutableStateOf(false) }
+    val askCamera = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) cameraOn = true else Toast.makeText(ctx, ctx.getString(R.string.camera_denied), Toast.LENGTH_LONG).show()
+    }
+    if (cameraOn) {
+        CameraCapture(
+            onDone = { uris ->
+                cameraOn = false
+                if (uris.isNotEmpty()) vm.attachImages(uris)
+            },
+            onClose = { cameraOn = false }
+        )
+    }
     var voiceOn by remember { mutableStateOf(false) }
     val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) voiceOn = true else Toast.makeText(ctx, ctx.getString(R.string.voice_denied), Toast.LENGTH_LONG).show()
@@ -550,6 +563,12 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                     pending = pendingAtt,
                     importing = importingAtt,
                     onPickImage = { pickImages.launch("image/*") },
+                    onCamera = {
+                        val has = androidx.core.content.ContextCompat.checkSelfPermission(
+                            ctx, android.Manifest.permission.CAMERA
+                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                        if (has) cameraOn = true else askCamera.launch(android.Manifest.permission.CAMERA)
+                    },
                     onPickFile = { pickFile.launch(arrayOf("*/*")) },
                     onPickPdfImages = { pickPdfImages.launch(arrayOf("application/pdf")) },
                     onRemove = { vm.removePending(it) },
@@ -787,6 +806,7 @@ private fun Composer(
     pending: List<Attachment>,
     importing: Boolean,
     onPickImage: () -> Unit,
+    onCamera: () -> Unit = {},
     onPickFile: () -> Unit,
     onPickPdfImages: () -> Unit,
     onRemove: (Attachment) -> Unit,
@@ -864,6 +884,10 @@ private fun Composer(
                     Icon(Icons.Outlined.AttachFile, stringResource(R.string.attach), Modifier.size(22.dp))
                 }
                 DropdownMenu(expanded = attachMenu, onDismissRequest = { attachMenu = false }) {
+                    DropdownMenuItem(text = { Text(stringResource(R.string.attach_camera)) }, onClick = {
+                        attachMenu = false
+                        onCamera()
+                    })
                     DropdownMenuItem(text = { Text(stringResource(R.string.attach_photo)) }, onClick = {
                         attachMenu = false
                         onPickImage()

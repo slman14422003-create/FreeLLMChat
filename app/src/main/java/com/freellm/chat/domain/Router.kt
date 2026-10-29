@@ -162,6 +162,28 @@ object ContextTrimmer {
     }
 }
 
+internal fun baseProviderId(t: Target): String = t.providerId.substringBefore('#')
+
+internal fun baseKey(t: Target): String = baseProviderId(t) + "/" + t.model.id
+
+internal fun groupKeys(list: List<Target>): List<Target> {
+    val out = ArrayList<Target>(list.size)
+    val seen = BooleanArray(list.size)
+    for (i in list.indices) {
+        if (seen[i]) continue
+        seen[i] = true
+        out.add(list[i])
+        val k = baseKey(list[i])
+        for (j in i + 1 until list.size) {
+            if (!seen[j] && baseKey(list[j]) == k) {
+                seen[j] = true
+                out.add(list[j])
+            }
+        }
+    }
+    return out
+}
+
 private class Chunk(val text: String?, val error: Throwable?)
 
 private class Lane(val t: Target, val ch: ReceiveChannel<Chunk>, val opened: Long)
@@ -190,14 +212,14 @@ class Router(
 
     internal fun order(req: RouteRequest): List<Target> {
         val pool = if (req.needsVision) req.candidates.filter { it.model.vision } else req.candidates
-        if (req.mode == ChatMode.PINNED) return pool.filter { it.key == req.pinnedKey }
+        if (req.mode == ChatMode.PINNED) return pool.filter { baseKey(it) == req.pinnedKey }
         val wanted = when (req.mode) {
             ChatMode.FAST -> "fast"
             ChatMode.SMART -> "smart"
             ChatMode.CODE -> "code"
             else -> null
         }
-        return pool.sortedWith(
+        return groupKeys(pool.sortedWith(
             compareBy<Target>(
                 { if (req.estimatedTokens > 0 && !RequestFitter.fits(it, req.estimatedTokens)) 1 else 0 },
                 { if (req.preferredKey != null && it.key == req.preferredKey) 0 else 1 },
@@ -210,7 +232,7 @@ class Router(
                 { it.model.priority },
                 { it.providerRank }
             )
-        )
+        ))
     }
 
     private fun firstTokenMs(t: Target): Long =
@@ -229,7 +251,7 @@ class Router(
         val rest = ordered.dropWhile { it != t }.drop(1).filter {
             it.key !in consumed && health.blockedUntil(it, clock()) == null && limiter.blockedUntil(it, clock()) == null
         }
-        return rest.firstOrNull { it.providerId != t.providerId } ?: rest.firstOrNull()
+        return rest.firstOrNull { baseProviderId(it) != baseProviderId(t) } ?: rest.firstOrNull()
     }
 
     private fun buildMessages(req: RouteRequest, t: Target, partial: String): List<ChatMsg> {
@@ -292,7 +314,8 @@ class Router(
 
         for (t in ordered) {
             if (t.key in consumed) continue
-            if (!pinned) {
+            val skipBlocked = !pinned || (ordered.size > 1 && t !== ordered.last())
+            if (skipBlocked) {
                 val until = health.blockedUntil(t, clock())
                 if (until != null) {
                     if (until == Long.MAX_VALUE) {
@@ -304,7 +327,7 @@ class Router(
                     continue
                 }
             }
-            if (!pinned) {
+            if (skipBlocked) {
                 val lim = limiter.blockedUntil(t, clock())
                 if (lim != null) {
                     reasons.putIfAbsent(t.providerName, FailReason(t.providerName, ReasonKind.USAGE_LIMIT))
@@ -455,8 +478,12 @@ class Router(
                 val ex = classify(e)
                 fail(cur, ex)
                 if (pinned) {
-                    emit(failure(reasons.values.toList(), soonest, clock(), true))
-                    return@flow
+                    val moreKeys = ordered.dropWhile { it != cur }.drop(1).isNotEmpty()
+                    val switchable = ex.kind == ErrorKind.RATE_LIMIT || ex.kind == ErrorKind.PAYMENT || ex.kind == ErrorKind.AUTH
+                    if (!(moreKeys && switchable)) {
+                        emit(failure(reasons.values.toList(), soonest, clock(), true))
+                        return@flow
+                    }
                 }
                 if (got && (partial.length < config.restartBelowChars || ex.message == "poor output")) {
                     partial.clear()

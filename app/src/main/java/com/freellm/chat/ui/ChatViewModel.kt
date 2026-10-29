@@ -1001,8 +1001,13 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                     }
                     is RouteEvent.AuthFailed -> {
                         val name = all.firstOrNull { it.providerId == ev.providerId }?.providerName ?: ev.providerId
-                        if ('#' !in ev.providerId) manager.markFailed(ev.providerId)
-                        notice.value = app.getString(R.string.provider_disabled_notice, name)
+                        val keyCount = withContext(kotlinx.coroutines.Dispatchers.IO) { manager.keysOf(ev.providerId.substringBefore('#')).size }
+                        if (keyCount > 1) {
+                            notice.value = app.getString(R.string.key_rejected_notice, name)
+                        } else {
+                            if ('#' !in ev.providerId) manager.markFailed(ev.providerId)
+                            notice.value = app.getString(R.string.provider_disabled_notice, name)
+                        }
                     }
                     is RouteEvent.Done -> {
                         target = ev.target
