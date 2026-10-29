@@ -1,24 +1,5 @@
 {
-  "runs": [
-    "2026-10-29"
-  ],
+  "runs": [],
   "streaks": {},
-  "dead": [],
-  "latency": {
-    "kilo/nvidia/nemotron-3-ultra-550b-a55b:free": 1569,
-    "kilo/poolside/laguna-s-2.1:free": 1162,
-    "kilo/kilo-auto/free": 923,
-    "kilo/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": 409,
-    "kilo/poolside/laguna-xs-2.1:free": 440,
-    "ovh/gpt-oss-120b": 340,
-    "ovh/Meta-Llama-3_3-70B-Instruct": 3212,
-    "ovh/Mistral-Small-3.2-24B-Instruct-2506": 304,
-    "ovh/Qwen3.5-397B-A17B": 1313,
-    "ovh/gpt-oss-20b": 191,
-    "llm7/gpt-oss:20b": 2054,
-    "llm7/minimax-m2.7": 353,
-    "llm7/codestral-latest": 556,
-    "llm7/mistral-Nemo-Instruct-2407": 1131,
-    "llm7/nemotron-3-nano:30b": 1342
-  }
+  "dead": []
 }
