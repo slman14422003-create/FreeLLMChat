@@ -40,7 +40,7 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
     private val json = Json { ignoreUnknownKeys = true }
     private val mediaJson = "application/json; charset=utf-8".toMediaType()
 
-    internal class Parsed(val content: String?, val finished: Boolean, val error: String?, val length: Boolean = false)
+    internal class Parsed(val content: String?, val finished: Boolean, val error: String?, val length: Boolean = false, val reasoning: String? = null)
 
     private fun endpoint(base: String): String = base.trim().trimEnd('/') + "/chat/completions"
 
@@ -116,9 +116,11 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
             val delta = choice?.get("delta") as? JsonObject
             val prim = delta?.get("content") as? JsonPrimitive
             val content = if (prim == null || prim is JsonNull) null else prim.content
+            val rp = (delta?.get("reasoning_content") ?: delta?.get("reasoning")) as? JsonPrimitive
+            val thought = if (rp == null || rp is JsonNull) null else rp.content
             val reason = choice?.get("finish_reason") as? JsonPrimitive
             val fin = reason != null && reason !is JsonNull
-            Parsed(content, fin, null, fin && reason?.content == "length")
+            Parsed(content, fin, null, fin && reason?.content == "length", thought)
         }
     } catch (e: Exception) {
         null
@@ -228,6 +230,7 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
                 }
                 val source = r.body?.source() ?: throw LlmException(ErrorKind.EMPTY)
                 var finished = false
+                var thinking = false
                 while (true) {
                     val line = (try {
                         source.readUtf8Line()
@@ -250,10 +253,24 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
                             ProviderErrors.streamRetryAfter(msg, System.currentTimeMillis()), msg
                         )
                     }
-                    if (!p.content.isNullOrEmpty()) emit(p.content)
+                    if (!p.reasoning.isNullOrEmpty()) {
+                        if (!thinking) {
+                            thinking = true
+                            emit("<think>")
+                        }
+                        emit(p.reasoning)
+                    }
+                    if (!p.content.isNullOrEmpty()) {
+                        if (thinking) {
+                            thinking = false
+                            emit("</think>\n")
+                        }
+                        emit(p.content)
+                    }
                     if (p.length) onLength()
                     if (p.finished) finished = true
                 }
+                if (thinking) emit("</think>\n")
                 if (!finished) throw LlmException(ErrorKind.INTERRUPTED, message = "no terminator")
             }
         } finally {
