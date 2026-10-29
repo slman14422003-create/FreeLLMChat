@@ -1,5 +1,5 @@
 {
-  "version": 8,
+  "version": 7,
   "providers": [
     {
       "id": "gemini",
@@ -374,26 +374,6 @@
       ]
     },
     {
-      "id": "openai/gpt-4.1",
-      "provider": "github",
-      "displayName": "GPT-4.1 (GitHub)",
-      "priority": 21,
-      "contextWindow": 8000,
-      "modes": [
-        "smart",
-        "code"
-      ],
-      "vision": true,
-      "reasoning": false,
-      "trainsOnData": false,
-      "rpm": 10,
-      "rpd": 50,
-      "caps": [
-        "code",
-        "arabic"
-      ]
-    },
-    {
       "id": "glm-4.5-flash",
       "provider": "zai",
       "displayName": "GLM 4.5 Flash (Z.ai)",
@@ -408,26 +388,6 @@
       "caps": [
         "fast",
         "reasoning",
-        "arabic"
-      ]
-    },
-    {
-      "id": "openai/gpt-4.1-mini",
-      "provider": "github",
-      "displayName": "GPT-4.1 mini (GitHub)",
-      "priority": 24,
-      "contextWindow": 8000,
-      "modes": [
-        "fast",
-        "smart"
-      ],
-      "vision": true,
-      "reasoning": false,
-      "trainsOnData": false,
-      "rpm": 15,
-      "rpd": 150,
-      "caps": [
-        "fast",
         "arabic"
       ]
     },
@@ -484,26 +444,6 @@
       ]
     },
     {
-      "id": "meta/llama-3.3-70b-instruct",
-      "provider": "github",
-      "displayName": "Llama 3.3 70B (GitHub)",
-      "priority": 33,
-      "contextWindow": 8000,
-      "modes": [
-        "fast",
-        "smart"
-      ],
-      "vision": false,
-      "reasoning": false,
-      "trainsOnData": false,
-      "rpm": 10,
-      "rpd": 50,
-      "caps": [
-        "fast",
-        "arabic"
-      ]
-    },
-    {
       "id": "nvidia/nemotron-3.5-super-vl:free",
       "provider": "openrouter",
       "displayName": "Nemotron 3.5 Super VL",
@@ -517,25 +457,6 @@
       "rpm": 20,
       "caps": [
         "long_context"
-      ]
-    },
-    {
-      "id": "deepseek/deepseek-r1",
-      "provider": "github",
-      "displayName": "DeepSeek R1 (GitHub)",
-      "priority": 36,
-      "contextWindow": 4000,
-      "modes": [
-        "smart"
-      ],
-      "vision": false,
-      "reasoning": true,
-      "trainsOnData": false,
-      "rpm": 1,
-      "rpd": 8,
-      "caps": [
-        "reasoning",
-        "arabic"
       ]
     },
     {
@@ -1237,6 +1158,85 @@
       "rpm": 20,
       "caps": [
         "long_context"
+      ]
+    },
+    {
+      "id": "openai/gpt-4.1",
+      "provider": "github",
+      "displayName": "GPT-4.1 (GitHub)",
+      "priority": 21,
+      "contextWindow": 8000,
+      "modes": [
+        "smart",
+        "code"
+      ],
+      "vision": true,
+      "reasoning": false,
+      "trainsOnData": false,
+      "rpm": 10,
+      "rpd": 50,
+      "caps": [
+        "code",
+        "arabic"
+      ]
+    },
+    {
+      "id": "openai/gpt-4.1-mini",
+      "provider": "github",
+      "displayName": "GPT-4.1 mini (GitHub)",
+      "priority": 24,
+      "contextWindow": 8000,
+      "modes": [
+        "fast",
+        "smart"
+      ],
+      "vision": true,
+      "reasoning": false,
+      "trainsOnData": false,
+      "rpm": 15,
+      "rpd": 150,
+      "caps": [
+        "fast",
+        "arabic"
+      ]
+    },
+    {
+      "id": "meta/llama-3.3-70b-instruct",
+      "provider": "github",
+      "displayName": "Llama 3.3 70B (GitHub)",
+      "priority": 33,
+      "contextWindow": 8000,
+      "modes": [
+        "fast",
+        "smart"
+      ],
+      "vision": false,
+      "reasoning": false,
+      "trainsOnData": false,
+      "rpm": 10,
+      "rpd": 50,
+      "caps": [
+        "fast",
+        "arabic"
+      ]
+    },
+    {
+      "id": "deepseek/deepseek-r1",
+      "provider": "github",
+      "displayName": "DeepSeek R1 (GitHub)",
+      "priority": 36,
+      "contextWindow": 4000,
+      "modes": [
+        "smart"
+      ],
+      "vision": false,
+      "reasoning": true,
+      "trainsOnData": false,
+      "rpm": 1,
+      "rpd": 8,
+      "caps": [
+        "reasoning",
+        "arabic"
       ]
     }
   ]

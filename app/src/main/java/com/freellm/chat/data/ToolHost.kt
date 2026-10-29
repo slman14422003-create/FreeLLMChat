@@ -3,6 +3,7 @@ package com.freellm.chat.data
 import com.freellm.chat.FreeLlmApp
 import com.freellm.chat.domain.ChainSearch
 import com.freellm.chat.domain.DateTools
+import com.freellm.chat.domain.ExtraTools
 import com.freellm.chat.domain.ProjectTemplates
 import com.freellm.chat.domain.SearchKind
 import com.freellm.chat.domain.SearchLimits
@@ -19,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
@@ -52,6 +54,7 @@ class AppToolHost(private val app: FreeLlmApp) : ToolExecutor {
         "web_search" -> webSearch(call)
         "fetch_url" -> fetchUrl(call)
         "wikipedia" -> wikipedia(call)
+        "weather" -> weather(call)
         "run_js" -> runJs(call)
         "run_code" -> runCode(call)
         "check_syntax" -> checkSyntax(call, ctx)
@@ -60,7 +63,7 @@ class AppToolHost(private val app: FreeLlmApp) : ToolExecutor {
         "project_read" -> read(call, ctx)
         "project_list" -> list(ctx)
         "project_delete" -> delete(call, ctx)
-        else -> fail("Unknown tool: " + call.name)
+        else -> ExtraTools.run(call) ?: fail("Unknown tool: " + call.name)
     }
 
     private suspend fun calculator(call: ToolCall): ToolResult {
@@ -169,6 +172,55 @@ class AppToolHost(private val app: FreeLlmApp) : ToolExecutor {
         if (extract.isEmpty()) return ToolResult("No article found.")
         val link = "https://" + lang + ".wikipedia.org/wiki/" + URLEncoder.encode(title.replace(' ', '_'), "UTF-8")
         return ToolResult(title + "\n" + extract.take(2600) + "\nSource: " + link)
+    }
+
+    private fun numbers(o: JsonObject?, key: String): List<String> =
+        (o?.get(key) as? JsonArray)?.map { (it as? JsonPrimitive)?.contentOrNull.orEmpty() } ?: emptyList()
+
+    private fun fieldOf(o: JsonObject?, key: String): String = (o?.get(key) as? JsonPrimitive)?.contentOrNull.orEmpty()
+
+    private suspend fun weather(call: ToolCall): ToolResult {
+        val city = call.str("city").ifEmpty { call.str("query") }.ifEmpty { call.str("location") }
+        if (city.isEmpty()) return fail("city is required")
+        val lang = if (SpeechText.isArabic(city)) "ar" else "en"
+        val geo = getText("https://geocoding-api.open-meteo.com/v1/search?count=1&language=" + lang + "&name=" + URLEncoder.encode(city, "UTF-8"))
+            ?: return fail("Weather service is not reachable now.")
+        val place = try {
+            ((json.parseToJsonElement(geo) as? JsonObject)?.get("results") as? JsonArray)?.firstOrNull() as? JsonObject
+        } catch (e: Exception) {
+            null
+        } ?: return ToolResult("Place not found: " + city)
+        val lat = (place["latitude"] as? JsonPrimitive)?.doubleOrNull
+        val lon = (place["longitude"] as? JsonPrimitive)?.doubleOrNull
+        if (lat == null || lon == null) return ToolResult("Place not found: " + city)
+        val label = listOf(fieldOf(place, "name"), fieldOf(place, "admin1"), fieldOf(place, "country")).filter { it.isNotEmpty() }.distinct().joinToString(", ")
+        val url = "https://api.open-meteo.com/v1/forecast?latitude=" + lat + "&longitude=" + lon +
+            "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code" +
+            "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=3"
+        val body = getText(url) ?: return fail("Weather service is not reachable now.")
+        val root = try {
+            json.parseToJsonElement(body) as? JsonObject
+        } catch (e: Exception) {
+            null
+        } ?: return fail("Weather data could not be read.")
+        val cur = root["current"] as? JsonObject
+        val daily = root["daily"] as? JsonObject
+        val sb = StringBuilder()
+        sb.append(label).append(": ")
+            .append(fieldOf(cur, "temperature_2m")).append(" C, feels like ").append(fieldOf(cur, "apparent_temperature"))
+            .append(", humidity ").append(fieldOf(cur, "relative_humidity_2m")).append("%, wind ").append(fieldOf(cur, "wind_speed_10m")).append(" km/h, ")
+            .append(ExtraTools.weatherCode(fieldOf(cur, "weather_code").toDoubleOrNull()?.toInt() ?: -1)).append('\n')
+        val days = numbers(daily, "time")
+        val hi = numbers(daily, "temperature_2m_max")
+        val lo = numbers(daily, "temperature_2m_min")
+        val rain = numbers(daily, "precipitation_probability_max")
+        val codes = numbers(daily, "weather_code")
+        days.forEachIndexed { i, d ->
+            sb.append(d).append(": ").append(lo.getOrElse(i) { "?" }).append(" to ").append(hi.getOrElse(i) { "?" }).append(" C, rain chance ")
+                .append(rain.getOrElse(i) { "?" }).append("%, ")
+                .append(ExtraTools.weatherCode(codes.getOrElse(i) { "" }.toDoubleOrNull()?.toInt() ?: -1)).append('\n')
+        }
+        return ToolResult(sb.toString().trim() + "\nSource: open-meteo.com")
     }
 
     private suspend fun runJs(call: ToolCall): ToolResult {

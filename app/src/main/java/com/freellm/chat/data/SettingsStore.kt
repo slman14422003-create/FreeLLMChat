@@ -117,7 +117,7 @@ class SettingsStore(context: Context) {
 
     val fastSwitch: Flow<Boolean> = data.map { it[K.FAST_SWITCH] ?: true }.distinctUntilChanged()
     val toolsEnabled: Flow<Boolean> = data.map { it[K.TOOLS] ?: true }.distinctUntilChanged()
-    val toolsMode: Flow<String> = data.map { it[K.TOOLS_MODE] ?: "smart" }.distinctUntilChanged()
+    val toolsMode: Flow<String> = data.map { it[K.TOOLS_MODE] ?: "always" }.distinctUntilChanged()
     val toolsOff: Flow<Set<String>> = data.map { it[K.TOOLS_OFF] ?: emptySet() }.distinctUntilChanged()
     val runnerUrl: Flow<String> = data.map { it[K.RUNNER_URL]?.trim().orEmpty() }.distinctUntilChanged()
     val voiceStt: Flow<String> = data.map { it[K.VOICE_STT] ?: "auto" }.distinctUntilChanged()
