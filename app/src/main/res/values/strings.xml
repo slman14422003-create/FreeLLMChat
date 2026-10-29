@@ -596,4 +596,9 @@
     <string name="keys_max_reached">بلغت الحد الأقصى للمفاتيح، احذف مفتاحاً لإضافة غيره</string>
     <string name="remove_all_keys">حذف كل المفاتيح</string>
     <string name="key_rejected_notice">مفتاح %1$s مرفوض، سيُستخدم مفتاح آخر</string>
+    <string name="think_active">&#x62C;&#x627;&#x631;&#x64D; &#x627;&#x644;&#x62A;&#x641;&#x643;&#x64A;&#x631;&#x2026;</string>
+    <string name="think_done">&#x62A;&#x645; &#x627;&#x644;&#x62A;&#x641;&#x643;&#x64A;&#x631; (%1$d &#x62E;&#x637;&#x648;&#x629;)</string>
+    <string name="think_title">&#x645;&#x644;&#x62E;&#x635; &#x627;&#x644;&#x62A;&#x641;&#x643;&#x64A;&#x631;</string>
+    <string name="think_close">&#x625;&#x63A;&#x644;&#x627;&#x642;</string>
+    <string name="zip_ready">&#x62D;&#x641;&#x638; ZIP: %1$s</string>
 </resources>

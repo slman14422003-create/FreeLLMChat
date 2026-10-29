@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,17 +50,19 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.freellm.chat.R
+import com.freellm.chat.domain.CodeFiles
 
 sealed class MdBlock {
     data class Heading(val level: Int, val text: String) : MdBlock()
     data class Para(val text: String) : MdBlock()
-    data class Code(val lang: String, val code: String) : MdBlock()
+    data class Code(val lang: String, val code: String, val title: String? = null) : MdBlock()
     data class Item(val indent: Int, val marker: String, val text: String) : MdBlock()
     data class Quote(val text: String) : MdBlock()
     data class Table(val header: List<String>, val rows: List<List<String>>) : MdBlock()
     data object Rule : MdBlock()
 }
 
+private val openFenceRe = Regex("^(`{3,})(.*)$")
 private val headingRe = Regex("^(#{1,6})\\s+(.*)$")
 private val itemRe = Regex("^(\\s*)([-*+]|\\d+[.)])\\s+(.*)$")
 private val ruleRe = Regex("^(-{3,}|\\*{3,}|_{3,})$")
@@ -80,16 +83,28 @@ fun parseBlocks(src: String): List<MdBlock> {
     while (i < lines.size) {
         val line = lines[i]
         val t = line.trim()
-        if (t.startsWith("```")) {
+        val fenceOpen = openFenceRe.find(t)
+        if (fenceOpen != null) {
             flush()
-            val lang = t.removePrefix("```").trim()
+            val width = fenceOpen.groupValues[1].length
+            val lang = fenceOpen.groupValues[2].trim()
+            val prev = out.lastOrNull()
+            val prevText = when (prev) {
+                is MdBlock.Heading -> prev.text
+                is MdBlock.Para -> prev.text
+                else -> null
+            }
+            val title = prevText?.takeIf { it.length <= 200 && '\n' !in it }?.let { CodeFiles.fileLabel(it) }
+            if (title != null) out.removeAt(out.lastIndex)
             val sb = StringBuilder()
             i++
-            while (i < lines.size && !lines[i].trim().startsWith("```")) {
+            while (i < lines.size) {
+                val c = lines[i].trim()
+                if (c.length >= width && c.all { it == '`' }) break
                 sb.append(lines[i]).append('\n')
                 i++
             }
-            out.add(MdBlock.Code(lang, sb.toString().trimEnd('\n')))
+            out.add(MdBlock.Code(lang, sb.toString().trimEnd('\n'), title))
             i++
             continue
         }
@@ -262,7 +277,7 @@ private fun InlineText(text: String, style: TextStyle, modifier: Modifier = Modi
 }
 
 @Composable
-private fun CodeBlock(lang: String, code: String) {
+private fun CodeBlock(lang: String, code: String, title: String? = null) {
     val clip = LocalClipboardManager.current
     val cs = MaterialTheme.colorScheme
     val dark = cs.background.luminance() < 0.5f
@@ -284,12 +299,32 @@ private fun CodeBlock(lang: String, code: String) {
                     .padding(start = Spacing.md, end = Spacing.xxs),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    lang.ifEmpty { "code" },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = cs.onSurfaceVariant,
-                    modifier = Modifier.weight(1f)
-                )
+                if (title != null) {
+                    Icon(Icons.Outlined.Description, null, Modifier.size(14.dp), tint = cs.onSurfaceVariant)
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.labelMedium.copy(fontFamily = FontFamily.Monospace),
+                        color = cs.onSurface,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f).padding(start = Spacing.xs)
+                    )
+                    if (lang.isNotEmpty()) {
+                        Text(
+                            lang,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = cs.onSurfaceVariant,
+                            modifier = Modifier.padding(end = Spacing.xxs)
+                        )
+                    }
+                } else {
+                    Text(
+                        lang.ifEmpty { "code" },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = cs.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
                 IconButton(onClick = { clip.setText(AnnotatedString(code)) }, modifier = Modifier.size(36.dp)) {
                     Icon(Icons.Filled.ContentCopy, stringResource(R.string.copy), Modifier.size(16.dp))
                 }
@@ -321,7 +356,7 @@ private fun RenderBlock(b: MdBlock) {
             InlineText(b.text, body.copy(fontSize = size, lineHeight = size * 1.4f, fontWeight = FontWeight.Bold))
         }
         is MdBlock.Para -> InlineText(b.text, body)
-        is MdBlock.Code -> CodeBlock(b.lang, b.code)
+        is MdBlock.Code -> CodeBlock(b.lang, b.code, b.title)
         is MdBlock.Item -> Row(Modifier.padding(start = (b.indent * 16).dp)) {
             val marker = if (b.marker.first().isDigit()) b.marker else "•"
             Text(marker, style = body, modifier = Modifier.padding(end = Spacing.sm))

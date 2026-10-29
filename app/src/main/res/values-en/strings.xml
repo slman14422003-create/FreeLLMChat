@@ -596,4 +596,9 @@
     <string name="keys_max_reached">Key limit reached, delete a key to add another</string>
     <string name="remove_all_keys">Remove all keys</string>
     <string name="key_rejected_notice">%1$s key was rejected, another key will be used</string>
+    <string name="think_active">Thinking…</string>
+    <string name="think_done">Thought (%1$d steps)</string>
+    <string name="think_title">Summary</string>
+    <string name="think_close">Close</string>
+    <string name="zip_ready">Save ZIP: %1$s</string>
 </resources>
