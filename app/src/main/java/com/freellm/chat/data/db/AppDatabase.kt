@@ -19,6 +19,7 @@ abstract class AppDatabase : RoomDatabase() {
         fun create(ctx: Context): AppDatabase =
             Room.databaseBuilder(ctx.applicationContext, AppDatabase::class.java, "chat.db")
                 .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
 
         private val MIGRATION_4_5 = object : Migration(4, 5) {

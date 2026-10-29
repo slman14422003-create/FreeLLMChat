@@ -129,6 +129,7 @@ dependencies {
     implementation(libs.androidx.fragment)
     implementation(libs.reorderable)
     implementation(libs.highlights)
+    implementation(libs.mxparser)
     debugImplementation(libs.leakcanary)
 
     implementation(libs.okhttp)

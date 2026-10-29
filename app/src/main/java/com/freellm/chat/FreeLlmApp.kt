@@ -27,7 +27,7 @@ import java.net.InetAddress
 import java.util.concurrent.TimeUnit
 
 class FreeLlmApp : Application() {
-    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + com.freellm.chat.data.CrashLog.guard)
 
     val http: OkHttpClient by lazy {
         OkHttpClient.Builder()
@@ -36,6 +36,7 @@ class FreeLlmApp : Application() {
             .writeTimeout(30, TimeUnit.SECONDS)
             .protocols(listOf(Protocol.HTTP_1_1))
             .retryOnConnectionFailure(true)
+            .connectionPool(okhttp3.ConnectionPool(4, 20, TimeUnit.SECONDS))
             .dns(Ipv4FirstDns)
             .addInterceptor(com.freellm.chat.data.LanGuard.interceptor)
             .build()
@@ -49,7 +50,12 @@ class FreeLlmApp : Application() {
     val usage: UsagePrefs by lazy { UsagePrefs(this) }
     val ratings: com.freellm.chat.data.ModelRatings by lazy { com.freellm.chat.data.ModelRatings(usage) }
     val router: Router by lazy {
-        Router(client, limiter = UsageLimiter(usage), failLog = com.freellm.chat.domain.FailureLog(usage)).also { r ->
+        Router(
+            client,
+            config = com.freellm.chat.domain.RouterConfig(firstTokenTimeoutMs = 18_000, idleTimeoutMs = 15_000, hedgeMs = 6_000),
+            limiter = UsageLimiter(usage),
+            failLog = com.freellm.chat.domain.FailureLog(usage)
+        ).also { r ->
             r.onOutcome = { k, ok, ms -> ratings.outcome(k, ok, ms) }
         }
     }
@@ -74,11 +80,30 @@ class FreeLlmApp : Application() {
     val brainStore: BrainStore by lazy { BrainStore(this) }
     val db: AppDatabase by lazy { AppDatabase.create(this) }
     val chatRepo: ChatRepository by lazy { ChatRepository(db.dao()) }
+    val workspace: com.freellm.chat.data.Workspace by lazy { com.freellm.chat.data.Workspace(java.io.File(filesDir, "workspaces")) }
+    val toolHost: com.freellm.chat.data.AppToolHost by lazy { com.freellm.chat.data.AppToolHost(this) }
+    val toolRunner: com.freellm.chat.domain.ToolRunner by lazy { com.freellm.chat.domain.ToolRunner(router, toolHost) }
+    val groqVoice: com.freellm.chat.data.GroqVoice by lazy { com.freellm.chat.data.GroqVoice(this) }
     val manager: ProviderManager by lazy { ProviderManager(catalog, settings, secrets, client, router) }
 
     override fun onCreate() {
         super.onCreate()
+        com.freellm.chat.data.CrashLog.init(filesDir)
         appScope.launch { catalog.load() }
+        appScope.launch { settings.fastSwitch.collect { router.hedgeMs = if (it) 6_000L else 0L } }
+        runCatching {
+            val cm = getSystemService(android.net.ConnectivityManager::class.java)
+            cm.registerDefaultNetworkCallback(object : android.net.ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: android.net.Network) {
+                    http.connectionPool.evictAll()
+                    router.health.clearTransient()
+                }
+
+                override fun onLost(network: android.net.Network) {
+                    http.connectionPool.evictAll()
+                }
+            })
+        }
     }
 }
 

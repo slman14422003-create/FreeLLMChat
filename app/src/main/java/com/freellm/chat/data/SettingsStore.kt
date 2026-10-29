@@ -56,6 +56,20 @@ class SettingsStore(context: Context) {
         val SEARCH_PROVIDER = stringPreferencesKey("search_provider")
         val SEARCH_CACHE_HOURS = stringPreferencesKey("search_cache_hours")
         val SEARCH_LIMITS = stringPreferencesKey("search_limits")
+        val TOOLS = booleanPreferencesKey("tools_enabled")
+        val FAST_SWITCH = booleanPreferencesKey("fast_switch")
+        val TOOLS_MODE = stringPreferencesKey("tools_mode")
+        val TOOLS_OFF = stringSetPreferencesKey("tools_off")
+        val RUNNER_URL = stringPreferencesKey("runner_url")
+        val VOICE_STT = stringPreferencesKey("voice_stt")
+        val VOICE_STT_MODEL = stringPreferencesKey("voice_stt_model")
+        val VOICE_LANG = stringPreferencesKey("voice_lang")
+        val VOICE_TTS = stringPreferencesKey("voice_tts")
+        val VOICE_NAME_EN = stringPreferencesKey("voice_name_en")
+        val VOICE_NAME_AR = stringPreferencesKey("voice_name_ar")
+        val VOICE_BARGE_IN = booleanPreferencesKey("voice_barge_in")
+        val VOICE_SILENCE = stringPreferencesKey("voice_silence_ms")
+        val VOICE_DICTATION = booleanPreferencesKey("voice_dictation")
     }
 
     private val data: Flow<Preferences> = ds.data.catch { emit(emptyPreferences()) }
@@ -100,6 +114,21 @@ class SettingsStore(context: Context) {
     val searchCacheHours: Flow<Int> = data.map { it[K.SEARCH_CACHE_HOURS]?.toIntOrNull()?.coerceIn(1, 168) ?: 6 }.distinctUntilChanged()
     val searchLimits: Flow<Map<com.freellm.chat.domain.SearchKind, Int>> =
         data.map { com.freellm.chat.domain.SearchLimits.decode(it[K.SEARCH_LIMITS]) }.distinctUntilChanged()
+
+    val fastSwitch: Flow<Boolean> = data.map { it[K.FAST_SWITCH] ?: true }.distinctUntilChanged()
+    val toolsEnabled: Flow<Boolean> = data.map { it[K.TOOLS] ?: true }.distinctUntilChanged()
+    val toolsMode: Flow<String> = data.map { it[K.TOOLS_MODE] ?: "smart" }.distinctUntilChanged()
+    val toolsOff: Flow<Set<String>> = data.map { it[K.TOOLS_OFF] ?: emptySet() }.distinctUntilChanged()
+    val runnerUrl: Flow<String> = data.map { it[K.RUNNER_URL]?.trim().orEmpty() }.distinctUntilChanged()
+    val voiceStt: Flow<String> = data.map { it[K.VOICE_STT] ?: "auto" }.distinctUntilChanged()
+    val voiceSttModel: Flow<String> = data.map { it[K.VOICE_STT_MODEL] ?: "whisper-large-v3-turbo" }.distinctUntilChanged()
+    val voiceLang: Flow<String> = data.map { it[K.VOICE_LANG] ?: "auto" }.distinctUntilChanged()
+    val voiceTts: Flow<String> = data.map { it[K.VOICE_TTS] ?: "auto" }.distinctUntilChanged()
+    val voiceNameEn: Flow<String> = data.map { it[K.VOICE_NAME_EN] ?: "autumn" }.distinctUntilChanged()
+    val voiceNameAr: Flow<String> = data.map { it[K.VOICE_NAME_AR] ?: "noura" }.distinctUntilChanged()
+    val voiceBargeIn: Flow<Boolean> = data.map { it[K.VOICE_BARGE_IN] ?: false }.distinctUntilChanged()
+    val voiceSilenceMs: Flow<Int> = data.map { it[K.VOICE_SILENCE]?.toIntOrNull()?.coerceIn(500, 2500) ?: 900 }.distinctUntilChanged()
+    val voiceDictation: Flow<Boolean> = data.map { it[K.VOICE_DICTATION] ?: true }.distinctUntilChanged()
 
     private fun decode(s: String?): Map<String, String> =
         (s ?: "").split(",").mapNotNull { e ->
@@ -286,5 +315,64 @@ class SettingsStore(context: Context) {
 
     suspend fun setVerifyAnswers(v: Boolean) {
         ds.edit { it[K.VERIFY_ANSWERS] = v }
+    }
+
+    suspend fun setToolsEnabled(v: Boolean) {
+        ds.edit { it[K.TOOLS] = v }
+    }
+
+    suspend fun setToolsMode(v: String) {
+        ds.edit { it[K.TOOLS_MODE] = v }
+    }
+
+    suspend fun setToolOff(id: String, off: Boolean) {
+        ds.edit { p ->
+            val cur = p[K.TOOLS_OFF] ?: emptySet()
+            p[K.TOOLS_OFF] = if (off) cur + id else cur - id
+        }
+    }
+
+    suspend fun setRunnerUrl(v: String) {
+        ds.edit { it[K.RUNNER_URL] = v.trim() }
+    }
+
+    suspend fun setVoiceStt(v: String) {
+        ds.edit { it[K.VOICE_STT] = v }
+    }
+
+    suspend fun setVoiceSttModel(v: String) {
+        ds.edit { it[K.VOICE_STT_MODEL] = v }
+    }
+
+    suspend fun setVoiceLang(v: String) {
+        ds.edit { it[K.VOICE_LANG] = v }
+    }
+
+    suspend fun setVoiceTts(v: String) {
+        ds.edit { it[K.VOICE_TTS] = v }
+    }
+
+    suspend fun setVoiceNameEn(v: String) {
+        ds.edit { it[K.VOICE_NAME_EN] = v }
+    }
+
+    suspend fun setVoiceNameAr(v: String) {
+        ds.edit { it[K.VOICE_NAME_AR] = v }
+    }
+
+    suspend fun setVoiceBargeIn(v: Boolean) {
+        ds.edit { it[K.VOICE_BARGE_IN] = v }
+    }
+
+    suspend fun setVoiceSilenceMs(v: Int) {
+        ds.edit { it[K.VOICE_SILENCE] = v.coerceIn(500, 2500).toString() }
+    }
+
+    suspend fun setVoiceDictation(v: Boolean) {
+        ds.edit { it[K.VOICE_DICTATION] = v }
+    }
+
+    suspend fun setFastSwitch(v: Boolean) {
+        ds.edit { it[K.FAST_SWITCH] = v }
     }
 }

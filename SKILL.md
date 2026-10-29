@@ -8,7 +8,7 @@ description: Progress log and working notes for the FreeLLMChat Android project 
 - Keep existing tests passing (Router, Adaptive, UsageLimiter, LocalBrain, FailureLog, LanGuard, PromptVars).
 - Every user-visible string goes in values/strings.xml (Arabic) and values-en/strings.xml (English), no duplicate names.
 - Every new feature has a settings toggle (SettingsStore) with a beginner-friendly default.
-- Verify every import; no heavy libraries (OkHttp and kotlinx.serialization only).
+- Verify every import; keep dependencies minimal: OkHttp, kotlinx.serialization and mXparser (math). Add another library only if it is small, on Maven Central, and needs no reflection.
 - Do not edit build.yml unless the build needs it.
 
 # Status
@@ -73,3 +73,22 @@ description: Progress log and working notes for the FreeLLMChat Android project 
 - CodeFiles.kt + ZipExport.kt: file blocks in a reply (label line "File: path", info string, or first-line comment) are extracted; message menu "save as ZIP" appears only when files are found; CodeFiles.SYSTEM is appended to the system prompt.
 - VoiceChat.kt + Speaker.say + SpeechText: hands-free loop listen -> send -> speak -> listen using the on-device recognizer and TTS (works with every provider); entry from the attach menu; needs RECORD_AUDIO.
 - Tests: CodeFilesTest, ZipExportTest, SpeechTextTest, ProviderErrorsTest.
+
+## Round 5 (tools + Whisper voice)
+- Tools (domain/Tools.kt): prompt-based protocol that works with every provider. The model writes <tool_call>{json}</tool_call> or the body form <tool_call name="project_write" path="x.py">code</tool_call>; ToolRunner wraps router.stream, runs the tools, appends assistant call + <tool_result> user message and streams the next round (max 6 rounds, 8 calls per round). Raw tool markup is never shown (ToolProtocol.visibleLength withholds partial tags and dangling code fences).
+- ToolPolicy.select picks tools by keywords (smart) or all enabled (always); no tools means zero overhead. Tool turns are not cached and not learned by the local brain.
+- Executors live in data/ToolHost.kt: calculator (MathEngine, mXparser, 5 s timeout), convert (UnitConvert + open.er-api.com currencies), datetime (DateTools, Hijri), web_search (same provider/quota as chat search), fetch_url, wikipedia, run_js (hidden WebView, no network, JsRunner), run_code (optional Piston-compatible URL), check_syntax (json/xml/js), project_* (Workspace in filesDir/workspaces/<conversationId>, ProjectTemplates, exported through the existing ZIP menu when the message note starts with the folder emoji).
+- Tool steps are stored as note lines starting with the wrench emoji (no DB migration) and shown by ToolTrace.
+- Settings: Settings > Tools (master, smart/always, per-tool, runner URL, workspace) and Settings > Voice.
+- Voice: MicCapture (AudioRecord 16 kHz + VoiceVad) -> GroqVoice.transcribe (whisper-large-v3-turbo, /audio/transcriptions, via worker proxy then direct) -> chat -> SpeechSplitter -> GroqVoice.speak (Orpheus English/Arabic Saudi, wav, 190 chars per request) -> PcmPlayer. Falls back to device recognizer/TTS without a Groq key or after a TTS error (terms not accepted shows a message). Speech starts while the reply is still streaming. Optional barge-in (VOICE_COMMUNICATION source + AEC), tap the orb to skip. Composer mic uses Whisper dictation (WhisperDictation).
+- Tests: ToolsTest (protocol, policy, templates, ToolRunner), VoiceTest (VAD, WAV, splitter, units, dates).
+- Not compiled locally (no Android SDK or Maven): run `./gradlew testDebugUnitTest` and fix compile errors first. Riskiest spots: mXparser API in MathEngine, WebView bridge in JsRunner.
+
+## Round 6 (robustness)
+- Router: hedged start. If a non-reasoning model has no first token after hedgeMs (6 s, or 3x its measured latency), the next eligible model (different provider preferred) starts in parallel; the first lane that answers wins, the other is cancelled. Toggle: Settings > fast switching (Router.hedgeMs). Reasoning models get a longer first-token and idle window (RouterConfig.reasoningFactor).
+- Health: TIMEOUT and INTERRUPTED count double toward a cooldown; Health.clearTransient() reopens models cooled by generic failures. A network blip (all models cooling or NETWORK errors) triggers one automatic retry after 1 s; network callback in FreeLlmApp clears the OkHttp pool and transient cooldowns when the connection returns.
+- OpenAiClient: when a target has two bases (worker proxy + direct) the first gets a 10 s response-header budget (30 s reasoning) before the second is tried; a base that timed out or failed to connect is tried last for 2 minutes (orderedBases).
+- OkHttp pool keeps idle connections 20 s (stale sockets after Wi-Fi/mobile switches were a hang source).
+- cloudflare-worker: request body is buffered so one automatic retry on network errors and 502/503/504/52x is possible; 25 s header timeout inside a 40 s budget; /_ping endpoint; x-worker-ms header; 30 MB request cap.
+- CrashLog: last fatal or handled coroutine exception saved to files/last_crash.txt, shown in Settings with a share button; every viewModelScope launch and appScope use CrashLog.guard. Room falls back to destructive migration only on downgrade.
+- Tests: RouterHedgeTest (race, failure, reasoning window, blip retry, health).

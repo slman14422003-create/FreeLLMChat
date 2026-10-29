@@ -65,3 +65,11 @@
 -keep class com.freellm.chat.data.Attachment$$serializer { *; }
 
 -keep class androidx.biometric.** { *; }
+
+-dontwarn org.mariuszgromada.**
+-keep class org.mariuszgromada.math.mxparser.** { *; }
+
+-keepattributes JavascriptInterface
+-keepclassmembers class com.freellm.chat.data.JsRunner$Bridge {
+    @android.webkit.JavascriptInterface <methods>;
+}

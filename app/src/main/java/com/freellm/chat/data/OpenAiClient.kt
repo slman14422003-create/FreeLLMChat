@@ -7,6 +7,9 @@ import com.freellm.chat.domain.LlmException
 import com.freellm.chat.domain.ProviderErrors
 import com.freellm.chat.domain.Target
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
@@ -30,6 +33,8 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.net.SocketTimeoutException
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 
 class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
     private val json = Json { ignoreUnknownKeys = true }
@@ -119,8 +124,18 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
         null
     }
 
+    private val badBase = ConcurrentHashMap<String, Long>()
+
     private fun bases(t: Target): List<String> =
         listOf(t.baseUrl) + listOfNotNull(t.altBaseUrl.takeIf { it.isNotBlank() && it != t.baseUrl })
+
+    internal fun orderedBases(t: Target, now: Long = System.currentTimeMillis()): List<String> {
+        val all = bases(t)
+        if (all.size < 2) return all
+        val first = now - (badBase[all[0]] ?: 0L) < BAD_BASE_MS
+        val second = now - (badBase[all[1]] ?: 0L) < BAD_BASE_MS
+        return if (first && !second) listOf(all[1], all[0]) + all.drop(2) else all
+    }
 
     private fun retryable(e: LlmException): Boolean = when (e.kind) {
         ErrorKind.TIMEOUT, ErrorKind.NETWORK -> true
@@ -134,9 +149,10 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
         stream(target, messages, maxTokens, null)
 
     override fun stream(target: Target, messages: List<ChatMsg>, maxTokens: Int?, temperature: Double?): Flow<String> = flow {
-        val all = bases(target)
+        val all = orderedBases(target)
         for ((i, base) in all.withIndex()) {
             var emitted = false
+            val ttfb = if (i < all.lastIndex) (if (target.model.reasoning) TTFB_REASONING_MS else TTFB_MS) else 0L
             try {
                 val acc = StringBuilder()
                 var msgs = messages
@@ -144,7 +160,8 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
                 while (true) {
                     var cut = false
                     try {
-                        streamOnce(target, base, msgs, maxTokens, temperature) { cut = true }.collect {
+                        streamOnce(target, base, msgs, maxTokens, temperature, ttfb) { cut = true }.collect {
+                            if (!emitted) badBase.remove(base)
                             emitted = true
                             acc.append(it)
                             emit(it)
@@ -159,6 +176,7 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
                 }
                 return@flow
             } catch (e: LlmException) {
+                if (!emitted && (e.kind == ErrorKind.TIMEOUT || e.kind == ErrorKind.NETWORK)) badBase[base] = System.currentTimeMillis()
                 if (emitted || i == all.lastIndex || !retryable(e)) throw e
             }
         }
@@ -170,6 +188,7 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
         messages: List<ChatMsg>,
         maxTokens: Int?,
         temperature: Double?,
+        ttfbMs: Long = 0L,
         onLength: () -> Unit = {}
     ): Flow<String> = flow {
         val req = try {
@@ -179,13 +198,25 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
         }
         val call = http.newCall(req)
         val handle = currentCoroutineContext()[Job]?.invokeOnCompletion { call.cancel() }
+        val timedOut = AtomicBoolean(false)
+        val gotHeaders = AtomicBoolean(false)
+        val dog = if (ttfbMs > 0) CoroutineScope(Dispatchers.Default).launch {
+            delay(ttfbMs)
+            if (!gotHeaders.get()) {
+                timedOut.set(true)
+                call.cancel()
+            }
+        } else null
         try {
             val resp = try {
                 call.execute()
             } catch (e: IOException) {
+                if (timedOut.get()) throw LlmException(ErrorKind.TIMEOUT, message = hostOf(base) + " no response in " + ttfbMs / 1000 + "s")
                 if (call.isCanceled()) throw CancellationException("cancelled")
                 throw mapIo(e, base)
             }
+            gotHeaders.set(true)
+            dog?.cancel()
             resp.use { r ->
                 if (!r.isSuccessful) {
                     val txt = try {
@@ -226,6 +257,7 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
                 if (!finished) throw LlmException(ErrorKind.INTERRUPTED, message = "no terminator")
             }
         } finally {
+            dog?.cancel()
             handle?.dispose()
         }
     }.flowOn(Dispatchers.IO)
@@ -311,3 +343,6 @@ private const val AUTO_CONTINUE =
     "Continue exactly where your previous message stopped. Do not repeat anything already written and do not add any preface."
 
 private const val REASONING_MIN_TOKENS = 3000
+private const val TTFB_MS = 10_000L
+private const val TTFB_REASONING_MS = 30_000L
+private const val BAD_BASE_MS = 120_000L
