@@ -42,6 +42,8 @@ class CodeFilesTest {
         assertEquals("a/b.txt", CodeFiles.safePath("./a\\b.txt"))
         assertNull(CodeFiles.safePath("note"))
         assertEquals("Dockerfile", CodeFiles.safePath("Dockerfile"))
+        assertEquals(".gitignore", CodeFiles.safePath(".gitignore"))
+        assertNull(CodeFiles.safePath(".."))
     }
 
     @Test fun laterDuplicateOverridesEarlier() {
