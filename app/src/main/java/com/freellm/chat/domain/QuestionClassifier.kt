@@ -82,7 +82,7 @@ object AmbiguityResolver {
     }
 
     suspend fun resolve(side: SideTasks, candidates: List<Target>, text: String): QType? =
-        side.run(candidates, SYSTEM, text.take(600), 5, 1, 6_000L)?.let { parse(it) }
+        side.run(candidates, SYSTEM, text.take(600), 5, 1, 2_500L)?.let { parse(it) }
 }
 
 object ModelCaps {

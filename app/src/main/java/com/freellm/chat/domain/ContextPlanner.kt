@@ -1,7 +1,7 @@
 package com.freellm.chat.domain
 
 object ContextPlanner {
-    const val KEEP_RECENT = 8
+    const val KEEP_RECENT = 14
     const val MIN_NEW_TO_SUMMARIZE = 4
     const val MIN_CHARS_TO_SUMMARIZE = 1800
     const val MAX_SUMMARY_CHARS = 1200
@@ -16,10 +16,10 @@ object ContextPlanner {
     fun shouldUpdate(pendingCount: Int, pendingChars: Int): Boolean =
         pendingCount > 0 && (pendingCount >= MIN_NEW_TO_SUMMARIZE || pendingChars >= MIN_CHARS_TO_SUMMARIZE)
 
-    fun digest(old: List<ChatMsg>, maxChars: Int = 700): String {
+    fun digest(old: List<ChatMsg>, maxChars: Int = 1100): String {
         val lines = old.map { m ->
             val who = if (m.role == "user") "U" else "A"
-            val body = m.content.replace(Regex("\\s+"), " ").trim().take(if (m.role == "user") 140 else 90)
+            val body = m.content.replace(Regex("\\s+"), " ").trim().take(160)
             "$who: $body"
         }
         val out = StringBuilder()

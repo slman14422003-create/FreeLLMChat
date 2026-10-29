@@ -98,7 +98,7 @@ class Health(private val config: RouterConfig) {
             ErrorKind.AUTH, ErrorKind.POLICY -> authFailed.add(t.providerId)
             ErrorKind.NOT_FOUND -> dead.add(t.key)
             else -> {
-                val f = (modelFails[t.key] ?: 0) + (if (ex.kind == ErrorKind.TIMEOUT || ex.kind == ErrorKind.INTERRUPTED) 2 else 1)
+                val f = (modelFails[t.key] ?: 0) + (if (ex.kind == ErrorKind.TIMEOUT || ex.kind == ErrorKind.INTERRUPTED) 3 else 1)
                 if (f >= config.failureThreshold) {
                     val n = modelBackoff[t.key] ?: 0
                     modelUntil[t.key] = now + cooldown(null, n)
@@ -206,7 +206,7 @@ class Router(
                 { -ModelCaps.matches(it.model, req.wantCaps) },
                 { if (req.adaptive) stats.failTier(it.key) else 0 },
                 { -req.rating(it.key).coerceIn(-3, 3) },
-                { if (req.adaptive && req.preferSpeed) stats.latencyBucket(it.key) else 0 },
+                { if (req.adaptive) stats.latencyBucket(it.key) else 0 },
                 { it.model.priority },
                 { it.providerRank }
             )
@@ -222,7 +222,7 @@ class Router(
     private fun hedgeDelay(t: Target): Long {
         val base = hedgeMs
         val lat = stats.latencyMs(t.key) ?: return base
-        return (lat * 3).coerceIn(max(2500L, base / 2), base * 2)
+        return (lat * 3).coerceIn(max(1800L, base / 2), base * 2)
     }
 
     private fun pickHedge(ordered: List<Target>, t: Target, consumed: Set<String>): Target? {

@@ -711,14 +711,21 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         val adaptive = sel == "ADAPT"
         val saver = app.settings.tokenSaver.first()
         val lastUser = stored.lastOrNull { it.role == "user" }?.content.orEmpty()
-        val kind = TaskClassifier.classify(lastUser)
+        val userTurns = stored.filter { it.role == "user" }
+        val prevUser = if (userTurns.size > 1) userTurns[userTurns.size - 2].content else ""
+        val followUp = stored.size > 1
+        val shortFollowUp = followUp && lastUser.length <= FOLLOW_UP_CHARS
+        val ctxText = if (shortFollowUp && prevUser.isNotEmpty()) prevUser.take(400) + "\n" + lastUser else lastUser
+        val lastAssistantLen = stored.lastOrNull { it.role == "assistant" }?.content?.length ?: 0
+        val rawKind = TaskClassifier.classify(ctxText)
+        val kind = if (rawKind == TaskKind.QUICK && shortFollowUp && lastAssistantLen > 500) TaskKind.GENERAL else rawKind
         val lastUserMsg = stored.lastOrNull { it.role == "user" }
         val hasAtt = lastUserMsg?.let { AttachmentCodec.decode(it.attachments).isNotEmpty() } == true
         val skipLocal = skipLocalOnce
         skipLocalOnce = false
         val smart = app.settings.smartRouting.first()
-        var cls = QuestionClassifier.classify(lastUser, hasAtt)
-        if (smart && adaptive && cls.ambiguous && cont == null && exclude == null) {
+        var cls = QuestionClassifier.classify(ctxText, hasAtt)
+        if (smart && adaptive && cls.ambiguous && cont == null && exclude == null && !followUp) {
             AmbiguityResolver.resolve(app.sideTasks, all, lastUser)?.let { cls = cls.copy(type = it, ambiguous = false) }
         }
         val cacheTtl = CachePolicy.ttlMs(app.settings.cacheTtlHours.first())
@@ -746,7 +753,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                 return
             }
         }
-        if (cont == null && exclude == null && !skipLocal && !hasAtt && stored.lastOrNull()?.role == "user" &&
+        if (cont == null && exclude == null && !skipLocal && !hasAtt && !shortFollowUp && stored.lastOrNull()?.role == "user" &&
             app.settings.brainLocalFirst.first()
         ) {
             val hit = brain.best(lastUser, LOCAL_CONFIDENT)
@@ -773,7 +780,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         }
         var saved = 0
         if (saver) {
-            val c = TokenSaver.compact(history, kind)
+            val c = TokenSaver.compact(history, if (followUp && kind == TaskKind.QUICK) TaskKind.GENERAL else kind)
             history = c.messages.toMutableList()
             saved = c.savedTokens
         }
@@ -804,7 +811,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         }
         val hint = if (adaptive || saver) kind.hint else ""
         val deep = if ((app.settings.deepThink.first() || (smart && adaptive && cls.difficulty == Difficulty.HARD)) && kind != TaskKind.QUICK) DEEP_THINK_PROMPT else ""
-        val memory = if (cont == null && !hasAtt && app.settings.brainContext.first()) {
+        val memory = if (cont == null && !hasAtt && !shortFollowUp && app.settings.brainContext.first()) {
             val m = brain.search(lastUser, 2, 0.5).filter { it.entry.answer.length <= 3000 }
             if (m.isEmpty()) "" else buildString {
                 append("Past answers (use only if relevant):")
@@ -868,7 +875,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         }
         val projectMode = ToolPolicy.projectMode(toolSpecs)
         val sys = listOf(
-            systemPrompt(cid, !projectMode), hint, deep, memory, summaryText,
+            systemPrompt(cid, !projectMode), if (followUp) CONTINUITY_PROMPT else "", hint, deep, memory, summaryText,
             AnswerPolicy.build(AnswerPolicy.spec(lastUser, styleNow, bundle)),
             if (toolSpecs.isNotEmpty()) ToolProtocol.system(toolSpecs, projectMode) else "",
             if (voiceMode) VOICE_PROMPT else ""
@@ -1051,7 +1058,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                         )
                     )
                 }
-                if (error != null && finalText.isBlank() && cont == null && !hasAtt) {
+                if (error != null && finalText.isBlank() && cont == null && !hasAtt && !shortFollowUp) {
                     val fb = brain.best(lastUser, LOCAL_FALLBACK)
                     if (fb != null) {
                         brain.markUsed(fb.entry.id)
@@ -1119,6 +1126,10 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         private const val FILE_BUDGET_OLD = 350
         private const val LOCAL_CONFIDENT = 0.86
         private const val LOCAL_FALLBACK = 0.40
+        private const val FOLLOW_UP_CHARS = 80
+        private const val CONTINUITY_PROMPT =
+            "This is one continuous conversation. Earlier assistant replies may have been written by other models; treat them as your own. " +
+                "Use the earlier messages to resolve short or vague follow-ups and pronouns, and continue naturally without restarting or introducing yourself."
         private const val VOICE_PROMPT =
             "Voice conversation: answer in short, natural spoken sentences. No markdown, no lists, no code blocks, no links."
         private const val DEEP_THINK_PROMPT =
