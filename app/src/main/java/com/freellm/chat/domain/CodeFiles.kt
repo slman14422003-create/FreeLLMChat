@@ -13,7 +13,7 @@ object CodeFiles {
 
     private val fence = Regex("^\\s{0,3}(`{3,}|~{3,})\\s*(.*)$")
     private val pathSeg = Regex("^[\\w@+.\\-]+(?:/[\\w@+.\\-]+)*$")
-    private val extension = Regex(".*\\.[A-Za-z][A-Za-z0-9]{0,7}$")
+    private val extension = Regex(".*\\.[A-Za-z][A-Za-z0-9]{0,11}$")
     private val bare = setOf("Dockerfile", "Makefile", "gradlew", "Procfile", "LICENSE", "Gemfile", "Jenkinsfile")
     private val labelPrefix = Regex("^(?i:file(?:name)?|path|الملف|ملف|المسار)\\s*[:：\\-]\\s*")
     private val dotFile = Regex("^\\.[A-Za-z][A-Za-z0-9_\\-]{1,30}$")
