@@ -10,7 +10,10 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -18,6 +21,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -26,10 +31,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -184,6 +193,37 @@ fun inlineMd(text: String, codeBg: Color, linkColor: Color): AnnotatedString = b
 
 private data class CodeColors(val kw: Color, val str: Color, val num: Color, val com: Color)
 
+private fun codeColors(dark: Boolean): CodeColors =
+    if (dark) CodeColors(Color(0xFFC792EA), Color(0xFFC3E88D), Color(0xFFF78C6C), Color(0xFF8A8A8A))
+    else CodeColors(Color(0xFF7B3FBF), Color(0xFF2E7D32), Color(0xFFD35400), Color(0xFF8A8A8A))
+
+private fun fileFormat(lang: String, path: String): String {
+    val ext = path.substringAfterLast('.', "").lowercase()
+    return when (ext) {
+        "kt"         -> "Kotlin"
+        "kts"        -> "Kotlin Script"
+        "java"       -> "Java"
+        "xml"        -> "XML"
+        "gradle"     -> "Gradle"
+        "json"       -> "JSON"
+        "md","markdown" -> "Markdown"
+        "py"         -> "Python"
+        "js","jsx"   -> "JavaScript"
+        "ts","tsx"   -> "TypeScript"
+        "yml","yaml" -> "YAML"
+        "html"       -> "HTML"
+        "css","scss" -> "CSS"
+        "sh","bash"  -> "Shell"
+        "sql"        -> "SQL"
+        "txt"        -> "Text"
+        "toml"       -> "TOML"
+        "properties" -> "Properties"
+        "pro"        -> "ProGuard"
+        ""           -> lang.trim().replaceFirstChar { it.uppercase() }.ifEmpty { "File" }
+        else         -> lang.trim().replaceFirstChar { it.uppercase() }.ifEmpty { ext.uppercase() }
+    }
+}
+
 private val keywords = setOf(
     "fun", "val", "var", "if", "else", "for", "while", "return", "class", "object", "interface",
     "import", "package", "when", "in", "is", "null", "true", "false", "def", "function", "const",
@@ -277,14 +317,66 @@ private fun InlineText(text: String, style: TextStyle, modifier: Modifier = Modi
 }
 
 @Composable
-private fun CodeBlock(lang: String, code: String, title: String? = null) {
+@Composable
+private fun FileCard(lang: String, code: String, title: String) {
+    val cs = MaterialTheme.colorScheme
+    val dark = cs.background.luminance() < 0.5f
+    val colors = remember(dark) { codeColors(dark) }
+    val lineCount = remember(code) { code.count { it == '\n' } + 1 }
+    var expanded by remember(title) { mutableStateOf(lineCount <= 30) }
+    val fmt = remember(lang, title) { fileFormat(lang, title) }
+    val annotated = remember(code, lang, dark) { libHighlight(lang, code, dark) ?: highlight(code, colors) }
+    val clip = LocalClipboardManager.current
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.sm)).background(cs.surfaceVariant)
+    ) {
+        Box(Modifier.fillMaxWidth().height(2.dp).background(cs.primary))
+        Row(
+            Modifier.fillMaxWidth().clickable { expanded = !expanded }
+                .padding(start = Spacing.md, end = Spacing.xxs, top = 10.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+        ) {
+            Icon(Icons.Outlined.Description, null, Modifier.size(16.dp), tint = cs.primary)
+            Text(
+                title, Modifier.weight(1f),
+                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                color = cs.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                fmt,
+                Modifier.clip(RoundedCornerShape(4.dp)).background(cs.primaryContainer)
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                style = MaterialTheme.typography.labelSmall, color = cs.onPrimaryContainer
+            )
+            IconButton(onClick = { clip.setText(AnnotatedString(code)) }, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Filled.ContentCopy, null, Modifier.size(14.dp), tint = cs.onSurfaceVariant)
+            }
+            Icon(
+                if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                null, Modifier.size(20.dp), tint = cs.onSurfaceVariant
+            )
+        }
+        if (expanded) {
+            HorizontalDivider(color = cs.outlineVariant)
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                Text(
+                    annotated,
+                    Modifier.horizontalScroll(rememberScrollState()).padding(Spacing.md),
+                    style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 19.sp),
+                    softWrap = false
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CodeBlock(lang: String, code: String) {
     val clip = LocalClipboardManager.current
     val cs = MaterialTheme.colorScheme
     val dark = cs.background.luminance() < 0.5f
-    val colors = remember(dark) {
-        if (dark) CodeColors(Color(0xFFC792EA), Color(0xFFC3E88D), Color(0xFFF78C6C), Color(0xFF8A8A8A))
-        else CodeColors(Color(0xFF7B3FBF), Color(0xFF2E7D32), Color(0xFFD35400), Color(0xFF8A8A8A))
-    }
+    val colors = remember(dark) { codeColors(dark) }
     val annotated = remember(code, lang, dark) { libHighlight(lang, code, dark) ?: highlight(code, colors) }
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         Column(
@@ -299,32 +391,12 @@ private fun CodeBlock(lang: String, code: String, title: String? = null) {
                     .padding(start = Spacing.md, end = Spacing.xxs),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (title != null) {
-                    Icon(Icons.Outlined.Description, null, Modifier.size(14.dp), tint = cs.onSurfaceVariant)
-                    Text(
-                        title,
-                        style = MaterialTheme.typography.labelMedium.copy(fontFamily = FontFamily.Monospace),
-                        color = cs.onSurface,
-                        maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f).padding(start = Spacing.xs)
-                    )
-                    if (lang.isNotEmpty()) {
-                        Text(
-                            lang,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = cs.onSurfaceVariant,
-                            modifier = Modifier.padding(end = Spacing.xxs)
-                        )
-                    }
-                } else {
-                    Text(
-                        lang.ifEmpty { "code" },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = cs.onSurfaceVariant,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+                Text(
+                    lang.ifEmpty { "code" },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = cs.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
                 IconButton(onClick = { clip.setText(AnnotatedString(code)) }, modifier = Modifier.size(36.dp)) {
                     Icon(Icons.Filled.ContentCopy, stringResource(R.string.copy), Modifier.size(16.dp))
                 }
@@ -356,7 +428,7 @@ private fun RenderBlock(b: MdBlock) {
             InlineText(b.text, body.copy(fontSize = size, lineHeight = size * 1.4f, fontWeight = FontWeight.Bold))
         }
         is MdBlock.Para -> InlineText(b.text, body)
-        is MdBlock.Code -> CodeBlock(b.lang, b.code, b.title)
+        is MdBlock.Code -> if (b.title != null) FileCard(b.lang, b.code, b.title) else CodeBlock(b.lang, b.code)
         is MdBlock.Item -> Row(Modifier.padding(start = (b.indent * 16).dp)) {
             val marker = if (b.marker.first().isDigit()) b.marker else "•"
             Text(marker, style = body, modifier = Modifier.padding(end = Spacing.sm))
