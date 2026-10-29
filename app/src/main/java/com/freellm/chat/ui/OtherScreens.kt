@@ -103,11 +103,12 @@ private fun ChoiceDialog(
 }
 
 @Composable
-fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit, onStatus: () -> Unit, onUsage: () -> Unit, onBrain: () -> Unit, onSearch: () -> Unit, onAbout: () -> Unit, onPrivacy: () -> Unit) {
+fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit, onStatus: () -> Unit, onUsage: () -> Unit, onBrain: () -> Unit, onSearch: () -> Unit, onAbout: () -> Unit, onPrivacy: () -> Unit, onTools: () -> Unit = {}, onVoice: () -> Unit = {}) {
     val cs = MaterialTheme.colorScheme
     val theme by app.settings.theme.collectAsStateWithLifecycle(initialValue = "system")
     val proxy by app.settings.proxyUrl.collectAsStateWithLifecycle(initialValue = "")
     val autoSwitch by app.settings.autoSwitch.collectAsStateWithLifecycle(initialValue = true)
+    val fastSwitch by app.settings.fastSwitch.collectAsStateWithLifecycle(initialValue = true)
     val autoResume by app.settings.autoResume.collectAsStateWithLifecycle(initialValue = true)
     val tokenSaver by app.settings.tokenSaver.collectAsStateWithLifecycle(initialValue = true)
     val ctxSummary by app.settings.contextSummary.collectAsStateWithLifecycle(initialValue = true)
@@ -330,6 +331,22 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
                 )
                 SettingsRow(
                     Icons.Outlined.Speed,
+                    stringResource(R.string.fast_switch),
+                    stringResource(R.string.fast_switch_desc),
+                    onClick = { scope.launch { app.settings.setFastSwitch(!fastSwitch) } },
+                    trailing = {
+                        Switch(
+                            checked = fastSwitch,
+                            onCheckedChange = { scope.launch { app.settings.setFastSwitch(it) } },
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = cs.tertiary,
+                                checkedThumbColor = androidx.compose.ui.graphics.Color.White
+                            )
+                        )
+                    }
+                )
+                SettingsRow(
+                    Icons.Outlined.Speed,
                     stringResource(R.string.auto_resume),
                     stringResource(R.string.auto_resume_desc),
                     onClick = { scope.launch { app.settings.setAutoResume(!autoResume) } },
@@ -366,6 +383,19 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
                     stringResource(R.string.search_settings_desc),
                     onClick = onSearch
                 )
+                SettingsRow(
+                    Icons.Outlined.Psychology,
+                    stringResource(R.string.tools_title),
+                    stringResource(R.string.tools_desc),
+                    onClick = onTools
+                )
+                SettingsRow(
+                    Icons.Outlined.Speed,
+                    stringResource(R.string.voice_settings_title),
+                    stringResource(R.string.voice_settings_desc),
+                    onClick = onVoice
+                )
+                CrashReportRow()
                 SettingsRow(
                     Icons.Outlined.Psychology,
                     stringResource(R.string.advanced_title),
