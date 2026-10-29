@@ -5,9 +5,14 @@ package com.freellm.chat.domain
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.channels.ChannelResult
+import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.produceIn
@@ -23,7 +28,9 @@ data class RouterConfig(
     val failureThreshold: Int = 3,
     val firstTokenTimeoutMs: Long = 30_000,
     val idleTimeoutMs: Long = 20_000,
-    val restartBelowChars: Int = 20
+    val restartBelowChars: Int = 20,
+    val hedgeMs: Long = 0,
+    val reasoningFactor: Int = 2
 )
 
 sealed class ModelHealth {
@@ -41,6 +48,7 @@ class Health(private val config: RouterConfig) {
     private val providerBackoff = HashMap<String, Int>()
     private val dead = HashSet<String>()
     private val authFailed = HashSet<String>()
+    private val transientKeys = HashSet<String>()
 
     private fun cooldown(retryAfterSec: Long?, n: Int): Long {
         if (retryAfterSec != null && retryAfterSec > 0) {
@@ -90,17 +98,30 @@ class Health(private val config: RouterConfig) {
             ErrorKind.AUTH, ErrorKind.POLICY -> authFailed.add(t.providerId)
             ErrorKind.NOT_FOUND -> dead.add(t.key)
             else -> {
-                val f = (modelFails[t.key] ?: 0) + 1
+                val f = (modelFails[t.key] ?: 0) + (if (ex.kind == ErrorKind.TIMEOUT || ex.kind == ErrorKind.INTERRUPTED) 2 else 1)
                 if (f >= config.failureThreshold) {
                     val n = modelBackoff[t.key] ?: 0
                     modelUntil[t.key] = now + cooldown(null, n)
                     modelBackoff[t.key] = n + 1
                     modelFails[t.key] = 0
+                    transientKeys.add(t.key)
                 } else {
                     modelFails[t.key] = f
                 }
             }
         }
+    }
+
+    @Synchronized
+    fun clearTransient(): Boolean {
+        val any = transientKeys.isNotEmpty() || modelFails.isNotEmpty()
+        transientKeys.forEach {
+            modelUntil.remove(it)
+            modelBackoff.remove(it)
+        }
+        transientKeys.clear()
+        modelFails.clear()
+        return any
     }
 
     @Synchronized
@@ -120,6 +141,7 @@ class Health(private val config: RouterConfig) {
         providerBackoff.clear()
         dead.clear()
         authFailed.clear()
+        transientKeys.clear()
     }
 }
 
@@ -142,6 +164,8 @@ object ContextTrimmer {
 
 private class Chunk(val text: String?, val error: Throwable?)
 
+private class Lane(val t: Target, val ch: ReceiveChannel<Chunk>, val opened: Long)
+
 private const val CONTINUE_PROMPT =
     "Continue your previous reply exactly where it stopped. Do not repeat anything and do not add an introduction. أكمل ردك السابق من حيث توقفت تماماً دون تكرار ودون مقدمة."
 private const val HOLD_CHARS = 48
@@ -162,6 +186,7 @@ class Router(
     val stats = ModelStats()
     var onOutcome: ((String, Boolean, Long?) -> Unit)? = null
     private val alerted = HashSet<String>()
+    @Volatile var hedgeMs: Long = config.hedgeMs
 
     internal fun order(req: RouteRequest): List<Target> {
         val pool = if (req.needsVision) req.candidates.filter { it.model.vision } else req.candidates
@@ -186,6 +211,25 @@ class Router(
                 { it.providerRank }
             )
         )
+    }
+
+    private fun firstTokenMs(t: Target): Long =
+        if (t.model.reasoning) config.firstTokenTimeoutMs * config.reasoningFactor else config.firstTokenTimeoutMs
+
+    private fun idleMs(t: Target): Long =
+        if (t.model.reasoning) config.idleTimeoutMs * config.reasoningFactor else config.idleTimeoutMs
+
+    private fun hedgeDelay(t: Target): Long {
+        val base = hedgeMs
+        val lat = stats.latencyMs(t.key) ?: return base
+        return (lat * 3).coerceIn(max(2500L, base / 2), base * 2)
+    }
+
+    private fun pickHedge(ordered: List<Target>, t: Target, consumed: Set<String>): Target? {
+        val rest = ordered.dropWhile { it != t }.drop(1).filter {
+            it.key !in consumed && health.blockedUntil(it, clock()) == null && limiter.blockedUntil(it, clock()) == null
+        }
+        return rest.firstOrNull { it.providerId != t.providerId } ?: rest.firstOrNull()
     }
 
     private fun buildMessages(req: RouteRequest, t: Target, partial: String): List<ChatMsg> {
@@ -214,7 +258,9 @@ class Router(
         return RouteEvent.Failed(text, pinned, FailKind.ALL_FAILED, reasons, retry)
     }
 
-    fun stream(req: RouteRequest): Flow<RouteEvent> = flow {
+    fun stream(req: RouteRequest): Flow<RouteEvent> = runOnce(req, true)
+
+    private fun runOnce(req: RouteRequest, again: Boolean): Flow<RouteEvent> = flow {
         val pinned = req.mode == ChatMode.PINNED
         val ordered = order(req)
         if (ordered.isEmpty()) {
@@ -231,8 +277,21 @@ class Router(
         var shown: Target? = null
         var soonest = Long.MAX_VALUE
         var qualityRetried = false
+        val consumed = HashSet<String>()
+
+        suspend fun fail(tt: Target, ex: LlmException) {
+            reasons[tt.providerName] = FailReason(tt.providerName, ReasonKind.ERROR, ex.kind)
+            failLog.add(clock(), tt.providerName, ex.kind.name)
+            health.onFailure(tt, ex, clock())
+            stats.onFail(tt.key)
+            onOutcome?.invoke(tt.key, false, null)
+            val after = health.blockedUntil(tt, clock())
+            if (after != null && after != Long.MAX_VALUE) soonest = min(soonest, after)
+            if (ex.kind == ErrorKind.AUTH) emit(RouteEvent.AuthFailed(tt.providerId, ex.httpCode))
+        }
 
         for (t in ordered) {
+            if (t.key in consumed) continue
             if (!pinned) {
                 val until = health.blockedUntil(t, clock())
                 if (until != null) {
@@ -265,17 +324,18 @@ class Router(
             val tail = if (partial.isNotEmpty()) partial.takeLast(TAIL_CHARS).toString() else ""
             var holding = tail.isNotEmpty()
             val hold = StringBuilder()
-            val began = clock()
+            var began = clock()
+            var cur = t
 
             suspend fun push(text: String) {
                 if (text.isEmpty()) return
                 if (!got) {
                     got = true
-                    stats.onFirstToken(t.key, clock() - began)
+                    stats.onFirstToken(cur.key, clock() - began)
                     val prev = shown
-                    shown = t
-                    if (prev == null) emit(RouteEvent.Started(t))
-                    else if (prev != t) emit(RouteEvent.Switched(t))
+                    shown = cur
+                    if (prev == null) emit(RouteEvent.Started(cur))
+                    else if (prev != cur) emit(RouteEvent.Switched(cur))
                 }
                 partial.append(text)
                 emit(RouteEvent.Delta(text))
@@ -283,13 +343,71 @@ class Router(
 
             try {
                 coroutineScope {
-                    val ch = transport.stream(t, msgs, req.maxTokens, if (t.model.reasoning) null else req.temperature)
-                        .map { Chunk(it, null) }
-                        .catch { emit(Chunk(null, it)) }
-                        .produceIn(this)
+                    val scope = this
+                    fun open(tt: Target, m: List<ChatMsg>): Lane = Lane(
+                        tt,
+                        transport.stream(tt, m, req.maxTokens, if (tt.model.reasoning) null else req.temperature)
+                            .map { Chunk(it, null) }
+                            .catch { emit(Chunk(null, it)) }
+                            .produceIn(scope),
+                        clock()
+                    )
+                    val primary = open(t, msgs)
+                    val firstMs = firstTokenMs(t)
+                    val idle = idleMs(t)
+                    var ch = primary.ch
+                    var r0: ChannelResult<Chunk>? = null
+                    var waitLeft = firstMs
+                    val hedgeAfter = if (!pinned && partial.isEmpty() && hedgeMs > 0 && !t.model.reasoning) hedgeDelay(t) else 0L
+                    if (hedgeAfter in 1 until firstMs) {
+                        r0 = withTimeoutOrNull(hedgeAfter) { ch.receiveCatching() }
+                        waitLeft = firstMs - hedgeAfter
+                        val cand = if (r0 == null) pickHedge(ordered, t, consumed) else null
+                        if (cand != null) {
+                            consumed.add(cand.key)
+                            limiter.record(cand, clock())
+                            var lanes = listOf(primary, open(cand, buildMessages(req, cand, "")))
+                            val won = withTimeoutOrNull(waitLeft) {
+                                var found: Pair<Lane, ChannelResult<Chunk>>? = null
+                                while (found == null && lanes.isNotEmpty()) {
+                                    val now = lanes
+                                    val (lane, res) = select<Pair<Lane, ChannelResult<Chunk>>> {
+                                        now.forEach { l -> l.ch.onReceiveCatching { l to it } }
+                                    }
+                                    val chunk = res.getOrNull()
+                                    val err: Throwable? = if (chunk == null) LlmException(ErrorKind.EMPTY) else chunk.error
+                                    if (err != null) {
+                                        fail(lane.t, classify(err))
+                                        lane.ch.cancel()
+                                        lanes = lanes.filter { it !== lane }
+                                    } else {
+                                        found = lane to res
+                                    }
+                                }
+                                found
+                            }
+                            if (won == null) {
+                                for (l in lanes) {
+                                    fail(l.t, LlmException(ErrorKind.TIMEOUT, message = "first token timeout"))
+                                    l.ch.cancel()
+                                }
+                                return@coroutineScope
+                            }
+                            for (l in lanes) {
+                                if (l !== won.first) {
+                                    l.ch.cancel()
+                                    if (l === primary) stats.onFail(primary.t.key)
+                                }
+                            }
+                            cur = won.first.t
+                            ch = won.first.ch
+                            began = won.first.opened
+                            r0 = won.second
+                        }
+                    }
+                    if (r0 == null) r0 = withTimeoutOrNull(waitLeft) { ch.receiveCatching() }
                     try {
-                        var r = withTimeoutOrNull(config.firstTokenTimeoutMs) { ch.receiveCatching() }
-                            ?: throw LlmException(ErrorKind.TIMEOUT, message = "first token timeout")
+                        var r: ChannelResult<Chunk> = r0 ?: throw LlmException(ErrorKind.TIMEOUT, message = "first token timeout")
                         while (true) {
                             val c = r.getOrNull() ?: break
                             val err = c.error
@@ -308,7 +426,7 @@ class Router(
                                 }
                             }
                             // A stalled stream is treated like a hit limit: hand the partial text to the next model now.
-                            r = withTimeoutOrNull(config.idleTimeoutMs) { ch.receiveCatching() }
+                            r = withTimeoutOrNull(idle) { ch.receiveCatching() }
                                 ?: throw LlmException(ErrorKind.INTERRUPTED, message = "stream stalled")
                         }
                         if (holding && hold.isNotEmpty()) {
@@ -319,7 +437,7 @@ class Router(
                         if (!got) throw LlmException(ErrorKind.EMPTY)
                         if (!pinned && !qualityRetried && partial.length < QUALITY_CHECK_BELOW &&
                             OutputQuality.isPoor(partial.toString()) &&
-                            ordered.dropWhile { it != t }.drop(1).any {
+                            ordered.dropWhile { it != cur }.drop(1).any {
                                 health.blockedUntil(it, clock()) == null && limiter.blockedUntil(it, clock()) == null
                             }
                         ) {
@@ -335,14 +453,7 @@ class Router(
                 throw e
             } catch (e: Throwable) {
                 val ex = classify(e)
-                reasons[t.providerName] = FailReason(t.providerName, ReasonKind.ERROR, ex.kind)
-                failLog.add(clock(), t.providerName, ex.kind.name)
-                health.onFailure(t, ex, clock())
-                stats.onFail(t.key)
-                onOutcome?.invoke(t.key, false, null)
-                val after = health.blockedUntil(t, clock())
-                if (after != null && after != Long.MAX_VALUE) soonest = min(soonest, after)
-                if (ex.kind == ErrorKind.AUTH) emit(RouteEvent.AuthFailed(t.providerId, ex.httpCode))
+                fail(cur, ex)
                 if (pinned) {
                     emit(failure(reasons.values.toList(), soonest, clock(), true))
                     return@flow
@@ -354,10 +465,21 @@ class Router(
                 continue
             }
             if (completed) {
-                health.onSuccess(t)
-                stats.onOk(t.key)
-                onOutcome?.invoke(t.key, true, stats.latencyMs(t.key))
-                emit(RouteEvent.Done(t))
+                health.onSuccess(cur)
+                stats.onOk(cur.key)
+                onOutcome?.invoke(cur.key, true, stats.latencyMs(cur.key))
+                emit(RouteEvent.Done(cur))
+                return@flow
+            }
+        }
+        val blip = reasons.isNotEmpty() && reasons.values.all {
+            it.reason == ReasonKind.COOLING || (it.reason == ReasonKind.ERROR && it.error == ErrorKind.NETWORK)
+        }
+        if (again && !pinned && partial.isEmpty() && blip) {
+            val cleared = health.clearTransient()
+            if (cleared || reasons.values.any { it.reason == ReasonKind.ERROR }) {
+                delay(1000)
+                emitAll(runOnce(req, false))
                 return@flow
             }
         }

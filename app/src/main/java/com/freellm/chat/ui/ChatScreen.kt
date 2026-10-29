@@ -243,6 +243,19 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
             }
         }
     }
+    var dictOn by remember { mutableStateOf(false) }
+    val appCtx = ctx.applicationContext as com.freellm.chat.FreeLlmApp
+    val dictSetting by appCtx.settings.voiceDictation.collectAsStateWithLifecycle(initialValue = true)
+    val sttSetting by appCtx.settings.voiceStt.collectAsStateWithLifecycle(initialValue = "auto")
+    val askMicDict = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) dictOn = true else Toast.makeText(ctx, ctx.getString(R.string.voice_denied), Toast.LENGTH_LONG).show()
+    }
+    if (dictOn) {
+        WhisperDictation(
+            onText = { t -> input = if (input.isBlank()) t else input.trimEnd() + " " + t },
+            onClose = { dictOn = false }
+        )
+    }
     var voiceOn by remember { mutableStateOf(false) }
     val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) voiceOn = true else Toast.makeText(ctx, ctx.getString(R.string.voice_denied), Toast.LENGTH_LONG).show()
@@ -557,7 +570,13 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                         if (has) voiceOn = true else askMic.launch(android.Manifest.permission.RECORD_AUDIO)
                     },
                     onMic = {
-                        try {
+                        val whisper = dictSetting && sttSetting != "device" && appCtx.groqVoice.hasKey()
+                        if (whisper) {
+                            val has = androidx.core.content.ContextCompat.checkSelfPermission(
+                                ctx, android.Manifest.permission.RECORD_AUDIO
+                            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                            if (has) dictOn = true else askMicDict.launch(android.Manifest.permission.RECORD_AUDIO)
+                        } else try {
                             speech.launch(
                                 Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(
                                     RecognizerIntent.EXTRA_LANGUAGE_MODEL,
@@ -1192,6 +1211,36 @@ private fun ActionIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, de
 }
 
 @Composable
+private fun ToolTrace(lines: List<String>, expandedByDefault: Boolean = false) {
+    var open by remember { mutableStateOf(expandedByDefault) }
+    val cs = MaterialTheme.colorScheme
+    Column(
+        Modifier
+            .clip(RoundedCornerShape(Corners.md))
+            .background(cs.surfaceContainerHigh)
+            .clickable { open = !open }
+            .padding(horizontal = Spacing.md, vertical = 6.dp)
+    ) {
+        Text(
+            stringResource(R.string.tools_used, lines.size),
+            style = MaterialTheme.typography.labelMedium,
+            color = cs.onSurfaceVariant
+        )
+        if (open) {
+            lines.forEach { l ->
+                Text(
+                    l.removePrefix("🔧").trim(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = cs.onSurfaceVariant.copy(alpha = 0.8f),
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun NoteChip(text: String) {
     Text(
         text,
@@ -1220,7 +1269,9 @@ private fun MessageItem(
 ) {
     val cs = MaterialTheme.colorScheme
     var rated by remember(m.id) { mutableStateOf<Boolean?>(null) }
-    val hasZip = remember(m.content) { m.role != "user" && com.freellm.chat.domain.CodeFiles.extract(m.content).isNotEmpty() }
+    val hasZip = remember(m.content, m.notes) {
+        m.role != "user" && (m.notes?.contains("📁") == true || com.freellm.chat.domain.CodeFiles.extract(m.content).isNotEmpty())
+    }
     val clip = LocalClipboardManager.current
     val ctx = LocalContext.current
     var menu by remember { mutableStateOf(false) }
@@ -1295,8 +1346,10 @@ private fun MessageItem(
                     )
                 }
                 if (!isLocal) {
-                    m.notes?.split("\n")?.filter { it.isNotBlank() && !it.startsWith("⚠") }?.take(1)?.forEach { NoteChip(it) }
+                    m.notes?.split("\n")?.filter { it.isNotBlank() && !it.startsWith("⚠") && !it.startsWith("🔧") }?.take(1)?.forEach { NoteChip(it) }
                 }
+                val toolLines = m.notes?.lines()?.filter { it.startsWith("🔧") }.orEmpty()
+                if (toolLines.isNotEmpty()) ToolTrace(toolLines)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     ActionIcon(Icons.Outlined.ContentCopy, stringResource(R.string.copy)) { doCopy() }
                     ActionIcon(Icons.AutoMirrored.Outlined.VolumeUp, stringResource(R.string.read_aloud)) { onSpeak(m) }
@@ -1512,7 +1565,10 @@ private fun StreamItem(
         }
         if (s.sources.isNotEmpty()) SourcesRow(s.sources)
         if (s.active && s.text.isNotEmpty()) StarBurst(size = 18.dp, spinning = true)
-        s.notes.take(1).forEach { NoteChip(it) }
+        if (s.active && s.text.isNotEmpty() && s.status != null) NoteChip(s.status)
+        s.notes.filter { !it.startsWith("🔧") }.take(1).forEach { NoteChip(it) }
+        val liveTools = s.notes.filter { it.startsWith("🔧") }
+        if (liveTools.isNotEmpty()) ToolTrace(liveTools, expandedByDefault = s.active)
         val t = s.target
         if (t != null && s.active) {
             Text(

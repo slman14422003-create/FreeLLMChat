@@ -16,6 +16,7 @@ object CodeFiles {
     private val extension = Regex(".*\\.[A-Za-z][A-Za-z0-9]{0,7}$")
     private val bare = setOf("Dockerfile", "Makefile", "gradlew", "Procfile", "LICENSE", "Gemfile", "Jenkinsfile")
     private val labelPrefix = Regex("^(?i:file(?:name)?|path|الملف|ملف|المسار)\\s*[:：\\-]\\s*")
+    private val dotFile = Regex("^\\.[A-Za-z][A-Za-z0-9_\\-]{1,30}$")
     private val numbering = Regex("^\\d+[.)]\\s*")
     private val infoKey = Regex("(?i)(?:path|file|filename|title)\\s*=\\s*[\"']?([^\"'\\s]+)")
     private val firstLine = Regex("^(?://|#|--|<!--|/\\*)\\s*(?i:file|path|filename|الملف)\\s*[:=]\\s*(\\S+?)\\s*(?:-->|\\*/)?\\s*$")
@@ -43,7 +44,7 @@ object CodeFiles {
         if (p.split('/').any { it == ".." || it.isEmpty() }) return null
         if (!pathSeg.matches(p)) return null
         val last = p.substringAfterLast('/')
-        return if (extension.matches(last) || last in bare) p else null
+        return if (extension.matches(last) || last in bare || dotFile.matches(last)) p else null
     }
 
     private fun label(line: String): String? {

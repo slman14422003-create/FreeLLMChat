@@ -49,6 +49,12 @@ import com.freellm.chat.domain.RouteRequest
 import com.freellm.chat.domain.TaskClassifier
 import com.freellm.chat.domain.TaskKind
 import com.freellm.chat.domain.TokenSaver
+import com.freellm.chat.domain.ToolCatalog
+import com.freellm.chat.domain.ToolContext
+import com.freellm.chat.domain.ToolPolicy
+import com.freellm.chat.domain.ToolProtocol
+import com.freellm.chat.domain.ToolSpec
+import com.freellm.chat.domain.ToolStep
 import com.freellm.chat.domain.Target
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -109,6 +115,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
     private var lastError: String? = null
     private var lastPinned = false
     private var skipLocalOnce = false
+    @Volatile var voiceMode = false
     private val brain get() = app.brainStore.brain
 
     val conversations: StateFlow<List<ConversationEntity>> = query
@@ -124,7 +131,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList<Target>())
 
     init {
-        viewModelScope.launch {
+        viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
             val saved = app.settings.selection.first()
             selection.value = if (saved.startsWith("PIN:")) "ADAPT" else saved
         }
@@ -151,7 +158,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         dismissCompare()
         stream.value = null
         conversationId.value = id
-        viewModelScope.launch {
+        viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
             val c = repo.conversation(id)
             selection.value = c?.pinnedModel?.let { "PIN:$it" } ?: nonPin()
         }
@@ -167,7 +174,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
 
     fun select(sel: String) {
         selection.value = sel
-        viewModelScope.launch {
+        viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
             if (!sel.startsWith("PIN:")) app.settings.setSelection(sel)
             conversationId.value?.let { repo.setPinned(it, sel.removePrefix("PIN:").takeIf { _ -> sel.startsWith("PIN:") }) }
         }
@@ -204,7 +211,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
      */
     fun continueWith(sel: String?) {
         val cid = conversationId.value ?: return
-        viewModelScope.launch {
+        viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
             job?.cancelAndJoin()
             val last = repo.messagesOnce(cid).lastOrNull { it.role == "user" || it.role == "assistant" }
             if (sel != null) select(sel)
@@ -221,7 +228,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
     /** Thumbs up/down on an answer: good answers are trusted more, bad ones are forgotten by the local brain. */
     fun rate(m: MessageEntity, good: Boolean) {
         m.modelKey?.let { app.ratings.rate(it, good) }
-        viewModelScope.launch {
+        viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
             val list = repo.messagesOnce(m.conversationId)
             val idx = list.indexOfFirst { it.id == m.id }
             val q = list.take(if (idx < 0) list.size else idx).lastOrNull { it.role == "user" }?.content ?: return@launch
@@ -239,7 +246,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
     }
 
     fun clearBrain() {
-        viewModelScope.launch {
+        viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
             brain.clear()
             app.brainStore.save()
             notice.value = app.getString(R.string.brain_cleared)
@@ -247,30 +254,33 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
     }
 
     fun toggleStar(c: ConversationEntity) {
-        viewModelScope.launch { repo.setStarred(c.id, !c.starred) }
+        viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) { repo.setStarred(c.id, !c.starred) }
     }
 
     fun setConversationInstructions(id: Long, text: String) {
-        viewModelScope.launch { repo.setInstructions(id, text) }
+        viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) { repo.setInstructions(id, text) }
     }
 
     fun rename(id: Long, title: String) {
         val t = title.trim()
         if (t.isEmpty()) return
-        viewModelScope.launch { repo.rename(id, t) }
+        viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) { repo.rename(id, t) }
     }
 
     fun delete(id: Long) {
         if (conversationId.value == id) newChat()
-        viewModelScope.launch { repo.deleteConversation(id) }
+        viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
+            repo.deleteConversation(id)
+            withContext(kotlinx.coroutines.Dispatchers.IO) { app.workspace.clear(id) }
+        }
     }
 
     fun export(id: Long, onReady: (String) -> Unit) {
-        viewModelScope.launch { onReady(repo.exportMarkdown(id)) }
+        viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) { onReady(repo.exportMarkdown(id)) }
     }
 
     fun deleteMessage(m: MessageEntity) {
-        viewModelScope.launch { repo.deleteMessage(m.id) }
+        viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) { repo.deleteMessage(m.id) }
     }
 
     fun regenerate(m: MessageEntity, sel: String? = null) {
@@ -315,7 +325,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         }
         compareJob?.cancel()
         mergeJob?.cancel()
-        compareJob = viewModelScope.launch {
+        compareJob = viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
             val all = manager.activeTargets()
             val a = all.firstOrNull { it.key == k1 } ?: return@launch
             val b = all.firstOrNull { it.key == k2 } ?: return@launch
@@ -357,7 +367,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         if (!Merger.canMerge(ui.result) || ui.merge?.busy == true) return
         compareUi.value = ui.copy(merge = MergeUi(busy = true))
         mergeJob?.cancel()
-        mergeJob = viewModelScope.launch {
+        mergeJob = viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
             val out = Merger.run(app.sideTasks, manager.activeTargets(), ui.result, ui.question)
             compareUi.value = compareUi.value?.copy(merge = MergeUi(text = out, failed = out == null))
         }
@@ -377,7 +387,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
     }
 
     private fun saveChosen(ui: CompareUi, text: String, modelName: String, providerName: String, modelKey: String?) {
-        viewModelScope.launch {
+        viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
             val after = repo.messagesOnce(ui.cid).firstOrNull { it.id > ui.userId }
             if (after != null) repo.deleteFrom(ui.cid, after.id)
             repo.addMessage(
@@ -402,7 +412,10 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         job?.cancel()
         stream.value = null
         conversationId.value = null
-        viewModelScope.launch { repo.deleteAll() }
+        viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
+            repo.deleteAll()
+            withContext(kotlinx.coroutines.Dispatchers.IO) { app.workspace.clearAll() }
+        }
     }
 
     private fun addPending(r: com.freellm.chat.data.ImportResult) {
@@ -411,7 +424,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
     }
 
     fun attachImages(uris: List<Uri>) {
-        viewModelScope.launch {
+        viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
             importing.value = true
             try {
                 for (u in uris.take(MAX_PENDING)) {
@@ -426,7 +439,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
     }
 
     fun attachFile(uri: Uri) {
-        viewModelScope.launch {
+        viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
             importing.value = true
             try {
                 addPending(
@@ -444,7 +457,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
     }
 
     fun attachPdfAsImages(uri: Uri) {
-        viewModelScope.launch {
+        viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
             importing.value = true
             try {
                 addPending(app.attachments.importPdfAsImages(uri, app.getString(R.string.attach_unsupported)))
@@ -459,7 +472,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
     }
 
     fun savePdf(uri: Uri, text: String?, images: List<Attachment>) {
-        viewModelScope.launch {
+        viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
             val ok = withContext(kotlinx.coroutines.Dispatchers.IO) {
                 try {
                     val out = app.contentResolver.openOutputStream(uri) ?: return@withContext false
@@ -477,7 +490,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
     }
 
     fun saveCard(uri: Uri, m: MessageEntity, rtl: Boolean, dark: Boolean, done: (Boolean) -> Unit) {
-        viewModelScope.launch {
+        viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
             val ok = withContext(kotlinx.coroutines.Dispatchers.IO) {
                 try {
                     val srcs = com.freellm.chat.domain.SourcesPrompt.decode(m.sources).map {
@@ -499,11 +512,14 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
     }
 
     fun saveZip(uri: Uri, m: MessageEntity, done: (Boolean) -> Unit) {
-        viewModelScope.launch {
+        viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
             var count = 0
             val ok = withContext(kotlinx.coroutines.Dispatchers.IO) {
                 try {
-                    val files = com.freellm.chat.domain.CodeFiles.extract(m.content)
+                    val extracted = com.freellm.chat.domain.CodeFiles.extract(m.content)
+                    val files = if (m.notes?.contains("📁") == true) {
+                        (app.workspace.files(m.conversationId) + extracted).distinctBy { it.path }
+                    } else extracted
                     if (files.isEmpty()) return@withContext false
                     val out = app.contentResolver.openOutputStream(uri) ?: return@withContext false
                     count = out.use { com.freellm.chat.data.ZipExport.write(files, it) }
@@ -581,10 +597,10 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
     }
 
     private fun start(block: suspend () -> Unit) {
-        job = viewModelScope.launch { block() }
+        job = viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) { block() }
     }
 
-    private suspend fun systemPrompt(cid: Long): String {
+    private suspend fun systemPrompt(cid: Long, codeFiles: Boolean = true): String {
         val style = when (app.settings.style.first()) {
             "concise" -> "Be brief."
             "detailed" -> "Be thorough and structured."
@@ -602,7 +618,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         val convo = vars(repo.conversation(cid)?.instructions.orEmpty().trim())
         return listOf(
             SYSTEM_PROMPT,
-            com.freellm.chat.domain.CodeFiles.SYSTEM,
+            if (codeFiles) com.freellm.chat.domain.CodeFiles.SYSTEM else "",
             style,
             if (facts.isNotEmpty()) "User facts (use naturally): $facts" else "",
             if (custom.isNotEmpty()) "User rules: $custom" else "",
@@ -841,9 +857,21 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         }
         val styleNow = app.settings.style.first()
         bundle = bundle?.let { it.copy(items = it.items.take(AnswerPolicy.maxSources(styleNow))) }
+        var toolSpecs: List<ToolSpec> = emptyList()
+        if (cont == null && app.settings.toolsEnabled.first()) {
+            val off = app.settings.toolsOff.first()
+            val enabledTools = ToolCatalog.ids().filter { it !in off }.toSet()
+            toolSpecs = ToolPolicy.select(
+                lastUser, enabledTools, app.settings.toolsMode.first(),
+                app.toolHost.hasRunner(), withContext(kotlinx.coroutines.Dispatchers.IO) { app.workspace.count(cid) } > 0
+            )
+        }
+        val projectMode = ToolPolicy.projectMode(toolSpecs)
         val sys = listOf(
-            systemPrompt(cid), hint, deep, memory, summaryText,
-            AnswerPolicy.build(AnswerPolicy.spec(lastUser, styleNow, bundle))
+            systemPrompt(cid, !projectMode), hint, deep, memory, summaryText,
+            AnswerPolicy.build(AnswerPolicy.spec(lastUser, styleNow, bundle)),
+            if (toolSpecs.isNotEmpty()) ToolProtocol.system(toolSpecs, projectMode) else "",
+            if (voiceMode) VOICE_PROMPT else ""
         ).filter { it.isNotEmpty() }.joinToString("\n")
         val temp = if (app.settings.answerTemperature.first()) TemperaturePolicy.pick(kind, cls, bundle != null) else null
         val maxTok = when {
@@ -904,18 +932,32 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         var error: String? = null
         var pinnedFailure = false
         var lastPush = 0L
+        var toolStatus: String? = null
+        val toolSteps = ArrayList<ToolStep>()
 
         fun push(force: Boolean = false) {
             val n = System.currentTimeMillis()
             if (force || n - lastPush >= 50) {
                 lastPush = n
-                stream.value = StreamUi(text.toString(), notes.toList(), target, true, continuingId = cont?.id, sources = liveSources)
+                stream.value = StreamUi(text.toString(), notes.toList(), target, true, continuingId = cont?.id, sources = liveSources, status = toolStatus)
             }
         }
 
         stream.value = StreamUi(text.toString(), active = true, continuingId = cont?.id, sources = liveSources)
+        val events = if (toolSpecs.isEmpty()) router.stream(req) else app.toolRunner.stream(
+            req, ToolContext(cid),
+            { n ->
+                toolStatus = n?.let { app.getString(R.string.tool_running, it) }
+                push(true)
+            },
+            { st ->
+                toolSteps.add(st)
+                notes.add("🔧 " + st.name + " · " + st.summary.take(110))
+                push(true)
+            }
+        )
         try {
-            router.stream(req).collect { ev ->
+            events.collect { ev ->
                 when (ev) {
                     is RouteEvent.Started -> {
                         target = ev.target
@@ -967,6 +1009,9 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
             }
         } finally {
             withContext(NonCancellable) {
+                if (toolSteps.any { it.project && it.ok }) {
+                    notes.add(app.getString(R.string.project_note, withContext(kotlinx.coroutines.Dispatchers.IO) { app.workspace.count(cid) }))
+                }
                 if (!released && hold.isNotEmpty()) {
                     val rest = Overlap.strip(tail, hold.toString())
                     text.append(joinSep(prefix, rest)).append(rest)
@@ -1025,11 +1070,11 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                         error = null
                     }
                 } else if (error == null && finalText.isNotBlank() && t != null && !hasAtt &&
-                    finalText.length > prefix.length && usedBundle == null && app.settings.brainLearn.first()
+                    finalText.length > prefix.length && usedBundle == null && toolSteps.isEmpty() && app.settings.brainLearn.first()
                 ) {
                     if (brain.learn(lastUser, finalText) != null) app.brainStore.save()
                 }
-                if (cacheKey != null && usedBundle == null && error == null && t != null && finalText.length > prefix.length &&
+                if (cacheKey != null && usedBundle == null && toolSteps.isEmpty() && error == null && t != null && finalText.length > prefix.length &&
                     finalText.isNotBlank() && !OutputQuality.isPoor(finalText)
                 ) {
                     repo.cachePut(
@@ -1074,6 +1119,8 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         private const val FILE_BUDGET_OLD = 350
         private const val LOCAL_CONFIDENT = 0.86
         private const val LOCAL_FALLBACK = 0.40
+        private const val VOICE_PROMPT =
+            "Voice conversation: answer in short, natural spoken sentences. No markdown, no lists, no code blocks, no links."
         private const val DEEP_THINK_PROMPT =
             "Think it through, verify, then answer clearly."
         private const val SYSTEM_PROMPT =

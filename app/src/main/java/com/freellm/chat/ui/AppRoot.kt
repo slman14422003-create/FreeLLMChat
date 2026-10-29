@@ -63,7 +63,7 @@ private fun MainNav(app: FreeLlmApp) {
             route == "privacy" -> privacyFrom
             route == "tour" -> "about"
             route == "about" -> "settings"
-            route == "providers" || route == "status" || route == "usage" || route == "brain" || route == "search" -> "settings"
+            route == "providers" || route == "status" || route == "usage" || route == "brain" || route == "search" || route == "tools" || route == "voice" -> "settings"
             else -> "chat"
         }
     }
@@ -97,6 +97,8 @@ private fun MainNav(app: FreeLlmApp) {
                 onUsage = { route = "usage" },
                 onBrain = { route = "brain" },
                 onSearch = { route = "search" },
+                onTools = { route = "tools" },
+                onVoice = { route = "voice" },
                 onAbout = { route = "about" },
                 onPrivacy = {
                     privacyFrom = "settings"
@@ -122,6 +124,8 @@ private fun MainNav(app: FreeLlmApp) {
             r == "usage" -> UsageScreen(app = app, onBack = { route = "settings" })
             r == "brain" -> BrainScreen(app = app, onBack = { route = "settings" })
             r == "search" -> SearchSettingsScreen(app = app, onBack = { route = "settings" })
+            r == "tools" -> ToolsSettingsScreen(app = app, onBack = { route = "settings" })
+            r == "voice" -> VoiceSettingsScreen(app = app, onBack = { route = "settings" })
             r.startsWith("provider:") -> ProviderWizardScreen(
                 app = app,
                 providerId = r.removePrefix("provider:"),
@@ -135,6 +139,6 @@ private fun MainNav(app: FreeLlmApp) {
 private fun depthOf(r: String): Int = when {
     r == "chat" -> 0
     r == "settings" -> 1
-    r == "providers" || r == "status" || r == "usage" || r == "brain" || r == "about" || r == "search" -> 2
+    r == "providers" || r == "status" || r == "usage" || r == "brain" || r == "about" || r == "search" || r == "tools" || r == "voice" -> 2
     else -> 3
 }
