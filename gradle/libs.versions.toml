@@ -21,6 +21,7 @@ reorderable = "3.1.0"
 leakcanary = "2.14"
 highlights = "1.0.0"
 mxparser = "6.1.0"
+camerax = "1.3.4"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -51,6 +52,10 @@ reorderable = { group = "sh.calvin.reorderable", name = "reorderable", version.r
 leakcanary = { group = "com.squareup.leakcanary", name = "leakcanary-android", version.ref = "leakcanary" }
 highlights = { group = "dev.snipme", name = "highlights", version.ref = "highlights" }
 mxparser = { group = "org.mariuszgromada.math", name = "MathParser.org-mXparser", version.ref = "mxparser" }
+androidx-camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "camerax" }
+androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camerax" }
+androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
+androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 [plugins]
