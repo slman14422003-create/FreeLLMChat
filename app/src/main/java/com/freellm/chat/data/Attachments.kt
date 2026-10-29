@@ -108,13 +108,30 @@ class AttachmentStore(private val ctx: Context) {
             val raw = ctx.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) }
                 ?: return null
             val m = max(raw.width, raw.height)
-            if (m > MAX_SIDE) {
+            val scaled = if (m > MAX_SIDE) {
                 val s = MAX_SIDE.toFloat() / m
                 Bitmap.createScaledBitmap(raw, max(1, (raw.width * s).toInt()), max(1, (raw.height * s).toInt()), true)
             } else raw
+            val deg = exifDegrees(uri)
+            if (deg != 0f) {
+                Bitmap.createBitmap(scaled, 0, 0, scaled.width, scaled.height, android.graphics.Matrix().apply { postRotate(deg) }, true)
+            } else scaled
         } catch (e: Throwable) {
             null
         }
+    }
+
+    private fun exifDegrees(uri: Uri): Float = try {
+        ctx.contentResolver.openInputStream(uri)?.use {
+            when (android.media.ExifInterface(it).getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION, android.media.ExifInterface.ORIENTATION_NORMAL)) {
+                android.media.ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+                android.media.ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+                android.media.ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+                else -> 0f
+            }
+        } ?: 0f
+    } catch (e: Throwable) {
+        0f
     }
 
     private fun saveJpeg(bmp: Bitmap, name: String): Attachment? = try {

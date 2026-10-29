@@ -100,3 +100,12 @@ description: Progress log and working notes for the FreeLLMChat Android project 
 - Groq voice: mapHttp checks "terms" before 401/403; VoiceException carries the model; GroqVoice.termsUrl and checkTts; Settings > Voice has a terms section (open EN/AR playground page, check now); the voice screen shows the two link buttons when TERMS fails.
 - Test added: GroqTermsTest.
 - Not compiled locally: run `./gradlew testDebugUnitTest` first.
+
+## Round 8 (multi-key, camera)
+- Keys: up to MAX_KEYS (8) per provider, stored newline-joined in SecretStore key_<id>. ProviderManager.keysOf / removeKeyAt; testAndSave now tests only new keys and merges with saved ones. Targets for extra keys use providerId "<id>#<n>".
+- Router: groupKeys keeps all keys of the same provider+model adjacent right after the first one, so a limited key hands over to the next key before any other provider; pinned models match by baseKey (provider/model without #n) and move to the next key on RATE_LIMIT, PAYMENT or AUTH; pickHedge prefers another provider (baseProviderId).
+- ChatViewModel: AuthFailed with several keys shows key_rejected_notice and does not disable the provider.
+- ProviderScreens: saved keys list (masked) with per-key delete, add-another-key field.
+- Camera: ui/CameraCapture.kt (CameraX 1.3.4: core, camera2, lifecycle, view), multi-shot, per-photo select/deselect/delete, flash, flip; ChatScreen attach menu item "Camera" asks CAMERA permission then vm.attachImages(uris). Manifest: CAMERA + optional camera features. Attachments fallback path (API < 28) applies EXIF rotation.
+- Tests: RouterKeysTest.
+- Not compiled locally: run `./gradlew testDebugUnitTest assembleDebug` first.

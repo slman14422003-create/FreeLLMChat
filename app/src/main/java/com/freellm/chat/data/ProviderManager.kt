@@ -168,8 +168,11 @@ class ProviderManager(
         accountId: String,
         modelId: String = ""
     ): LlmException? {
-        val keys = key.split(Regex("[\\s,;]+")).filter { it.isNotBlank() }.distinct()
-        if (keys.isEmpty() && !p.keyless) return LlmException(ErrorKind.AUTH, 401, message = "empty key")
+        val typed = key.split(Regex("[\\s,;]+")).filter { it.isNotBlank() }.distinct()
+        if (typed.isEmpty() && !p.keyless) return LlmException(ErrorKind.AUTH, 401, message = "empty key")
+        val existing = withContext(Dispatchers.IO) { keysOf(p.id) }
+        val keys = typed.filter { it !in existing }
+        if (existing.size >= MAX_KEYS && keys.isNotEmpty()) return LlmException(ErrorKind.BAD_REQUEST, message = "too many keys")
         val proxy = settings.proxyUrl.first()
         val (base, alt) = baseFor(p, baseOverride, proxy, accountId)
         val models = if (p.custom) {
@@ -185,13 +188,13 @@ class ProviderManager(
         if (models.isEmpty()) return LlmException(ErrorKind.NOT_FOUND, 404, message = "no models")
         val good = ArrayList<String>()
         var last: LlmException? = null
-        for (k in keys.ifEmpty { listOf("") }) {
+        for (k in keys.ifEmpty { if (typed.isEmpty()) listOf("") else emptyList() }) {
             val err = probe(p, base, alt, k, models)
             if (err == null) good.add(k) else last = err
         }
-        if (good.isNotEmpty()) {
+        if (good.isNotEmpty() || (typed.isNotEmpty() && keys.isEmpty())) {
             withContext(Dispatchers.IO) {
-                secrets.setApiKey(p.id, good.joinToString("\n"))
+                secrets.setApiKey(p.id, (existing + good).filter { it.isNotBlank() }.distinct().take(MAX_KEYS).joinToString("\n"))
                 secrets.setBaseUrl(
                     p.id,
                     baseOverride.trim().takeUnless { it.trimEnd('/') == p.baseUrl.trimEnd('/') }.orEmpty()
@@ -238,6 +241,20 @@ class ProviderManager(
 
     suspend fun setOrder(ids: List<String>) {
         settings.setOrder(ids)
+    }
+
+    fun keysOf(id: String): List<String> =
+        secrets.apiKey(id).orEmpty().split('\n').map { it.trim() }.filter { it.isNotEmpty() }
+
+    suspend fun removeKeyAt(id: String, index: Int) {
+        val left = withContext(Dispatchers.IO) {
+            val all = keysOf(id)
+            if (index !in all.indices) return@withContext all
+            val rest = all.filterIndexed { i, _ -> i != index }
+            if (rest.isNotEmpty()) secrets.setApiKey(id, rest.joinToString("\n"))
+            rest
+        }
+        if (left.isEmpty()) removeKey(id) else router.health.clearProvider(id)
     }
 
     suspend fun removeKey(id: String) {
@@ -288,3 +305,5 @@ class ProviderManager(
     fun modelIdOf(id: String): String = secrets.modelId(id).orEmpty()
     fun accountIdOf(id: String): String = secrets.accountId(id).orEmpty()
 }
+
+const val MAX_KEYS = 8
