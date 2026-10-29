@@ -51,6 +51,7 @@ object ToolCatalog {
         ToolSpec("web_search", ToolGroup.INFO, "{\"query\":\"...\"} searches the web, returns titles, links and snippets."),
         ToolSpec("fetch_url", ToolGroup.INFO, "{\"url\":\"https://...\",\"offset\":0} reads a web page as text (use offset to continue a long page)."),
         ToolSpec("wikipedia", ToolGroup.INFO, "{\"query\":\"...\",\"lang\":\"ar|en\"} short encyclopedia summary of a topic."),
+        ToolSpec("weather", ToolGroup.INFO, "{\"city\":\"Riyadh\"} live weather now and a 3 day forecast for a city."),
         ToolSpec(
             "run_js", ToolGroup.CODE,
             "body is JavaScript, no network, use console.log for output, await is allowed: <tool_call name=\"run_js\">code</tool_call> runs it and returns the output. Use it to test algorithms and verify numbers.",
@@ -62,6 +63,23 @@ object ToolCatalog {
             "code"
         ),
         ToolSpec("check_syntax", ToolGroup.CODE, "{\"path\":\"src/data.json\"} checks a project file for syntax errors (json, xml, js)."),
+        ToolSpec(
+            "encode", ToolGroup.CODE,
+            "{\"op\":\"base64|base64d|url|urld|hex|hexd|sha256|sha1|sha512|md5\",\"text\":\"...\"} exact encoding, decoding and hashes."
+        ),
+        ToolSpec(
+            "random", ToolGroup.MATH,
+            "{\"op\":\"int|uuid|coin|pick|shuffle|password\",\"min\":1,\"max\":6,\"count\":1,\"items\":\"a,b,c\",\"length\":16} real randomness."
+        ),
+        ToolSpec(
+            "regex_test", ToolGroup.CODE,
+            "{\"pattern\":\"...\",\"text\":\"...\",\"flags\":\"i|m|s\"} runs a regular expression on text and lists matches and groups."
+        ),
+        ToolSpec(
+            "json_query", ToolGroup.CODE,
+            "{\"json\":\"...\",\"path\":\"a.b[0].c\"} reads a value from JSON, an empty path describes the structure."
+        ),
+        ToolSpec("text_stats", ToolGroup.INFO, "{\"text\":\"...\"} exact counts of characters, words, lines, sentences and reading time."),
         ToolSpec(
             "project_template", ToolGroup.PROJECT,
             "{\"type\":\"web-static|node-express|python-flask|python-cli|kotlin-cli|android-compose\"} fills the project workspace with a ready starter project."
@@ -97,12 +115,12 @@ object ToolProtocol {
 
     fun system(tools: List<ToolSpec>, projectMode: Boolean): String {
         val sb = StringBuilder()
-        sb.append("You can use tools. To use one, write a block exactly like ")
-            .append("<tool_call>{\"name\":\"TOOL\",\"arguments\":{...}}</tool_call> ")
-            .append("(tools marked with a body use the form shown in their entry). ")
-            .append("After the last tool block stop writing; the result comes back in the next message inside <tool_result>. ")
-            .append("Use a tool only when it gives a better answer: exact calculation, real date, live facts, running or checking code, building files. ")
-            .append("Never invent a tool result. When no further tool is needed, answer the user normally in the user's language with no tool block.\n")
+        sb.append("You are the brain and the tools are your hands. Work in this order every time.\n")
+            .append("1. Think first: open your reply with <think>...</think> saying what the user really needs, whether a tool would make the answer exact or current, and which tools to call in which order. If you can answer reliably alone, say so and skip tools.\n")
+            .append("2. To use a tool write a block exactly like <tool_call>{\"name\":\"TOOL\",\"arguments\":{...}}</tool_call> right after the think block (tools marked with a body use the form shown in their entry). Independent calls may share one reply. After the last block stop writing; the results come back in the next message inside <tool_result>.\n")
+            .append("3. When results arrive write a short <think> to check they are enough and correct, then call more tools or give the final answer.\n")
+            .append("4. The final answer goes outside think tags, in the user's language, with no tool block, and it does not narrate these steps.\n")
+            .append("Never invent a tool result. If a tool fails, read the error, fix the arguments or use another tool, and say plainly what could not be verified.\n")
         if (projectMode) {
             sb.append("Project workspace: build projects by writing every file with project_write (complete content), check them, ")
                 .append("then tell the user the project is ready and can be saved as ZIP from the message menu. Do not repeat file contents in the final answer.\n")
@@ -257,10 +275,32 @@ object ToolPolicy {
         opt
     )
 
+    private val utility = Regex(
+        "\\b(random|uuid|hash|sha256|md5|base64|regex|json|weather|temperature|forecast)\\b|\u0639\u0634\u0648\u0627\u0626\u064a|\u0639\u0634\u0648\u0627\u0626\u064a\u0629|\u0647\u0627\u0634|\u062a\u0634\u0641\u064a\u0631|\u0637\u0642\u0633|\u062d\u0631\u0627\u0631\u0629|\u0643\u0644\u0645\u0629 \u0645\u0631\u0648\u0631|\u0628\u0627\u0633\u0648\u0648\u0631\u062f",
+        opt
+    )
+    private const val TRIVIAL_CHARS = 24
+
+    fun trivial(text: String): Boolean {
+        val t = text.trim()
+        if (t.length > TRIVIAL_CHARS) return false
+        return !(math.containsMatchIn(t) || convert.containsMatchIn(t) || date.containsMatchIn(t) || fresh.containsMatchIn(t) ||
+            factual.containsMatchIn(t) || url.containsMatchIn(t) || codeish.containsMatchIn(t) || project.containsMatchIn(t) ||
+            utility.containsMatchIn(t))
+    }
+
+    fun projectIntent(text: String, workspaceHasFiles: Boolean): Boolean {
+        val wants = CodeFiles.wantsProject(text) || (project.containsMatchIn(text) && codeish.containsMatchIn(text))
+        return wants || (workspaceHasFiles && (codeish.containsMatchIn(text) || project.containsMatchIn(text)))
+    }
+
     fun select(text: String, enabled: Set<String>, mode: String, hasRunner: Boolean, workspaceHasFiles: Boolean): List<ToolSpec> {
         val pool = ToolCatalog.all.filter { it.id in enabled && (it.id != "run_code" || hasRunner) }
         if (pool.isEmpty()) return emptyList()
-        if (mode == MODE_ALWAYS) return pool
+        if (mode == MODE_ALWAYS) {
+            val withProject = projectIntent(text, workspaceHasFiles)
+            return pool.filter { it.group != ToolGroup.PROJECT || withProject }
+        }
         val want = LinkedHashSet<String>()
         if (math.containsMatchIn(text)) {
             want.add("calculator")
@@ -269,6 +309,7 @@ object ToolPolicy {
         }
         if (convert.containsMatchIn(text)) want.add("convert")
         if (date.containsMatchIn(text)) want.add("datetime")
+        if (utility.containsMatchIn(text)) want.addAll(listOf("weather", "encode", "random", "regex_test", "json_query", "text_stats"))
         if (url.containsMatchIn(text)) want.add("fetch_url")
         if (fresh.containsMatchIn(text)) {
             want.add("web_search")
@@ -293,6 +334,16 @@ object ToolPolicy {
     fun projectMode(tools: List<ToolSpec>): Boolean = tools.any { it.group == ToolGroup.PROJECT && it.id == "project_write" }
 }
 
+internal fun cutDanglingTool(s: String): String {
+    val open = s.lastIndexOf(ToolProtocol.TAG)
+    if (open >= 0 && s.indexOf(ToolProtocol.CLOSE, open) < 0) return s.substring(0, open)
+    val max = minOf(ToolProtocol.TAG.length - 1, s.length)
+    for (n in max downTo 1) {
+        if (s.regionMatches(s.length - n, ToolProtocol.TAG, 0, n)) return s.substring(0, s.length - n)
+    }
+    return s
+}
+
 class ToolRunner(private val router: Router, private val executor: ToolExecutor) {
     fun stream(
         req: RouteRequest,
@@ -301,6 +352,7 @@ class ToolRunner(private val router: Router, private val executor: ToolExecutor)
         onStep: (ToolStep) -> Unit
     ): Flow<RouteEvent> = flow {
         var msgs = req.messages
+        var base = req
         val committed = StringBuilder()
         var round = 0
         while (true) {
@@ -310,7 +362,8 @@ class ToolRunner(private val router: Router, private val executor: ToolExecutor)
             var failed = false
             var done: RouteEvent.Done? = null
             var sep = committed.isNotEmpty()
-            router.stream(req.copy(messages = msgs)).collect { ev ->
+            val roundReq = base.copy(messages = msgs, estimatedTokens = RequestFitter.needed(msgs, base.maxTokens))
+            router.stream(roundReq).collect { ev ->
                 when (ev) {
                     is RouteEvent.Delta -> {
                         raw.append(ev.text)
@@ -323,6 +376,12 @@ class ToolRunner(private val router: Router, private val executor: ToolExecutor)
                             emit(RouteEvent.Delta(raw.substring(shown, vis)))
                             shown = vis
                         }
+                    }
+                    is RouteEvent.Switched -> {
+                        val cut = cutDanglingTool(raw.toString())
+                        if (cut.length < raw.length) raw.setLength(cut.length)
+                        if (shown > raw.length) shown = raw.length
+                        emit(ev)
                     }
                     is RouteEvent.Restart -> {
                         raw.setLength(0)
@@ -356,6 +415,7 @@ class ToolRunner(private val router: Router, private val executor: ToolExecutor)
                 done?.let { emit(it) }
                 return@flow
             }
+            done?.let { base = base.copy(preferredKey = it.target.key) }
             val shownText = ToolProtocol.visible(text)
             if (shownText.isNotEmpty()) {
                 if (committed.isNotEmpty()) committed.append("\n\n")
@@ -379,7 +439,9 @@ class ToolRunner(private val router: Router, private val executor: ToolExecutor)
             }
             onStatus(null)
             val callText = parsed.cleanRaw.trim()
-            msgs = msgs + ChatMsg("assistant", callText) + ChatMsg("user", results.toString().trim() + "\n" + CONTINUE_AFTER_TOOLS)
+            val nextIsLast = round + 1 >= MAX_ROUNDS
+            msgs = msgs + ChatMsg("assistant", callText) +
+                ChatMsg("user", results.toString().trim() + "\n" + (if (nextIsLast) FINAL_AFTER_TOOLS else CONTINUE_AFTER_TOOLS))
             round++
         }
     }
@@ -396,6 +458,9 @@ class ToolRunner(private val router: Router, private val executor: ToolExecutor)
         private const val BAD_CALL =
             "The tool block could not be read. Use <tool_call>{\"name\":\"TOOL\",\"arguments\":{...}}</tool_call> or the body form shown for that tool."
         private const val CONTINUE_AFTER_TOOLS =
-            "Use the tool results above to continue. If more tools are needed call them, otherwise write the final answer now without any tool block."
+            "The earlier steps may have been written by another model; treat them as your own work and keep the same tool rules. " +
+                "Write a short <think> to check the results above. If more tools are needed call them, otherwise write the final answer now without any tool block."
+        private const val FINAL_AFTER_TOOLS =
+            "Tools are no longer available. Write the final answer now from the results above, without any tool block, and say plainly what could not be verified."
     }
 }

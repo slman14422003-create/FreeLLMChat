@@ -146,9 +146,19 @@ class Health(private val config: RouterConfig) {
 }
 
 object ContextTrimmer {
+    private const val SHORT_RESULT = 700
+
     fun estimate(s: String): Int = Math.ceil(s.length / 3.5).toInt() + 4
 
     fun cost(m: ChatMsg): Int = estimate(m.content) + m.images.size * 1200
+
+    private fun isRealUser(m: ChatMsg): Boolean = m.role == "user" && !m.content.trimStart().startsWith("<tool_result")
+
+    private fun shorten(m: ChatMsg): ChatMsg {
+        val c = m.content
+        if (m.role != "user" || !c.trimStart().startsWith("<tool_result") || c.length <= SHORT_RESULT) return m
+        return m.copy(content = c.take(SHORT_RESULT).trimEnd() + "\n[shortened]\n</tool_result>")
+    }
 
     fun trim(msgs: List<ChatMsg>, window: Int, reserve: Int, keepLast: Int = 1): List<ChatMsg> {
         val budget = window - reserve
@@ -156,7 +166,27 @@ object ContextTrimmer {
         val rest = msgs.filter { it.role != "system" }.toMutableList()
         val systemCost = system.sumOf { cost(it) }
         fun total(): Int = systemCost + rest.sumOf { cost(it) }
-        while (rest.size > keepLast && total() > budget) rest.removeAt(0)
+        var i = 0
+        while (i < rest.size - keepLast && total() > budget) {
+            rest[i] = shorten(rest[i])
+            i++
+        }
+        val anchor = rest.lastOrNull { isRealUser(it) }
+        while (rest.size > keepLast && total() > budget) {
+            if (anchor != null && rest.first() === anchor) {
+                val room = rest.size - 1 - keepLast
+                if (room >= 2) {
+                    rest.removeAt(1)
+                    rest.removeAt(1)
+                } else if (room == 1) {
+                    rest.removeAt(1)
+                } else {
+                    break
+                }
+            } else {
+                rest.removeAt(0)
+            }
+        }
         while (rest.size > keepLast && rest.first().role != "user") rest.removeAt(0)
         return system + rest
     }
@@ -190,6 +220,8 @@ private class Lane(val t: Target, val ch: ReceiveChannel<Chunk>, val opened: Lon
 
 private const val CONTINUE_PROMPT =
     "Continue your previous reply exactly where it stopped. Do not repeat anything and do not add an introduction. أكمل ردك السابق من حيث توقفت تماماً دون تكرار ودون مقدمة."
+private const val TOOL_CUT_PROMPT =
+    "Your previous reply stopped while you were writing a tool block, so that block was discarded. Write the complete tool block again from its first character, or the final answer if no tool is needed."
 private const val HOLD_CHARS = 48
 private const val QUALITY_CHECK_BELOW = 200
 private const val TAIL_CHARS = 240
@@ -254,11 +286,11 @@ class Router(
         return rest.firstOrNull { baseProviderId(it) != baseProviderId(t) } ?: rest.firstOrNull()
     }
 
-    private fun buildMessages(req: RouteRequest, t: Target, partial: String): List<ChatMsg> {
+    private fun buildMessages(req: RouteRequest, t: Target, partial: String, toolCut: Boolean = false): List<ChatMsg> {
         var msgs = req.messages
         var keep = 1
         if (partial.isNotEmpty()) {
-            msgs = msgs + ChatMsg("assistant", partial) + ChatMsg("user", CONTINUE_PROMPT)
+            msgs = msgs + ChatMsg("assistant", partial) + ChatMsg("user", if (toolCut) CONTINUE_PROMPT + " " + TOOL_CUT_PROMPT else CONTINUE_PROMPT)
             keep = 2
         }
         val window = t.model.contextWindow
@@ -299,6 +331,7 @@ class Router(
         var shown: Target? = null
         var soonest = Long.MAX_VALUE
         var qualityRetried = false
+        var toolCut = false
         val consumed = HashSet<String>()
 
         suspend fun fail(tt: Target, ex: LlmException) {
@@ -341,7 +374,7 @@ class Router(
                 if (bp >= ALERT_AT && alerted.add(tag)) emit(RouteEvent.NearLimit(t, (bp * 100).toInt()))
             }
             limiter.record(t, clock())
-            val msgs = buildMessages(req, t, partial.toString())
+            val msgs = buildMessages(req, t, partial.toString(), toolCut)
             var got = false
             var completed = false
             val tail = if (partial.isNotEmpty()) partial.takeLast(TAIL_CHARS).toString() else ""
@@ -485,8 +518,14 @@ class Router(
                         return@flow
                     }
                 }
+                val trimmed = cutDanglingTool(partial.toString())
+                if (trimmed.length < partial.length) {
+                    partial.setLength(trimmed.length)
+                    toolCut = true
+                }
                 if (got && (partial.length < config.restartBelowChars || ex.message == "poor output")) {
                     partial.clear()
+                    toolCut = false
                     emit(RouteEvent.Restart)
                 }
                 continue

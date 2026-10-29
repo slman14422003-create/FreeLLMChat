@@ -865,7 +865,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         val styleNow = app.settings.style.first()
         bundle = bundle?.let { it.copy(items = it.items.take(AnswerPolicy.maxSources(styleNow))) }
         var toolSpecs: List<ToolSpec> = emptyList()
-        if (cont == null && app.settings.toolsEnabled.first()) {
+        if (cont == null && app.settings.toolsEnabled.first() && !ToolPolicy.trivial(lastUser)) {
             val off = app.settings.toolsOff.first()
             val enabledTools = ToolCatalog.ids().filter { it !in off }.toSet()
             toolSpecs = ToolPolicy.select(
