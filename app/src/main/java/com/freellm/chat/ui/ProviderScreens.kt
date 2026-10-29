@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -63,6 +64,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.freellm.chat.FreeLlmApp
+import com.freellm.chat.data.MAX_KEYS
 import com.freellm.chat.R
 import com.freellm.chat.data.ProviderStatus
 import kotlinx.coroutines.launch
@@ -153,6 +155,8 @@ fun ProviderWizardScreen(app: FreeLlmApp, providerId: String, onBack: () -> Unit
     val ui = list.firstOrNull { it.def.id == providerId }
     val scope = rememberCoroutineScope()
     val uri = LocalUriHandler.current
+    val secretChanges by app.secrets.changes.collectAsStateWithLifecycle()
+    val savedKeys = remember(secretChanges, providerId) { app.manager.keysOf(providerId) }
 
     var key by remember(providerId) { mutableStateOf("") }
     var show by remember(providerId) { mutableStateOf(false) }
@@ -217,14 +221,26 @@ fun ProviderWizardScreen(app: FreeLlmApp, providerId: String, onBack: () -> Unit
                     }
                 }
             }
+            if (savedKeys.isNotEmpty()) {
+                Text(stringResource(R.string.keys_saved_title, savedKeys.size), style = MaterialTheme.typography.titleMedium)
+                savedKeys.forEachIndexed { i, k ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Text(stringResource(R.string.key_item, i + 1), Modifier.width(72.dp), color = MaterialTheme.colorScheme.tertiary)
+                        Text(maskKey(k), Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        IconButton(onClick = { scope.launch { app.manager.removeKeyAt(def.id, i) } }) {
+                            Icon(Icons.Outlined.DeleteOutline, stringResource(R.string.key_delete))
+                        }
+                    }
+                }
+            }
             OutlinedTextField(
                 value = key,
                 onValueChange = { key = it },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                label = { Text(stringResource(if (def.keyless) R.string.api_key_optional else R.string.api_key)) },
-                placeholder = { if (ui.hasKey) Text(stringResource(R.string.key_saved_hint)) },
-                supportingText = { if (!def.custom) Text(stringResource(R.string.multi_key_hint)) },
+                enabled = savedKeys.size < MAX_KEYS,
+                label = { Text(stringResource(if (savedKeys.isNotEmpty()) R.string.add_another_key else if (def.keyless) R.string.api_key_optional else R.string.api_key)) },
+                supportingText = { Text(stringResource(if (savedKeys.size >= MAX_KEYS) R.string.keys_max_reached else R.string.multi_key_hint, MAX_KEYS)) },
                 visualTransformation = if (show) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 trailingIcon = {
@@ -336,9 +352,12 @@ fun ProviderWizardScreen(app: FreeLlmApp, providerId: String, onBack: () -> Unit
             }
             if (ui.hasKey) {
                 TextButton(onClick = { scope.launch { app.manager.removeKey(def.id) } }) {
-                    Text(stringResource(R.string.remove_key), color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(if (savedKeys.size > 1) R.string.remove_all_keys else R.string.remove_key), color = MaterialTheme.colorScheme.error)
                 }
             }
         }
     }
 }
+
+private fun maskKey(k: String): String =
+    if (k.length <= 10) "••••" + k.takeLast(2) else k.take(4) + "••••" + k.takeLast(4)

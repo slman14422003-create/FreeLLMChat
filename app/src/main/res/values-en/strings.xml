@@ -46,7 +46,7 @@
     <string name="open_key_page">Open the key page</string>
     <string name="api_key">API key</string>
     <string name="api_key_optional">API key (optional, raises limits)</string>
-    <string name="multi_key_hint">You can paste several keys separated by commas; the app switches between them when one hits its limit</string>
+    <string name="multi_key_hint">Add up to %d keys per provider. When a key hits its limit the app uses the next key before moving to another provider</string>
     <string name="model_id">Model ID</string>
     <string name="avoid_training">Avoid providers that train on my data</string>
     <string name="avoid_training_desc">Hides models whose conversations may be used to improve products</string>
@@ -580,4 +580,20 @@
     <string name="voice_terms_rate">Limit reached</string>
     <string name="voice_terms_auth">Key rejected</string>
     <string name="voice_terms_error">Error</string>
+    <string name="attach_camera">Camera</string>
+    <string name="camera_close">Close camera</string>
+    <string name="camera_flash">Flash</string>
+    <string name="camera_flip">Switch camera</string>
+    <string name="camera_remove">Delete photo</string>
+    <string name="camera_done">Attach (%d)</string>
+    <string name="camera_hint">Tap a photo to select or deselect it; only selected photos are attached</string>
+    <string name="camera_error">Could not start the camera</string>
+    <string name="camera_denied">The camera cannot be used without permission</string>
+    <string name="keys_saved_title">Saved keys (%d)</string>
+    <string name="key_item">Key %d</string>
+    <string name="key_delete">Delete this key</string>
+    <string name="add_another_key">Add another key</string>
+    <string name="keys_max_reached">Key limit reached, delete a key to add another</string>
+    <string name="remove_all_keys">Remove all keys</string>
+    <string name="key_rejected_notice">%1$s key was rejected, another key will be used</string>
 </resources>

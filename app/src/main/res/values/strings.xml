@@ -46,7 +46,7 @@
     <string name="open_key_page">افتح صفحة إنشاء المفتاح</string>
     <string name="api_key">مفتاح API</string>
     <string name="api_key_optional">مفتاح API (اختياري لرفع الحدود)</string>
-    <string name="multi_key_hint">يمكنك لصق عدة مفاتيح مفصولة بفاصلة، ويتبدّل التطبيق بينها تلقائياً عند بلوغ الحد</string>
+    <string name="multi_key_hint">أضف حتى %d مفاتيح لكل مزود. عند بلوغ حد مفتاح ينتقل التطبيق إلى المفتاح التالي قبل الانتقال إلى مزود آخر</string>
     <string name="model_id">اسم المودل (Model ID)</string>
     <string name="avoid_training">تجنّب المزودين الذين يدرّبون على بياناتي</string>
     <string name="avoid_training_desc">يستبعد المودلات التي قد تُستخدم محادثاتها لتحسين المنتجات</string>
@@ -580,4 +580,20 @@
     <string name="voice_terms_rate">بلغ الحد</string>
     <string name="voice_terms_auth">المفتاح مرفوض</string>
     <string name="voice_terms_error">خطأ</string>
+    <string name="attach_camera">الكاميرا</string>
+    <string name="camera_close">إغلاق الكاميرا</string>
+    <string name="camera_flash">الفلاش</string>
+    <string name="camera_flip">تبديل الكاميرا</string>
+    <string name="camera_remove">حذف الصورة</string>
+    <string name="camera_done">إرفاق (%d)</string>
+    <string name="camera_hint">اضغط على الصورة لتحديدها أو إلغاء تحديدها، والمحددة فقط تُرفق</string>
+    <string name="camera_error">تعذر تشغيل الكاميرا</string>
+    <string name="camera_denied">لا يمكن استخدام الكاميرا دون الإذن</string>
+    <string name="keys_saved_title">المفاتيح المحفوظة (%d)</string>
+    <string name="key_item">مفتاح %d</string>
+    <string name="key_delete">حذف هذا المفتاح</string>
+    <string name="add_another_key">إضافة مفتاح آخر</string>
+    <string name="keys_max_reached">بلغت الحد الأقصى للمفاتيح، احذف مفتاحاً لإضافة غيره</string>
+    <string name="remove_all_keys">حذف كل المفاتيح</string>
+    <string name="key_rejected_notice">مفتاح %1$s مرفوض، سيُستخدم مفتاح آخر</string>
 </resources>
