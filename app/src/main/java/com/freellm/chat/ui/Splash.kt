@@ -24,7 +24,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -43,9 +45,45 @@ private fun easeOutBack(x: Float): Float {
     return 1f + c3 * t * t * t + c1 * t * t
 }
 
+internal fun DrawScope.drawSpark(bloom: Float) {
+    val r = size.minDimension / 2f
+    val c = Offset(size.width / 2f, size.height / 2f)
+    val n = 12
+    drawCircle(
+        Brush.radialGradient(
+            listOf(RayA.copy(alpha = 0.28f * bloom), Color.Transparent),
+            center = c,
+            radius = r * 1.15f
+        ),
+        radius = r * 1.15f,
+        center = c
+    )
+    for (i in 0 until n) {
+        val start = (i / n.toFloat()) * 0.55f
+        val local = ((bloom - start) / 0.45f).coerceIn(0f, 1f)
+        if (local <= 0f) continue
+        val a = Math.toRadians(i * 360.0 / n - 90.0)
+        val target = r * (if (i % 2 == 0) 1f else 0.82f)
+        val outer = target * easeOutBack(local)
+        val inner = r * 0.2f
+        drawLine(
+            lerp(RayB, RayA, if (i % 2 == 0) 1f else 0.35f).copy(alpha = local),
+            Offset(c.x + (inner * cos(a)).toFloat(), c.y + (inner * sin(a)).toFloat()),
+            Offset(c.x + (outer * cos(a)).toFloat(), c.y + (outer * sin(a)).toFloat()),
+            strokeWidth = r * 0.17f,
+            cap = StrokeCap.Round
+        )
+    }
+}
+
+@Composable
+fun SparkMark(size: Dp, modifier: Modifier = Modifier, bloom: Float = 1f) {
+    Canvas(modifier.size(size)) { drawSpark(bloom) }
+}
+
 /** Black screen where the blue spark blooms ray by ray, turns and settles, then fades into the app. */
 @Composable
-fun SplashOverlay(onFinished: () -> Unit) {
+fun SplashOverlay(onExit: () -> Unit = {}, onFinished: () -> Unit) {
     val bloom = remember { Animatable(0f) }
     val spin = remember { Animatable(0f) }
     val title = remember { Animatable(0f) }
@@ -61,6 +99,7 @@ fun SplashOverlay(onFinished: () -> Unit) {
             }
         }
         delay(200)
+        onExit()
         exit.animateTo(1f, tween(380, easing = FastOutSlowInEasing))
         onFinished()
     }
@@ -83,34 +122,7 @@ fun SplashOverlay(onFinished: () -> Unit) {
                         scaleY = s
                     }
             ) {
-                val r = size.minDimension / 2f
-                val c = Offset(size.width / 2f, size.height / 2f)
-                val n = 12
-                drawCircle(
-                    Brush.radialGradient(
-                        listOf(RayA.copy(alpha = 0.28f * bloom.value), Color.Transparent),
-                        center = c,
-                        radius = r * 1.15f
-                    ),
-                    radius = r * 1.15f,
-                    center = c
-                )
-                for (i in 0 until n) {
-                    val start = (i / n.toFloat()) * 0.55f
-                    val local = ((bloom.value - start) / 0.45f).coerceIn(0f, 1f)
-                    if (local <= 0f) continue
-                    val a = Math.toRadians(i * 360.0 / n - 90.0)
-                    val target = r * (if (i % 2 == 0) 1f else 0.82f)
-                    val outer = target * easeOutBack(local)
-                    val inner = r * 0.2f
-                    drawLine(
-                        lerp(RayB, RayA, if (i % 2 == 0) 1f else 0.35f).copy(alpha = local),
-                        Offset(c.x + (inner * cos(a)).toFloat(), c.y + (inner * sin(a)).toFloat()),
-                        Offset(c.x + (outer * cos(a)).toFloat(), c.y + (outer * sin(a)).toFloat()),
-                        strokeWidth = r * 0.17f,
-                        cap = StrokeCap.Round
-                    )
-                }
+                drawSpark(bloom.value)
             }
             Spacer(Modifier.height(26.dp))
             Text(

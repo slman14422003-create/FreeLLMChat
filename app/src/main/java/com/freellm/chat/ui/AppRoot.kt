@@ -35,17 +35,18 @@ fun AppRoot(app: FreeLlmApp) {
     val welcome: Boolean? by app.settings.welcomeDone.collectAsStateWithLifecycle(initialValue = null)
     val scope = rememberCoroutineScope()
     var splash by rememberSaveable { mutableStateOf(true) }
+    var splashExiting by rememberSaveable { mutableStateOf(false) }
     FreeLlmTheme(theme) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Box(Modifier.fillMaxSize()) {
                 Crossfade(targetState = welcome, animationSpec = tween(Motion.Slow), label = "welcome") { w ->
                     when (w) {
                         null -> Unit
-                        false -> OnboardingScreen { scope.launch { app.settings.setWelcomeDone() } }
+                        false -> OnboardingScreen(ready = !splash || splashExiting) { scope.launch { app.settings.setWelcomeDone() } }
                         true -> MainNav(app)
                     }
                 }
-                if (splash) SplashOverlay { splash = false }
+                if (splash) SplashOverlay(onExit = { splashExiting = true }) { splash = false }
             }
         }
     }

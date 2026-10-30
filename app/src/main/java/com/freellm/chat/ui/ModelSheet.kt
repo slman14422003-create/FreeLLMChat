@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 
 package com.freellm.chat.ui
 
@@ -8,7 +8,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -22,7 +30,15 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.Lightbulb
+import androidx.compose.material.icons.outlined.Memory
+import androidx.compose.material.icons.outlined.Psychology
+import androidx.compose.material.icons.outlined.Shuffle
+import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -52,17 +68,29 @@ import com.freellm.chat.domain.Target
 
 enum class PickPurpose { MODE, MODEL, CONTINUE, RETRY, REGENERATE, COMPARE }
 
+private val Palette = listOf(
+    Color(0xFF2F7BFF), Color(0xFFD97757), Color(0xFF34C759), Color(0xFFA855F7),
+    Color(0xFFF59E0B), Color(0xFF14B8A6), Color(0xFFEC4899), Color(0xFF6366F1)
+)
+
+private fun tintOf(name: String): Color = Palette[(name.hashCode() and 0x7fffffff) % Palette.size]
+
 private fun ctxLabel(n: Int): String = when {
     n >= 1_000_000 -> "${n / 1_000_000}M"
     n >= 1000 -> "${n / 1000}K"
     else -> "$n"
 }
 
-/**
- * Bottom sheet used for every "pick a model" moment: choosing the chat model, handing a
- * half-finished reply to another model, or re-running a saved request.
- * [onPick] receives a selection code: AUTO / FAST / SMART / CODE / PIN:<providerId/modelId>.
- */
+private fun modeIcon(code: String): ImageVector = when (code) {
+    "ADAPT" -> Icons.Outlined.AutoAwesome
+    "FAST" -> Icons.Outlined.Bolt
+    "SMART" -> Icons.Outlined.Psychology
+    "CODE" -> Icons.Outlined.Code
+    else -> Icons.Outlined.Shuffle
+}
+
+private data class Tag(val text: String, val icon: ImageVector?)
+
 @Composable
 fun ModelSheet(
     purpose: PickPurpose,
@@ -116,14 +144,20 @@ fun ModelSheet(
         onDismissRequest = onDismiss,
         sheetState = state,
         containerColor = cs.background,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
     ) {
         Column(Modifier.navigationBarsPadding()) {
-            Text(
-                stringResource(title),
+            Row(
                 Modifier.padding(horizontal = Spacing.xxl),
-                style = MaterialTheme.typography.titleLarge
-            )
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(Accent.copy(alpha = 0.16f)),
+                    contentAlignment = Alignment.Center
+                ) { Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(21.dp), tint = Accent) }
+                Spacer(Modifier.width(12.dp))
+                Text(stringResource(title), style = MaterialTheme.typography.titleLarge)
+            }
             if (comparing) {
                 Text(
                     stringResource(R.string.compare_pick_hint),
@@ -143,7 +177,7 @@ fun ModelSheet(
                 Modifier
                     .fillMaxWidth()
                     .padding(horizontal = Spacing.lg, vertical = Spacing.md)
-                    .clip(RoundedCornerShape(Corners.card))
+                    .clip(RoundedCornerShape(26.dp))
                     .background(cs.surfaceContainerHigh)
                     .padding(horizontal = Spacing.lg, vertical = Spacing.md),
                 verticalAlignment = Alignment.CenterVertically
@@ -163,16 +197,26 @@ fun ModelSheet(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
+                if (filter.isNotEmpty()) {
+                    Icon(
+                        Icons.Filled.Close, null,
+                        Modifier.size(18.dp).clip(CircleShape).clickable { filter = "" },
+                        tint = cs.onSurfaceVariant
+                    )
+                }
             }
-            LazyColumn(Modifier.weight(1f, fill = false), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp)) {
+            LazyColumn(Modifier.weight(1f, fill = false), contentPadding = PaddingValues(bottom = 16.dp)) {
                 if (showModes && q.isEmpty()) {
-                    item(key = "modes_label") { GroupLabel(stringResource(R.string.modes_label)) }
+                    item(key = "modes_label") { GroupLabel(stringResource(R.string.modes_label), null, 0) }
                     items(modes, key = { "mode_${it.first}" }) { (code, label) ->
                         PickRow(
                             title = stringResource(label),
-                            subtitle = null,
+                            tags = emptyList(),
+                            status = null,
+                            statusBad = false,
                             selected = selection == code,
                             enabled = true,
+                            leading = { IconBadge(modeIcon(code), Accent) },
                             trailing = null,
                             onClick = { onPick(code) }
                         )
@@ -187,18 +231,16 @@ fun ModelSheet(
                     }
                 }
                 grouped.forEach { (provider, list) ->
-                    item(key = "g_$provider") { GroupLabel(provider) }
+                    item(key = "g_$provider") { GroupLabel(provider, tintOf(provider), list.size) }
                     items(list, key = { it.key }) { t ->
                         val h = health(t)
                         val dead = h is ModelHealth.Dead || h is ModelHealth.ProviderDown
                         val tags = buildList {
-                            add(ctxLabel(t.model.contextWindow))
-                            if (t.model.vision) add(stringResource(R.string.tag_vision))
-                            if (t.model.reasoning) add(stringResource(R.string.tag_reasoning))
-                            latency(t)?.let { ms ->
-                                add((if (t.key == fastestKey) "⚡ " else "") + ms + " ms")
-                            }
-                        }.joinToString(" · ")
+                            add(Tag(ctxLabel(t.model.contextWindow), Icons.Outlined.Memory))
+                            if (t.model.vision) add(Tag(stringResource(R.string.tag_vision), Icons.Outlined.Visibility))
+                            if (t.model.reasoning) add(Tag(stringResource(R.string.tag_reasoning), Icons.Outlined.Lightbulb))
+                            latency(t)?.let { ms -> add(Tag("$ms ms", if (t.key == fastestKey) Icons.Outlined.Bolt else null)) }
+                        }
                         val status: String? = when (h) {
                             is ModelHealth.Cooling ->
                                 stringResource(R.string.status_cooling, maxOf(0L, (h.untilMs - now) / 1000).toInt())
@@ -206,27 +248,18 @@ fun ModelSheet(
                             is ModelHealth.ProviderDown -> stringResource(R.string.status_disabled)
                             else -> null
                         }
+                        val trainsDesc = stringResource(R.string.trains_title)
                         PickRow(
                             title = t.model.displayName,
-                            subtitle = tags,
+                            tags = tags,
+                            status = status,
+                            statusBad = dead,
                             selected = if (comparing) t.key in chosen else selection == "PIN:${t.key}",
                             enabled = !dead,
-                            trailing = {
-                                if (status != null) {
-                                    Text(status, fontSize = 12.sp, color = if (dead) cs.error else cs.secondary)
-                                }
-                                if (t.model.trainsOnData) {
-                                    Icon(
-                                        Icons.Filled.Warning,
-                                        stringResource(R.string.trains_title),
-                                        Modifier
-                                            .padding(start = Spacing.sm)
-                                            .size(18.dp)
-                                            .clickable(onClick = onPrivacy),
-                                        tint = cs.secondary
-                                    )
-                                }
-                            },
+                            leading = { LetterBadge(t.model.displayName, tintOf(provider)) },
+                            trailing = if (t.model.trainsOnData) {
+                                { ExclamationBadge(trainsDesc, onPrivacy) }
+                            } else null,
                             onClick = {
                                 if (comparing) {
                                     chosen = if (t.key in chosen) chosen - t.key else (chosen + t.key).takeLast(2)
@@ -252,45 +285,127 @@ fun ModelSheet(
 }
 
 @Composable
-private fun GroupLabel(text: String) {
-    Text(
-        text,
-        Modifier.padding(start = Spacing.xxl, end = Spacing.xxl, top = Spacing.lg, bottom = Spacing.xxs),
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
+private fun GroupLabel(text: String, tint: Color?, count: Int) {
+    val cs = MaterialTheme.colorScheme
+    Row(
+        Modifier.padding(start = Spacing.xxl, end = Spacing.xxl, top = Spacing.lg, bottom = Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (tint != null) {
+            Box(Modifier.size(10.dp).clip(CircleShape).background(tint))
+            Spacer(Modifier.width(8.dp))
+        }
+        Text(text, style = MaterialTheme.typography.labelLarge, color = cs.onSurfaceVariant, modifier = Modifier.weight(1f, fill = false))
+        if (count > 0) {
+            Spacer(Modifier.width(8.dp))
+            Text("$count", style = MaterialTheme.typography.labelSmall, color = cs.onSurfaceVariant.copy(alpha = 0.7f))
+        }
+    }
+}
+
+@Composable
+private fun IconBadge(icon: ImageVector, tint: Color) {
+    Box(
+        Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(tint.copy(alpha = 0.16f)),
+        contentAlignment = Alignment.Center
+    ) { Icon(icon, null, Modifier.size(22.dp), tint = tint) }
+}
+
+@Composable
+private fun LetterBadge(name: String, tint: Color) {
+    val letter = name.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()?.toString() ?: "?"
+    Box(
+        Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(tint.copy(alpha = 0.16f)),
+        contentAlignment = Alignment.Center
+    ) { Text(letter, color = tint, fontWeight = FontWeight.Bold, fontSize = 17.sp) }
+}
+
+@Composable
+private fun ExclamationBadge(description: String, onClick: () -> Unit) {
+    val tint = MaterialTheme.colorScheme.tertiary
+    Box(
+        Modifier
+            .size(24.dp)
+            .clip(CircleShape)
+            .background(tint.copy(alpha = 0.14f))
+            .border(1.5.dp, tint, CircleShape)
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center
+    ) { Text("!", color = tint, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp) }
+}
+
+@Composable
+private fun TagChip(tag: Tag) {
+    val cs = MaterialTheme.colorScheme
+    Row(
+        Modifier.clip(RoundedCornerShape(8.dp)).background(cs.surfaceContainerHighest).padding(horizontal = 7.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (tag.icon != null) {
+            Icon(tag.icon, null, Modifier.size(12.dp), tint = cs.onSurfaceVariant)
+            Spacer(Modifier.width(3.dp))
+        }
+        Text(tag.text, fontSize = 11.sp, color = cs.onSurfaceVariant, maxLines = 1)
+    }
 }
 
 @Composable
 private fun PickRow(
     title: String,
-    subtitle: String?,
+    tags: List<Tag>,
+    status: String?,
+    statusBad: Boolean,
     selected: Boolean,
     enabled: Boolean,
+    leading: @Composable () -> Unit,
     trailing: (@Composable () -> Unit)?,
     onClick: () -> Unit
 ) {
     val cs = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(18.dp)
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = Spacing.md)
-            .clip(RoundedCornerShape(Corners.md))
-            .background(if (selected) cs.surfaceContainerHigh else cs.background)
+            .padding(horizontal = Spacing.md, vertical = 3.dp)
+            .clip(shape)
+            .background(if (selected) Accent.copy(alpha = 0.12f) else cs.surfaceContainer)
+            .border(if (selected) 1.5.dp else 0.dp, if (selected) Accent else Color.Transparent, shape)
             .clickable(enabled = enabled, onClick = onClick)
-            .alpha(if (enabled) 1f else 0.45f)
+            .alpha(if (enabled) 1f else 0.5f)
             .padding(horizontal = Spacing.md, vertical = Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md)
     ) {
-        Column(Modifier.weight(1f)) {
+        leading()
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (!subtitle.isNullOrEmpty()) {
-                Text(subtitle, style = MaterialTheme.typography.labelSmall, color = cs.onSurfaceVariant)
+            if (tags.isNotEmpty() || status != null) {
+                androidx.compose.foundation.layout.FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    tags.forEach { TagChip(it) }
+                    if (status != null) {
+                        Text(
+                            status,
+                            Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background((if (statusBad) cs.error else cs.secondary).copy(alpha = 0.16f))
+                                .padding(horizontal = 7.dp, vertical = 3.dp),
+                            fontSize = 11.sp,
+                            color = if (statusBad) cs.error else cs.secondary
+                        )
+                    }
+                }
             }
         }
         trailing?.invoke()
-        if (selected) Icon(Icons.Filled.Check, null, Modifier.size(20.dp), tint = cs.tertiary)
-        else Spacer(Modifier.height(0.dp))
+        if (selected) {
+            Box(
+                Modifier.size(24.dp).clip(CircleShape).background(Accent),
+                contentAlignment = Alignment.Center
+            ) { Icon(Icons.Filled.Check, null, Modifier.size(15.dp), tint = Color.White) }
+        }
     }
 }

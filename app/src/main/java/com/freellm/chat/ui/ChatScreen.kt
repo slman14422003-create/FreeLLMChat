@@ -36,6 +36,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material.icons.outlined.CameraAlt
+import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.PictureAsPdf
@@ -486,7 +488,13 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                     label = selectionLabel(selection, targets),
                     onMenu = { scope.launch { drawerState.open() } },
                     onModel = { picker = Picker.Mode },
-                    onNew = { vm.newChat() }
+                    onNew = { vm.newChat() },
+                    onVoice = {
+                        val has = androidx.core.content.ContextCompat.checkSelfPermission(
+                            ctx, android.Manifest.permission.RECORD_AUDIO
+                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                        if (has) voiceOn = true else askMic.launch(android.Manifest.permission.RECORD_AUDIO)
+                    }
                 )
             }
         ) { pad ->
@@ -680,7 +688,7 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
 }
 
 @Composable
-private fun ChatTopBar(active: Boolean, label: String, onMenu: () -> Unit, onModel: () -> Unit, onNew: () -> Unit) {
+private fun ChatTopBar(active: Boolean, label: String, onMenu: () -> Unit, onModel: () -> Unit, onNew: () -> Unit, onVoice: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     Row(
         Modifier
@@ -720,12 +728,36 @@ private fun ChatTopBar(active: Boolean, label: String, onMenu: () -> Unit, onMod
         }
         Box(
             Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(Accent.copy(alpha = 0.16f))
+                .bounceClick(onVoice),
+            contentAlignment = Alignment.Center
+        ) { Icon(Icons.Outlined.GraphicEq, stringResource(R.string.voice_chat), Modifier.size(22.dp), tint = Accent) }
+        Spacer(Modifier.width(4.dp))
+        Box(
+            Modifier
                 .size(44.dp)
                 .clip(CircleShape)
                 .bounceClick(onNew),
             contentAlignment = Alignment.Center
         ) { Icon(Icons.Outlined.Edit, stringResource(R.string.new_chat), Modifier.size(22.dp)) }
     }
+}
+
+@Composable
+private fun AttachItem(icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color, label: String, onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = { Text(label, style = MaterialTheme.typography.bodyLarge) },
+        leadingIcon = {
+            Box(
+                Modifier.size(38.dp).clip(CircleShape).background(tint.copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center
+            ) { Icon(icon, null, Modifier.size(20.dp), tint = tint) }
+        },
+        onClick = onClick,
+        modifier = Modifier.padding(horizontal = 4.dp)
+    )
 }
 
 @Composable
@@ -897,27 +929,29 @@ private fun Composer(
                 CircleButton(onClick = { attachMenu = true }, background = cs.surfaceContainerHighest, size = 40.dp) {
                     Icon(Icons.Outlined.AttachFile, stringResource(R.string.attach), Modifier.size(22.dp))
                 }
-                DropdownMenu(expanded = attachMenu, onDismissRequest = { attachMenu = false }) {
-                    DropdownMenuItem(text = { Text(stringResource(R.string.attach_camera)) }, onClick = {
+                DropdownMenu(
+                    expanded = attachMenu,
+                    onDismissRequest = { attachMenu = false },
+                    shape = RoundedCornerShape(22.dp),
+                    containerColor = cs.surfaceContainerHigh,
+                    tonalElevation = 6.dp
+                ) {
+                    AttachItem(Icons.Outlined.CameraAlt, Color(0xFF2F7BFF), stringResource(R.string.attach_camera)) {
                         attachMenu = false
                         onCamera()
-                    })
-                    DropdownMenuItem(text = { Text(stringResource(R.string.attach_photo)) }, onClick = {
+                    }
+                    AttachItem(Icons.Outlined.Image, Color(0xFF34C759), stringResource(R.string.attach_photo)) {
                         attachMenu = false
                         onPickImage()
-                    })
-                    DropdownMenuItem(text = { Text(stringResource(R.string.attach_file)) }, onClick = {
+                    }
+                    AttachItem(Icons.Outlined.Description, Color(0xFFD97757), stringResource(R.string.attach_file)) {
                         attachMenu = false
                         onPickFile()
-                    })
-                    DropdownMenuItem(text = { Text(stringResource(R.string.attach_pdf_images)) }, onClick = {
+                    }
+                    AttachItem(Icons.Outlined.PictureAsPdf, Color(0xFFE5484D), stringResource(R.string.attach_pdf_images)) {
                         attachMenu = false
                         onPickPdfImages()
-                    })
-                    DropdownMenuItem(text = { Text(stringResource(R.string.voice_chat)) }, onClick = {
-                        attachMenu = false
-                        onVoiceChat()
-                    })
+                    }
                 }
             }
             Box(
