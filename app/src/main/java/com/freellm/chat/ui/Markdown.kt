@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -476,14 +477,43 @@ private fun RenderBlock(b: MdBlock) {
     }
 }
 
+private fun fenceFollows(src: String, from: Int): Boolean {
+    var k = from
+    while (k < src.length && src[k].isWhitespace()) k++
+    return src.startsWith("```", k)
+}
+
+internal fun stableSplit(src: String): Int {
+    var inFence = false
+    var pos = 0
+    var cut = 0
+    while (pos <= src.length) {
+        val found = src.indexOf('\n', pos)
+        val nl = if (found < 0) src.length else found
+        val t = src.substring(pos, nl).trim()
+        if (t.startsWith("```")) {
+            inFence = !inFence
+        } else if (!inFence && t.isEmpty() && nl < src.length && !fenceFollows(src, nl + 1)) {
+            cut = nl + 1
+        }
+        pos = nl + 1
+    }
+    return cut
+}
+
 @Composable
 fun MarkdownText(text: String, modifier: Modifier = Modifier) {
     val base = LocalLayoutDirection.current
     val dir = detectDirection(text) ?: base
     CompositionLocalProvider(LocalLayoutDirection provides dir) {
-        val blocks = remember(text) { parseBlocks(text) }
+        val cut = remember(text) { stableSplit(text) }
+        val head = text.substring(0, cut)
+        val tail = text.substring(cut)
+        val headBlocks = remember(head) { parseBlocks(head) }
+        val tailBlocks = remember(tail) { parseBlocks(tail) }
         Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            blocks.forEach { RenderBlock(it) }
+            headBlocks.forEachIndexed { i, b -> key(i) { RenderBlock(b) } }
+            tailBlocks.forEachIndexed { i, b -> key(headBlocks.size + i) { RenderBlock(b) } }
         }
     }
 }

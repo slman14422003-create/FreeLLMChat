@@ -1,5 +1,6 @@
 package com.freellm.chat.data
 
+import com.freellm.chat.domain.Catalog
 import com.freellm.chat.domain.ErrorKind
 import com.freellm.chat.domain.LlmException
 import com.freellm.chat.domain.ModelDef
@@ -105,6 +106,9 @@ class ProviderManager(
         }
     }
 
+    @Volatile private var cachedKey: List<Any?>? = null
+    @Volatile private var cachedTargets: List<Target> = emptyList()
+
     suspend fun activeTargets(): List<Target> = withContext(Dispatchers.Default) {
         val cat = catalog.catalog.value
         val off = settings.keylessOff.first()
@@ -114,6 +118,23 @@ class ProviderManager(
         val statuses = settings.statuses.first()
         val today = LocalDate.now()
         val proxy = settings.proxyUrl.first()
+        val key = listOf(cat, enabled, avoid, order, statuses, today, proxy, secrets.changes.value)
+        if (key == cachedKey) return@withContext cachedTargets
+        val built = buildTargets(cat, enabled, avoid, order, statuses, today, proxy)
+        cachedTargets = built
+        cachedKey = key
+        built
+    }
+
+    private fun buildTargets(
+        cat: Catalog,
+        enabled: Set<String>,
+        avoid: Boolean,
+        order: List<String>,
+        statuses: Map<String, String>,
+        today: LocalDate,
+        proxy: String
+    ): List<Target> =
         cat.providers
             .filter { it.available && it.id in enabled && statuses[it.id] != "fail" }
             .flatMap { p ->
@@ -135,7 +156,6 @@ class ProviderManager(
                     }
                 }
             }
-    }
 
     private fun customModels(p: ProviderDef, ids: String): List<ModelDef> =
         ids.split(',').map { it.trim() }.filter { it.isNotEmpty() }.distinct().mapIndexed { i, id -> customModel(p, id, 95 + i) }

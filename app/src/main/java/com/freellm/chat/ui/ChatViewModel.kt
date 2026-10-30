@@ -726,7 +726,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         val smart = app.settings.smartRouting.first()
         var cls = QuestionClassifier.classify(ctxText, hasAtt)
         if (smart && adaptive && cls.ambiguous && cont == null && exclude == null && !followUp) {
-            AmbiguityResolver.resolve(app.sideTasks, all, lastUser)?.let { cls = cls.copy(type = it, ambiguous = false) }
+            kotlinx.coroutines.withTimeoutOrNull(2500) { AmbiguityResolver.resolve(app.sideTasks, all, lastUser) }?.let { cls = cls.copy(type = it, ambiguous = false) }
         }
         val cacheTtl = CachePolicy.ttlMs(app.settings.cacheTtlHours.first())
         val cacheKey = if (app.settings.answerCache.first() && cont == null && !hasAtt && !sel.startsWith("PIN:") &&
@@ -756,7 +756,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         if (cont == null && exclude == null && !skipLocal && !hasAtt && !shortFollowUp && stored.lastOrNull()?.role == "user" &&
             app.settings.brainLocalFirst.first()
         ) {
-            val hit = brain.best(lastUser, LOCAL_CONFIDENT)
+            val hit = withContext(kotlinx.coroutines.Dispatchers.Default) { brain.best(lastUser, LOCAL_CONFIDENT) }
             if (hit != null) {
                 brain.markUsed(hit.entry.id)
                 repo.addMessage(
@@ -812,7 +812,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         val hint = if (adaptive || saver) kind.hint else ""
         val deep = if ((app.settings.deepThink.first() || (smart && adaptive && cls.difficulty == Difficulty.HARD)) && kind != TaskKind.QUICK) DEEP_THINK_PROMPT else ""
         val memory = if (cont == null && !hasAtt && !shortFollowUp && app.settings.brainContext.first()) {
-            val m = brain.search(lastUser, 2, 0.5).filter { it.entry.answer.length <= 3000 }
+            val m = withContext(kotlinx.coroutines.Dispatchers.Default) { brain.search(lastUser, 2, 0.5) }.filter { it.entry.answer.length <= 3000 }
             if (m.isEmpty()) "" else buildString {
                 append("Past answers (use only if relevant):")
                 m.forEach { append("\nQ: ").append(it.entry.question.take(200)).append("\nA: ").append(it.entry.answer.take(500)) }
@@ -945,7 +945,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
 
         fun push(force: Boolean = false) {
             val n = System.currentTimeMillis()
-            if (force || n - lastPush >= 50) {
+            if (force || n - lastPush >= 50L + minOf(150L, text.length / 40L)) {
                 lastPush = n
                 stream.value = StreamUi(text.toString(), notes.toList(), target, true, continuingId = cont?.id, sources = liveSources, status = toolStatus)
             }

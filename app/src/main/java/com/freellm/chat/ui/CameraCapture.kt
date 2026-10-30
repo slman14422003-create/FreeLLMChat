@@ -3,6 +3,10 @@ package com.freellm.chat.ui
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
+import android.graphics.drawable.ColorDrawable
+import android.os.Build
+import android.view.ViewGroup
+import android.view.WindowManager
 import android.media.ExifInterface
 import android.net.Uri
 import androidx.camera.core.CameraSelector
@@ -25,6 +29,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -55,6 +61,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -69,6 +76,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -76,7 +84,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.freellm.chat.R
 import kotlinx.coroutines.Dispatchers
@@ -191,7 +201,27 @@ fun CameraCapture(onDone: (List<Uri>) -> Unit, onClose: () -> Unit) {
         onDismissRequest = onClose,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
+        val hostView = LocalView.current
+        SideEffect {
+            val window = (hostView.parent as? DialogWindowProvider)?.window ?: return@SideEffect
+            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            window.addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN)
+            window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.BLACK))
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            window.statusBarColor = android.graphics.Color.TRANSPARENT
+            window.navigationBarColor = android.graphics.Color.TRANSPARENT
+            if (Build.VERSION.SDK_INT >= 28) {
+                val lp = window.attributes
+                lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                window.attributes = lp
+            }
+            WindowCompat.getInsetsController(window, hostView)?.let {
+                it.isAppearanceLightStatusBars = false
+                it.isAppearanceLightNavigationBars = false
+            }
+        }
         BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
+            val insets = WindowInsets.safeDrawing.union(WindowInsets.systemBars)
             val landscape = maxWidth > maxHeight
             val shortSide = if (landscape) maxHeight else maxWidth
             val shutter = (shortSide * 0.2f).coerceIn(56.dp, 80.dp)
@@ -271,7 +301,7 @@ fun CameraCapture(onDone: (List<Uri>) -> Unit, onClose: () -> Unit) {
             }
 
             if (!landscape) {
-                Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+                Column(Modifier.fillMaxSize().windowInsetsPadding(insets)) {
                     Row(
                         Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -309,7 +339,7 @@ fun CameraCapture(onDone: (List<Uri>) -> Unit, onClose: () -> Unit) {
                     }
                 }
             } else {
-                Row(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+                Row(Modifier.fillMaxSize().windowInsetsPadding(insets)) {
                     preview(Modifier.weight(1f).fillMaxHeight())
                     Column(
                         Modifier.fillMaxHeight().width(if (shortSide < 360.dp) 132.dp else 156.dp).padding(horizontal = 10.dp, vertical = 8.dp),
