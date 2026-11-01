@@ -1,25 +1,28 @@
 {
   "runs": [
     "2026-10-30",
-    "2026-10-31"
+    "2026-10-31",
+    "2026-11-01"
   ],
-  "streaks": {},
+  "streaks": {
+    "kilo/poolside/laguna-s-2.1:free": 1,
+    "kilo/poolside/laguna-xs-2.1:free": 1
+  },
   "dead": [],
   "latency": {
-    "kilo/nvidia/nemotron-3-ultra-550b-a55b:free": 1266,
-    "kilo/poolside/laguna-s-2.1:free": 1240,
-    "kilo/kilo-auto/free": 405,
-    "ovh/Qwen3.8-27B": 8893,
-    "ovh/gpt-oss-120b": 335,
-    "ovh/Meta-Llama-3_3-70B-Instruct": 2389,
-    "ovh/Mistral-Small-3.2-24B-Instruct-2506": 3516,
-    "ovh/gpt-oss-20b": 268,
-    "llm7/gpt-oss:20b": 462,
+    "kilo/nvidia/nemotron-3-ultra-550b-a55b:free": 1317,
+    "kilo/kilo-auto/free": 556,
+    "ovh/Qwen3.8-27B": 6241,
+    "ovh/gpt-oss-120b": 792,
+    "ovh/Meta-Llama-3_3-70B-Instruct": 1740,
+    "ovh/Mistral-Small-3.2-24B-Instruct-2506": 2444,
+    "ovh/gpt-oss-20b": 294,
+    "llm7/gpt-oss:20b": 442,
     "llm7/minimax-m2.7": 309,
-    "llm7/codestral-latest": 327,
-    "llm7/mistral-Nemo-Instruct-2407": 203,
-    "llm7/nemotron-3-nano:30b": 637,
-    "kilo/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": 846,
-    "ovh/Qwen3.5-397B-A17B": 331
+    "llm7/codestral-latest": 305,
+    "llm7/mistral-Nemo-Instruct-2407": 443,
+    "llm7/nemotron-3-nano:30b": 638,
+    "kilo/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": 691,
+    "ovh/Qwen3.5-397B-A17B": 344
   }
 }

@@ -1,5 +1,5 @@
 {
-  "version": 8,
+  "version": 9,
   "providers": [
     {
       "id": "gemini",
@@ -1113,25 +1113,6 @@
       ]
     },
     {
-      "id": "poolside/laguna-s-2.1:free",
-      "provider": "openrouter",
-      "displayName": "poolside/laguna-s-2.1:free",
-      "priority": 201,
-      "contextWindow": 262000,
-      "modes": [
-        "code",
-        "smart"
-      ],
-      "vision": false,
-      "reasoning": false,
-      "trainsOnData": true,
-      "rpm": 20,
-      "caps": [
-        "code",
-        "long_context"
-      ]
-    },
-    {
       "id": "poolside/laguna-xs-2.1:free",
       "provider": "kilo",
       "displayName": "poolside/laguna-xs-2.1:free",
@@ -1187,25 +1168,6 @@
       ]
     },
     {
-      "id": "poolside/laguna-xs-2.1:free",
-      "provider": "openrouter",
-      "displayName": "poolside/laguna-xs-2.1:free",
-      "priority": 202,
-      "contextWindow": 262000,
-      "modes": [
-        "code",
-        "smart"
-      ],
-      "vision": false,
-      "reasoning": false,
-      "trainsOnData": true,
-      "rpm": 20,
-      "caps": [
-        "code",
-        "long_context"
-      ]
-    },
-    {
       "id": "dots-studio/dots-3-note-preview:free",
       "provider": "openrouter",
       "displayName": "dots-studio/dots-3-note-preview:free",
@@ -1219,6 +1181,39 @@
       "trainsOnData": true,
       "rpm": 20,
       "caps": [
+        "long_context"
+      ]
+    },
+    {
+      "id": "liquid/lfm-2.5-2.6b:free",
+      "provider": "openrouter",
+      "displayName": "liquid/lfm-2.5-2.6b:free",
+      "priority": 204,
+      "contextWindow": 64000,
+      "modes": [
+        "smart"
+      ],
+      "vision": false,
+      "reasoning": false,
+      "trainsOnData": true,
+      "rpm": 20,
+      "caps": []
+    },
+    {
+      "id": "nvidia/nemotron-3.5-lightning:free",
+      "provider": "openrouter",
+      "displayName": "nvidia/nemotron-3.5-lightning:free",
+      "priority": 205,
+      "contextWindow": 1000000,
+      "modes": [
+        "fast"
+      ],
+      "vision": false,
+      "reasoning": false,
+      "trainsOnData": true,
+      "rpm": 20,
+      "caps": [
+        "fast",
         "long_context"
       ]
     }
