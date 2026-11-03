@@ -1,5 +1,5 @@
 {
-  "version": 9,
+  "version": 10,
   "providers": [
     {
       "id": "gemini",
@@ -645,24 +645,6 @@
       ]
     },
     {
-      "id": "poolside/laguna-s-2.1:free",
-      "provider": "kilo",
-      "displayName": "Laguna S 2.1 (Kilo)",
-      "priority": 57,
-      "contextWindow": 262000,
-      "modes": [
-        "code"
-      ],
-      "vision": false,
-      "reasoning": false,
-      "trainsOnData": true,
-      "rph": 200,
-      "caps": [
-        "code",
-        "long_context"
-      ]
-    },
-    {
       "id": "kilo-auto/free",
       "provider": "kilo",
       "displayName": "Kilo Auto (احتياط)",
@@ -1056,6 +1038,26 @@
       ]
     },
     {
+      "id": "cohere/north-mini-code:free",
+      "provider": "kilo",
+      "displayName": "cohere/north-mini-code:free",
+      "priority": 201,
+      "contextWindow": 256000,
+      "modes": [
+        "fast",
+        "code"
+      ],
+      "vision": false,
+      "reasoning": false,
+      "trainsOnData": true,
+      "rph": 200,
+      "caps": [
+        "code",
+        "fast",
+        "long_context"
+      ]
+    },
+    {
       "id": "gemini-3.5-flash-lite",
       "provider": "gemini",
       "displayName": "Gemini 3.5 Flash-Lite",
@@ -1109,25 +1111,6 @@
       "caps": [
         "fast",
         "reasoning",
-        "long_context"
-      ]
-    },
-    {
-      "id": "poolside/laguna-xs-2.1:free",
-      "provider": "kilo",
-      "displayName": "poolside/laguna-xs-2.1:free",
-      "priority": 201,
-      "contextWindow": 262000,
-      "modes": [
-        "code",
-        "smart"
-      ],
-      "vision": false,
-      "reasoning": false,
-      "trainsOnData": true,
-      "rph": 200,
-      "caps": [
-        "code",
         "long_context"
       ]
     },
