@@ -1,5 +1,5 @@
 {
-  "version": 10,
+  "version": 11,
   "providers": [
     {
       "id": "gemini",
@@ -451,22 +451,6 @@
       ]
     },
     {
-      "id": "thinkingmachines/inkling:free",
-      "provider": "openrouter",
-      "displayName": "Inkling",
-      "priority": 32,
-      "contextWindow": 1000000,
-      "modes": [
-        "smart"
-      ],
-      "trainsOnData": true,
-      "vision": true,
-      "rpm": 20,
-      "caps": [
-        "long_context"
-      ]
-    },
-    {
       "id": "meta/llama-3.3-70b-instruct",
       "provider": "github",
       "displayName": "Llama 3.3 70B (GitHub)",
@@ -557,23 +541,6 @@
         "fast",
         "long_context",
         "arabic"
-      ]
-    },
-    {
-      "id": "thinkingmachines/inkling-small:free",
-      "provider": "openrouter",
-      "displayName": "Inkling Small",
-      "priority": 45,
-      "contextWindow": 1000000,
-      "modes": [
-        "fast"
-      ],
-      "trainsOnData": true,
-      "vision": true,
-      "rpm": 20,
-      "caps": [
-        "fast",
-        "long_context"
       ]
     },
     {
