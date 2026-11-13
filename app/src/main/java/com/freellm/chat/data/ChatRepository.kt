@@ -41,6 +41,8 @@ class ChatRepository(private val dao: ChatDao) {
 
     suspend fun deleteMessage(id: Long) = dao.deleteMessage(id)
 
+    suspend fun attachmentRefs(): List<String> = dao.attachmentRefs()
+
     suspend fun deleteFrom(cid: Long, fromId: Long) {
         dao.deleteFrom(cid, fromId)
         val c = dao.conversation(cid)

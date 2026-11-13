@@ -134,6 +134,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
             val saved = app.settings.selection.first()
             selection.value = if (saved.startsWith("PIN:")) "ADAPT" else saved
+            sweepAttachments()
         }
     }
 
@@ -245,14 +246,6 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         }
     }
 
-    fun clearBrain() {
-        viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
-            brain.clear()
-            app.brainStore.save()
-            notice.value = app.getString(R.string.brain_cleared)
-        }
-    }
-
     fun toggleStar(c: ConversationEntity) {
         viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) { repo.setStarred(c.id, !c.starred) }
     }
@@ -272,6 +265,15 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
             repo.deleteConversation(id)
             withContext(kotlinx.coroutines.Dispatchers.IO) { app.workspace.clear(id) }
+            sweepAttachments()
+        }
+    }
+
+    private suspend fun sweepAttachments() {
+        val refs = HashSet<String>()
+        repo.attachmentRefs().forEach { raw -> AttachmentCodec.decode(raw).forEach { refs.add(it.path) } }
+        withContext(kotlinx.coroutines.Dispatchers.IO) {
+            if (!generating) app.attachments.sweep(refs, pending.value.map { it.path }.toSet())
         }
     }
 
@@ -280,7 +282,10 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
     }
 
     fun deleteMessage(m: MessageEntity) {
-        viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) { repo.deleteMessage(m.id) }
+        viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
+            repo.deleteMessage(m.id)
+            sweepAttachments()
+        }
     }
 
     fun regenerate(m: MessageEntity, sel: String? = null) {
@@ -414,7 +419,10 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         conversationId.value = null
         viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
             repo.deleteAll()
-            withContext(kotlinx.coroutines.Dispatchers.IO) { app.workspace.clearAll() }
+            withContext(kotlinx.coroutines.Dispatchers.IO) {
+                app.workspace.clearAll()
+                app.attachments.sweep(emptySet(), pending.value.map { it.path }.toSet(), 0L)
+            }
         }
     }
 
@@ -597,7 +605,11 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
     }
 
     private fun start(block: suspend () -> Unit) {
-        job = viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) { block() }
+        val prev = job
+        job = viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
+            prev?.cancelAndJoin()
+            block()
+        }
     }
 
     private suspend fun systemPrompt(cid: Long, codeFiles: Boolean = true): String {
@@ -875,7 +887,8 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         }
         val projectMode = ToolPolicy.projectMode(toolSpecs)
         val sys = listOf(
-            systemPrompt(cid, !projectMode), if (followUp) CONTINUITY_PROMPT else "", hint, deep, memory, summaryText,
+            systemPrompt(cid, !projectMode && (kind == TaskKind.CODE || com.freellm.chat.domain.CodeFiles.wantsProject(lastUser))),
+            if (followUp) CONTINUITY_PROMPT else "", hint, deep, memory, summaryText,
             AnswerPolicy.build(AnswerPolicy.spec(lastUser, styleNow, bundle)),
             if (toolSpecs.isNotEmpty()) ToolProtocol.system(toolSpecs, projectMode) else "",
             if (voiceMode) VOICE_PROMPT else "",
@@ -939,6 +952,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         var target: Target? = null
         var error: String? = null
         var pinnedFailure = false
+        var completedOk = false
         var lastPush = 0L
         var toolStatus: String? = null
         val toolSteps = ArrayList<ToolStep>()
@@ -1012,6 +1026,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                     }
                     is RouteEvent.Done -> {
                         target = ev.target
+                        completedOk = true
                         push(true)
                     }
                     is RouteEvent.Failed -> {
@@ -1065,7 +1080,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                     )
                 }
                 if (error != null && finalText.isBlank() && cont == null && !hasAtt && !shortFollowUp) {
-                    val fb = brain.best(lastUser, LOCAL_FALLBACK)
+                    val fb = withContext(kotlinx.coroutines.Dispatchers.Default) { brain.best(lastUser, LOCAL_FALLBACK) }
                     if (fb != null) {
                         brain.markUsed(fb.entry.id)
                         repo.addMessage(
@@ -1082,12 +1097,13 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                         )
                         error = null
                     }
-                } else if (error == null && finalText.isNotBlank() && t != null && !hasAtt &&
+                } else if (completedOk && error == null && finalText.isNotBlank() && t != null && !hasAtt &&
                     finalText.length > prefix.length && usedBundle == null && toolSteps.isEmpty() && app.settings.brainLearn.first()
                 ) {
-                    if (brain.learn(lastUser, finalText) != null) app.brainStore.save()
+                    val learned = withContext(kotlinx.coroutines.Dispatchers.Default) { brain.learn(lastUser, finalText) }
+                    if (learned != null) app.brainStore.save()
                 }
-                if (cacheKey != null && usedBundle == null && toolSteps.isEmpty() && error == null && t != null && finalText.length > prefix.length &&
+                if (completedOk && cacheKey != null && usedBundle == null && toolSteps.isEmpty() && error == null && t != null && finalText.length > prefix.length &&
                     finalText.isNotBlank() && !OutputQuality.isPoor(finalText)
                 ) {
                     repo.cachePut(
@@ -1122,7 +1138,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
     }
 
     companion object {
-        private const val SEARCH_BUDGET_MS = 40_000L
+        private const val SEARCH_BUDGET_MS = 20_000L
         private const val MAX_PENDING = 6
         private const val MAX_HISTORY_IMAGES = 4
         private const val MAX_RESUME = 2

@@ -10,7 +10,6 @@
     <string name="mode_fast">وضع سريع</string>
     <string name="mode_smart">وضع ذكي</string>
     <string name="mode_code">وضع برمجة</string>
-    <string name="all_models">كل المودلات</string>
     <string name="type_message">اكتب رسالتك…</string>
     <string name="typing">يكتب…</string>
     <string name="stop">إيقاف</string>
@@ -25,19 +24,13 @@
     <string name="ok">حسناً</string>
     <string name="save">حفظ</string>
     <string name="back">رجوع</string>
-    <string name="menu">القائمة</string>
     <string name="dismiss">إغلاق</string>
-    <string name="how_can_i_help">كيف أساعدك اليوم؟</string>
     <string name="no_provider_hint">لم تُعدّ أي مزود بعد. أضف مفتاحاً مجانياً لتبدأ.</string>
     <string name="setup_provider">إعداد مزود</string>
     <string name="switched_to">تم التحويل إلى %1$s</string>
     <string name="try_other_model">جرّب مودلاً آخر</string>
     <string name="trains_title">تنبيه الخصوصية</string>
     <string name="trains_body">قد يستخدم هذا المزود محادثاتك لتدريب نماذجه. لا تكتب معلومات حساسة.</string>
-    <string name="welcome_title">مرحباً بك في FreeLLM Chat</string>
-    <string name="welcome_body">تطبيق واحد يوزّع رسائلك على عدة مزودي ذكاء اصطناعي مجانيين، وعندما ينتهي سقف أحدهم ينتقل تلقائياً إلى التالي بدون أن تشعر. أضف مفتاح API مجانياً لمزود واحد على الأقل لتبدأ.</string>
-    <string name="welcome_privacy">المحادثات والمفاتيح تبقى على جهازك ومفاتيحك مشفّرة، ولا يوجد سيرفر وسيط. بعض المزوّدين المجانيين قد يستخدمون المحادثات للتدريب، فتجنّب المعلومات الحساسة.</string>
-    <string name="start">ابدأ</string>
     <string name="status_not_configured">غير مُعدّ</string>
     <string name="status_ready">جاهز</string>
     <string name="status_failed">فشل</string>
@@ -59,7 +52,6 @@
     <string name="testing">جارٍ الاختبار…</string>
     <string name="test_ok">نجح الاختبار وتم حفظ المفتاح وتفعيل المزود.</string>
     <string name="remove_key">حذف المفتاح</string>
-    <string name="enabled">مفعّل</string>
     <string name="theme">المظهر</string>
     <string name="theme_system">حسب النظام</string>
     <string name="theme_light">فاتح</string>
@@ -67,13 +59,11 @@
     <string name="about">حول التطبيق</string>
     <string name="about_body">المطوّر والشرح والإصدار</string>
     <string name="move_up">تحريك لأعلى</string>
-    <string name="move_down">تحريك لأسفل</string>
     <string name="status_cooling">في تبريد (%1$d ث)</string>
     <string name="status_dead">ميت</string>
     <string name="status_disabled">المزود معطّل</string>
     <string name="no_models">لا توجد مودلات. فعّل مزوداً أولاً.</string>
     <string name="provider_disabled_notice">تم تعطيل %1$s لأن المفتاح مرفوض</string>
-    <string name="untitled">محادثة</string>
     <string name="language">اللغة</string>
     <string name="lang_ar">العربية</string>
     <string name="lang_en">English</string>
@@ -112,8 +102,6 @@
 </string>
     <string name="sug_translate_p">ترجم النص التالي إلى الإنجليزية:
 </string>
-    <string name="free_account">حسابك المجاني</string>
-    <string name="free_account_sub">كل المزودين هنا مجانيون</string>
     <string name="want_more">تريد سعة أكبر؟</string>
     <string name="want_more_body">فعّل مزودين مجانيين أكثر ليستمر الرد حتى لو انتهى سقف أحدهم.</string>
     <string name="providers_active">%1$d مزود مفعّل</string>
@@ -134,7 +122,6 @@
     <string name="tag_reasoning">تفكير</string>
     <string name="app_label">التطبيق</string>
     <string name="preferences_label">التفضيلات</string>
-    <string name="models_count">%1$d مودل</string>
     <string name="google_ai_mode">البحث في Google AI Mode</string>
     <string name="mode_adaptive">تلقائي ذكي</string>
     <string name="adaptive_note">وضع متكيف: %1$s</string>
@@ -180,7 +167,6 @@
     <string name="local_fallback_note">تعذّر الوصول لأي مودل، فهذا أقرب جواب تعلّمه العقل المحلي · تطابق %1$d٪</string>
     <string name="brain_thanks">تعلّم العقل المحلي هذا الجواب وسيثق به أكثر</string>
     <string name="brain_forgot">نسي العقل المحلي هذا الجواب</string>
-    <string name="brain_cleared">تم مسح ذاكرة العقل المحلي</string>
     <string name="brain_title">العقل المحلي</string>
     <string name="brain_learn">التعلّم من محادثاتك</string>
     <string name="brain_learn_desc">يحفظ كل سؤال وجواب على جهازك فقط ليتعلم منه</string>
@@ -296,7 +282,6 @@
     <string name="about_tour">شرح التطبيق</string>
     <string name="about_tour_d">أعد مشاهدة العرض التعريفي المتحرك.</string>
     <string name="about_version">الإصدار</string>
-    <string name="about_short">المطوّر والشرح والإصدار</string>
     <string name="privacy_title">سياسة الخصوصية</string>
     <string name="privacy_row_d">ما يُحفظ وما يُرسل وكيف تتحكم ببياناتك.</string>
     <string name="privacy_intro">خصوصيتك أساس هذا التطبيق. هذه الصفحة تشرح بوضوح ما الذي يحدث لبياناتك.</string>
@@ -445,7 +430,6 @@
     <string name="advanced_desc">كل مفاتيح التوفير والبحث والمقارنة والدقة، والافتراضي مناسب للمبتدئ</string>
     <string name="switched_notice">انتقلت إلى مودل آخر</string>
     <string name="share_card">مشاركة كصورة</string>
-    <string name="share_card_title">بطاقة الرد</string>
     <string name="share_card_failed">تعذّر إنشاء الصورة</string>
     <string name="share_card_chooser">مشاركة بطاقة الرد</string>
     <string name="share_card_sources">المصادر</string>

@@ -118,3 +118,16 @@ description: Progress log and working notes for the FreeLLMChat Android project 
 - domain/CodeFiles.kt: ZIP_SYSTEM prompt, zipCommand(), stripCommand(), wantsZip(), fileLabel(). ZIP_SYSTEM injected when user asks for zip.
 - ui/CameraCapture.kt: BoxWithConstraints, landscape/portrait split, safeDrawing insets, adaptive shutter/thumb size.
 - Tests: ThinkSplitTest (think split, zip command, wantsZip, extract-ignores-thinking).
+
+## Round 9 (audit: security, speed, logic, dead code)
+- Router: a hedge lane that loses the race is released again (consumed.remove) so it can still serve as fallback; think markup is stripped before a partial answer is handed to the next model (Router.buildMessages, tail, restart check) and in OpenAiClient auto-continue.
+- ChatViewModel: start() cancels and joins the previous job; only a reply that reached RouteEvent.Done is cached or learned by the local brain (stopped partial answers no longer poison them); brain work in finally runs on Dispatchers.Default; search budget 40 s -> 20 s; CodeFiles.SYSTEM only for code or project requests; delete-all in settings goes through deleteAllChats (workspace and attachments cleaned).
+- Attachments: sweep() removes files no message references (after delete conversation/message, delete all, VM init); copy limit 60 MB, docx xml limit 12 MB.
+- ProviderManager: single Built holder for the targets cache, testAll runs providers in parallel (checkProvider).
+- CatalogGuard (CatalogRepository.kt): a remote or cached catalog cannot move a bundled provider to another host and new providers need https (or LAN).
+- worker.js: /fetch follows redirects manually and re-checks every hop; only GET and POST accepted. Set the SECRET variable and put it in the proxy URL path to close the open proxy.
+- WebViewSearch only navigates to https. SecretStore.importAll(replace) keeps device-local x_ keys. BackupManager.apply tolerates malformed files. BrainStore.save is serialized by a Mutex. OkHttp pool 10 idle connections / 30 s.
+- Removed: unused strings (16), unused imports, ProviderManager.move, BrainStore.exportJson, ChatViewModel.clearBrain.
+- Tests added: CatalogGuardTest, RouterHedgeTest (losingHedgeLaneStaysAvailableForFallback, continuationDoesNotCarryThinkMarkup).
+- Open decision: app/keystore/freellm-release.jks and its password are committed in build.gradle.kts. Rotating them breaks update-over-install, so it was left unchanged.
+- Not compiled locally (no Android SDK): run `./gradlew testDebugUnitTest assembleDebug` first.

@@ -133,4 +133,36 @@ class RouterHedgeTest {
         h.onFailure(t, LlmException(ErrorKind.TIMEOUT), 0L)
         assertTrue(h.blockedUntil(t, 1L) != null)
     }
+
+    @Test fun losingHedgeLaneStaysAvailableForFallback() = runTest {
+        val a = tgt("a", 1)
+        val b = tgt("b", 2)
+        val c = tgt("c", 3)
+        val partial = "This partial answer is definitely longer than twenty chars"
+        val tr = FakeTransport { t, _, _ ->
+            when (t.providerId) {
+                "a" -> flow<String> { delay(1500); emit(partial); throw LlmException(ErrorKind.INTERRUPTED) }
+                "b" -> flow<String> { delay(5000); emit(" rest from b") }
+                else -> flow<String> { delay(100); emit(" rest from c") }
+            }
+        }
+        val events = Router(tr, cfg, clock = { 0L }).stream(req(a, b, c)).toList()
+        assertEquals(b.key, (events.last() as RouteEvent.Done).target.key)
+    }
+
+    @Test fun continuationDoesNotCarryThinkMarkup() = runTest {
+        val a = tgt("a", 1)
+        val b = tgt("b", 2)
+        val body = "A reasonably long visible answer that was cut"
+        val tr = FakeTransport { t, _, _ ->
+            if (t.providerId == "a") {
+                flow<String> { emit("<think>hidden reasoning</think>\n" + body); throw LlmException(ErrorKind.INTERRUPTED) }
+            } else {
+                flow<String> { emit(" and now it ends properly") }
+            }
+        }
+        Router(tr, cfg, clock = { 0L }).stream(req(a, b)).toList()
+        val second = tr.calls.last().second
+        assertEquals(body, second[second.size - 2].content)
+    }
 }

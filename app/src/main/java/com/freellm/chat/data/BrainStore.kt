@@ -4,6 +4,8 @@ import android.content.Context
 import com.freellm.chat.domain.BrainEntry
 import com.freellm.chat.domain.LocalBrain
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -35,7 +37,11 @@ class BrainStore(context: Context) {
             .map { BrainEntry(it.id, it.q, it.a, it.t, it.s, it.h) }
     }.getOrDefault(emptyList())
 
-    suspend fun save() = withContext(Dispatchers.IO) {
+    private val saveLock = Mutex()
+
+    suspend fun save() = saveLock.withLock { saveNow() }
+
+    private suspend fun saveNow() = withContext(Dispatchers.IO) {
         runCatching {
             val data = BrainFile(entries = brain.all().map { StoredEntry(it.id, it.question, it.answer, it.createdAt, it.score, it.hits) })
             val tmp = File(file.parentFile, "local_brain.tmp")
@@ -45,9 +51,5 @@ class BrainStore(context: Context) {
                 tmp.delete()
             }
         }
-    }
-
-    suspend fun exportJson(): String = withContext(Dispatchers.IO) {
-        json.encodeToString(BrainFile(entries = brain.all().map { StoredEntry(it.id, it.question, it.answer, it.createdAt, it.score, it.hits) }))
     }
 }

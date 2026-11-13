@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -103,7 +102,7 @@ private fun ChoiceDialog(
 }
 
 @Composable
-fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit, onStatus: () -> Unit, onUsage: () -> Unit, onBrain: () -> Unit, onSearch: () -> Unit, onAbout: () -> Unit, onPrivacy: () -> Unit, onTools: () -> Unit = {}, onVoice: () -> Unit = {}) {
+fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit, onStatus: () -> Unit, onUsage: () -> Unit, onBrain: () -> Unit, onSearch: () -> Unit, onAbout: () -> Unit, onPrivacy: () -> Unit, onTools: () -> Unit = {}, onVoice: () -> Unit = {}, onWipeChats: () -> Unit = {}) {
     val cs = MaterialTheme.colorScheme
     val theme by app.settings.theme.collectAsStateWithLifecycle(initialValue = "system")
     val proxy by app.settings.proxyUrl.collectAsStateWithLifecycle(initialValue = "")
@@ -246,7 +245,7 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
             text = { Text(stringResource(R.string.delete_all_confirm)) },
             confirmButton = {
                 TextButton(onClick = {
-                    scope.launch { app.chatRepo.deleteAll() }
+                    onWipeChats()
                     dialog = null
                 }) { Text(stringResource(R.string.delete), color = cs.error) }
             },

@@ -12,6 +12,25 @@ import okhttp3.Request
 import java.io.File
 import java.util.concurrent.TimeUnit
 
+object CatalogGuard {
+    private fun hostOf(url: String): String =
+        url.trim().substringAfter("://", "").substringBefore('/').substringBefore('?').substringAfter('@').substringBefore(':').lowercase()
+
+    fun sanitize(remote: Catalog, bundled: Catalog?): Catalog {
+        val known = bundled?.providers.orEmpty().associateBy { it.id }
+        val safe = remote.providers.mapNotNull { p ->
+            val own = known[p.id]
+            when {
+                p.custom -> p
+                own != null && !own.custom && hostOf(p.baseUrl) != hostOf(own.baseUrl) -> own
+                !p.baseUrl.trim().startsWith("https://", ignoreCase = true) && !LanGuard.isPrivateHost(hostOf(p.baseUrl)) -> null
+                else -> p
+            }
+        }
+        return remote.copy(providers = safe)
+    }
+}
+
 class CatalogRepository(
     private val context: Context,
     private val http: OkHttpClient,
@@ -46,8 +65,8 @@ class CatalogRepository(
     suspend fun load(force: Boolean = false) {
         withContext(Dispatchers.IO) {
             if (_catalog.value.providers.isEmpty()) {
-                val cached = readCache()
                 val bundled = readAssets()
+                val cached = readCache()?.let { CatalogGuard.sanitize(it, bundled) }
                 val initial = if (cached != null && (bundled == null || cached.version >= bundled.version)) cached else bundled ?: cached
                 if (initial != null) _catalog.value = initial
                 if (initial === bundled) cacheFile.delete()
@@ -62,8 +81,9 @@ class CatalogRepository(
                         if (r.isSuccessful) r.body?.string() else null
                     }
                     if (text != null) {
-                        val parsed = parse(text)
-                        val floor = readAssets()?.version ?: 0
+                        val bundledNow = readAssets()
+                        val parsed = parse(text)?.let { CatalogGuard.sanitize(it, bundledNow) }
+                        val floor = bundledNow?.version ?: 0
                         if (parsed != null && parsed.version >= floor) {
                             cacheFile.writeText(text)
                             _catalog.value = parsed

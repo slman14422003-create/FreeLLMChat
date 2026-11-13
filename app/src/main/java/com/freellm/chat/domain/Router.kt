@@ -289,8 +289,9 @@ class Router(
     private fun buildMessages(req: RouteRequest, t: Target, partial: String, toolCut: Boolean = false): List<ChatMsg> {
         var msgs = req.messages
         var keep = 1
-        if (partial.isNotEmpty()) {
-            msgs = msgs + ChatMsg("assistant", partial) + ChatMsg("user", if (toolCut) CONTINUE_PROMPT + " " + TOOL_CUT_PROMPT else CONTINUE_PROMPT)
+        val visible = ThinkSplit.strip(partial)
+        if (visible.isNotBlank()) {
+            msgs = msgs + ChatMsg("assistant", visible) + ChatMsg("user", if (toolCut) CONTINUE_PROMPT + " " + TOOL_CUT_PROMPT else CONTINUE_PROMPT)
             keep = 2
         }
         val window = t.model.contextWindow
@@ -377,7 +378,7 @@ class Router(
             val msgs = buildMessages(req, t, partial.toString(), toolCut)
             var got = false
             var completed = false
-            val tail = if (partial.isNotEmpty()) partial.takeLast(TAIL_CHARS).toString() else ""
+            val tail = ThinkSplit.strip(partial.toString()).takeLast(TAIL_CHARS)
             var holding = tail.isNotEmpty()
             val hold = StringBuilder()
             var began = clock()
@@ -452,7 +453,7 @@ class Router(
                             for (l in lanes) {
                                 if (l !== won.first) {
                                     l.ch.cancel()
-                                    if (l === primary) stats.onFail(primary.t.key)
+                                    if (l === primary) stats.onFail(primary.t.key) else consumed.remove(l.t.key)
                                 }
                             }
                             cur = won.first.t
@@ -523,7 +524,7 @@ class Router(
                     partial.setLength(trimmed.length)
                     toolCut = true
                 }
-                if (got && (partial.length < config.restartBelowChars || ex.message == "poor output")) {
+                if (got && (ThinkSplit.strip(partial.toString()).length < config.restartBelowChars || ex.message == "poor output")) {
                     partial.clear()
                     toolCut = false
                     emit(RouteEvent.Restart)

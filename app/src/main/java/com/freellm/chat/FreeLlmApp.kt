@@ -36,7 +36,7 @@ class FreeLlmApp : Application() {
             .writeTimeout(30, TimeUnit.SECONDS)
             .protocols(listOf(Protocol.HTTP_1_1))
             .retryOnConnectionFailure(true)
-            .connectionPool(okhttp3.ConnectionPool(4, 20, TimeUnit.SECONDS))
+            .connectionPool(okhttp3.ConnectionPool(10, 30, TimeUnit.SECONDS))
             .dns(Ipv4FirstDns)
             .addInterceptor(com.freellm.chat.data.LanGuard.interceptor)
             .build()

@@ -6,6 +6,7 @@ import com.freellm.chat.domain.ErrorKind
 import com.freellm.chat.domain.LlmException
 import com.freellm.chat.domain.ProviderErrors
 import com.freellm.chat.domain.Target
+import com.freellm.chat.domain.ThinkSplit
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -172,9 +173,10 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
                         if (round == 0) throw e
                         break
                     }
-                    if (!cut || round >= MAX_AUTO_CONTINUE || acc.isEmpty()) break
+                    val visible = ThinkSplit.strip(acc.toString())
+                    if (!cut || round >= MAX_AUTO_CONTINUE || visible.isBlank()) break
                     round++
-                    msgs = messages + ChatMsg("assistant", acc.toString()) + ChatMsg("user", AUTO_CONTINUE)
+                    msgs = messages + ChatMsg("assistant", visible) + ChatMsg("user", AUTO_CONTINUE)
                 }
                 return@flow
             } catch (e: LlmException) {

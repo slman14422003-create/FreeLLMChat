@@ -100,6 +100,7 @@ private fun MainNav(app: FreeLlmApp) {
                 onSearch = { route = "search" },
                 onTools = { route = "tools" },
                 onVoice = { route = "voice" },
+                onWipeChats = { chatVm.deleteAllChats() },
                 onAbout = { route = "about" },
                 onPrivacy = {
                     privacyFrom = "settings"

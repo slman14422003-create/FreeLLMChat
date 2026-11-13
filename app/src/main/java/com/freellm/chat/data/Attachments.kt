@@ -164,8 +164,16 @@ class AttachmentStore(private val ctx: Context) {
     private fun copyToCache(uri: Uri): File? {
         return try {
             val f = File.createTempFile("imp", ".bin", ctx.cacheDir)
-            val ins = ctx.contentResolver.openInputStream(uri) ?: return null
-            ins.use { i -> f.outputStream().use { o -> i.copyTo(o) } }
+            val ins = ctx.contentResolver.openInputStream(uri)
+            if (ins == null) {
+                f.delete()
+                return null
+            }
+            val copied = ins.use { i -> f.outputStream().use { o -> copyLimited(i, o, MAX_IMPORT_BYTES) } }
+            if (!copied) {
+                f.delete()
+                return null
+            }
             f
         } catch (e: Throwable) {
             null
@@ -190,7 +198,7 @@ class AttachmentStore(private val ctx: Context) {
                 val e = z.nextEntry ?: break
                 if (e.name == "word/document.xml") {
                     val bo = ByteArrayOutputStream()
-                    z.copyTo(bo)
+                    if (!copyLimited(z, bo, MAX_DOCX_XML_BYTES)) break
                     xml = bo.toString("UTF-8")
                     break
                 }
@@ -312,6 +320,15 @@ class AttachmentStore(private val ctx: Context) {
         ""
     }
 
+    fun sweep(referenced: Set<String>, keep: Set<String>, minAgeMs: Long = 0L): Int {
+        val now = System.currentTimeMillis()
+        var n = 0
+        dir.listFiles()?.forEach { f ->
+            if (f.isFile && f.path !in referenced && f.path !in keep && now - f.lastModified() >= minAgeMs && f.delete()) n++
+        }
+        return n
+    }
+
     fun thumb(a: Attachment, target: Int): Bitmap? = try {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(a.path, bounds)
@@ -328,6 +345,20 @@ class AttachmentStore(private val ctx: Context) {
         const val MAX_PDF_PAGES = 8
         const val MAX_FILE_CHARS = 40_000
         const val MAX_RAW_BYTES = 2_000_000
+        const val MAX_IMPORT_BYTES = 60L * 1024 * 1024
+        const val MAX_DOCX_XML_BYTES = 12L * 1024 * 1024
+    }
+}
+
+private fun copyLimited(input: java.io.InputStream, out: java.io.OutputStream, limit: Long): Boolean {
+    val buf = ByteArray(8192)
+    var total = 0L
+    while (true) {
+        val r = input.read(buf)
+        if (r < 0) return true
+        total += r
+        if (total > limit) return false
+        out.write(buf, 0, r)
     }
 }
 

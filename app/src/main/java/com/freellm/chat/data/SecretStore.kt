@@ -62,8 +62,8 @@ class SecretStore(context: Context) {
 
     fun importAll(data: Map<String, String>, replace: Boolean) {
         val e = prefs.edit()
-        if (replace) e.clear()
-        data.forEach { (k, v) -> if (v.isNotBlank()) e.putString(k, v) }
+        if (replace) prefs.all.keys.filter { !it.startsWith("x_") }.forEach { e.remove(it) }
+        data.forEach { (k, v) -> if (v.isNotBlank() && !k.startsWith("x_")) e.putString(k, v) }
         e.commit()
         _changes.value = _changes.value + 1
     }

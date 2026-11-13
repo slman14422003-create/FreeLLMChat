@@ -10,7 +10,6 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import java.security.SecureRandom
@@ -68,7 +67,7 @@ class BackupManager(
 
     suspend fun apply(obj: JsonObject, replace: Boolean) {
         val sec = (obj["secrets"] as? JsonObject)?.mapNotNull { (k, v) ->
-            v.jsonPrimitive.contentOrNull?.let { k to it }
+            (v as? JsonPrimitive)?.contentOrNull?.let { k to it }
         }?.toMap() ?: emptyMap()
         secrets.importAll(sec, replace)
         val st = LinkedHashMap<String, Any>()
@@ -77,7 +76,7 @@ class BackupManager(
     }
 
     private fun toNative(e: JsonElement): Any? = when (e) {
-        is JsonArray -> e.mapNotNull { it.jsonPrimitive.contentOrNull }
+        is JsonArray -> e.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
         is JsonPrimitive -> e.booleanOrNull ?: e.contentOrNull
         else -> null
     }

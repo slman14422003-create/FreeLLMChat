@@ -8,6 +8,9 @@ import com.freellm.chat.domain.ProviderDef
 import com.freellm.chat.domain.Router
 import com.freellm.chat.domain.Target
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
@@ -106,8 +109,9 @@ class ProviderManager(
         }
     }
 
-    @Volatile private var cachedKey: List<Any?>? = null
-    @Volatile private var cachedTargets: List<Target> = emptyList()
+    private class Built(val key: List<Any?>, val targets: List<Target>)
+
+    @Volatile private var built: Built? = null
 
     suspend fun activeTargets(): List<Target> = withContext(Dispatchers.Default) {
         val cat = catalog.catalog.value
@@ -119,11 +123,10 @@ class ProviderManager(
         val today = LocalDate.now()
         val proxy = settings.proxyUrl.first()
         val key = listOf(cat, enabled, avoid, order, statuses, today, proxy, secrets.changes.value)
-        if (key == cachedKey) return@withContext cachedTargets
-        val built = buildTargets(cat, enabled, avoid, order, statuses, today, proxy)
-        cachedTargets = built
-        cachedKey = key
-        built
+        built?.let { if (it.key == key) return@withContext it.targets }
+        val fresh = buildTargets(cat, enabled, avoid, order, statuses, today, proxy)
+        built = Built(key, fresh)
+        fresh
     }
 
     private fun buildTargets(
@@ -248,17 +251,6 @@ class ProviderManager(
         settings.setKeylessOff(id, true)
     }
 
-    suspend fun move(id: String, delta: Int) {
-        val ids = providers.first().map { it.def.id }.toMutableList()
-        val i = ids.indexOf(id)
-        val j = i + delta
-        if (i < 0 || j < 0 || j >= ids.size) return
-        val tmp = ids[i]
-        ids[i] = ids[j]
-        ids[j] = tmp
-        settings.setOrder(ids)
-    }
-
     suspend fun setOrder(ids: List<String>) {
         settings.setOrder(ids)
     }
@@ -290,33 +282,38 @@ class ProviderManager(
     suspend fun testAll(): List<KeyCheck> {
         val cat = catalog.catalog.value
         val proxy = settings.proxyUrl.first()
-        val out = ArrayList<KeyCheck>()
-        for (p in cat.providers.filter { it.available }) {
-            val keys = withContext(Dispatchers.IO) { secrets.apiKey(p.id).orEmpty() }
-                .split('\n').map { it.trim() }.filter { it.isNotEmpty() }
-            val (base, alt) = baseFor(p, secrets.baseUrl(p.id), proxy, secrets.accountId(p.id).orEmpty())
-            val models = if (p.custom) {
-                val mid = secrets.modelId(p.id).orEmpty()
-                if (base.isBlank() || mid.isBlank()) continue
-                customModels(p, mid).take(1)
-            } else {
-                if (keys.isEmpty()) continue
-                cat.models.filter { it.provider == p.id }.sortedBy { it.priority }.take(2)
-            }
-            if (models.isEmpty()) continue
-            var worst = KeyState.OK
-            for (k in keys.ifEmpty { listOf("") }) {
-                val err = probe(p, base, alt, k, models)
-                val st = when {
-                    err == null -> KeyState.OK
-                    err.kind == ErrorKind.AUTH && err.httpCode == 401 -> KeyState.INVALID
-                    else -> KeyState.FAILING
-                }
-                if (st.ordinal > worst.ordinal) worst = st
-            }
-            out.add(KeyCheck(p.name, worst))
+        return coroutineScope {
+            cat.providers.filter { it.available }
+                .map { p -> async { checkProvider(p, cat, proxy) } }
+                .awaitAll()
+                .filterNotNull()
         }
-        return out
+    }
+
+    private suspend fun checkProvider(p: ProviderDef, cat: Catalog, proxy: String): KeyCheck? {
+        val keys = withContext(Dispatchers.IO) { secrets.apiKey(p.id).orEmpty() }
+            .split('\n').map { it.trim() }.filter { it.isNotEmpty() }
+        val (base, alt) = baseFor(p, secrets.baseUrl(p.id), proxy, secrets.accountId(p.id).orEmpty())
+        val models = if (p.custom) {
+            val mid = secrets.modelId(p.id).orEmpty()
+            if (base.isBlank() || mid.isBlank()) return null
+            customModels(p, mid).take(1)
+        } else {
+            if (keys.isEmpty()) return null
+            cat.models.filter { it.provider == p.id }.sortedBy { it.priority }.take(2)
+        }
+        if (models.isEmpty()) return null
+        var worst = KeyState.OK
+        for (k in keys.ifEmpty { listOf("") }) {
+            val err = probe(p, base, alt, k, models)
+            val st = when {
+                err == null -> KeyState.OK
+                err.kind == ErrorKind.AUTH && err.httpCode == 401 -> KeyState.INVALID
+                else -> KeyState.FAILING
+            }
+            if (st.ordinal > worst.ordinal) worst = st
+        }
+        return KeyCheck(p.name, worst)
     }
 
     suspend fun discoverModels(base: String, key: String) = client.listModels(base, key)

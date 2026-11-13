@@ -54,6 +54,9 @@ interface ChatDao {
     @Query("DELETE FROM messages WHERE id = :id")
     suspend fun deleteMessage(id: Long)
 
+    @Query("SELECT attachments FROM messages WHERE attachments IS NOT NULL")
+    suspend fun attachmentRefs(): List<String>
+
     @Query("DELETE FROM messages WHERE conversationId = :cid AND id >= :fromId")
     suspend fun deleteFrom(cid: Long, fromId: Long)
 

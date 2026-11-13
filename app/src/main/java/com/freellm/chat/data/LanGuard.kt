@@ -1,7 +1,6 @@
 package com.freellm.chat.data
 
 import okhttp3.Interceptor
-import okhttp3.Response
 import java.io.IOException
 
 /** Allows plain http only for loopback, private LAN ranges and local hostnames. */

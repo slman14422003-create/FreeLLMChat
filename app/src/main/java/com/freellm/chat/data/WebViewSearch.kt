@@ -127,6 +127,9 @@ class WebViewSearch(private val context: Context, private val health: EngineHeal
             wv.webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) = Unit
 
+                override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
+                    request.url.scheme != "https"
+
                 override fun onPageFinished(view: WebView, url: String?) {
                     if (done) return
                     if (LocalSearchParse.isBlockedPage(url)) {

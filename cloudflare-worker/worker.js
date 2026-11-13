@@ -61,14 +61,32 @@ async function fetchPage(raw) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort("upstream_timeout"), 9000);
   try {
-    const r = await fetch(target.toString(), {
-      headers: {
-        accept: "text/html,application/xhtml+xml,text/plain;q=0.9",
-        "user-agent": "Mozilla/5.0 (Linux; Android 14; Mobile) FreeLLMChat/1.0",
-      },
-      redirect: "follow",
-      signal: ctrl.signal,
-    });
+    let r = null;
+    for (let hop = 0; hop < 4; hop++) {
+      r = await fetch(target.toString(), {
+        headers: {
+          accept: "text/html,application/xhtml+xml,text/plain;q=0.9",
+          "user-agent": "Mozilla/5.0 (Linux; Android 14; Mobile) FreeLLMChat/1.0",
+        },
+        redirect: "manual",
+        signal: ctrl.signal,
+      });
+      const loc = r.status >= 300 && r.status < 400 ? r.headers.get("location") : null;
+      if (!loc) break;
+      let next;
+      try {
+        next = new URL(loc, target);
+      } catch (e) {
+        return fail(502, "bad redirect");
+      }
+      if (next.protocol !== "https:" || privateHost(next.hostname)) return fail(400, "blocked url");
+      try {
+        await r.body?.cancel();
+      } catch (e) {}
+      target = next;
+      r = null;
+    }
+    if (!r) return fail(502, "too many redirects");
     const type = (r.headers.get("content-type") || "").toLowerCase();
     if (type && !type.includes("html") && !type.includes("xml") && !type.startsWith("text/plain")) {
       return fail(415, "unsupported type");
@@ -139,6 +157,7 @@ export default {
         },
       });
     }
+    if (request.method !== "GET" && request.method !== "POST") return errorResponse(405, "method not allowed");
     const url = new URL(request.url);
     const parts = url.pathname.split("/").filter(Boolean);
     if (env.SECRET) {
