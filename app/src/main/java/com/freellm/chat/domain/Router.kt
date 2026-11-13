@@ -524,7 +524,7 @@ class Router(
                     partial.setLength(trimmed.length)
                     toolCut = true
                 }
-                if (got && (ThinkSplit.strip(partial.toString()).length < config.restartBelowChars || ex.message == "poor output")) {
+                if (got && (partial.length < config.restartBelowChars || ThinkSplit.strip(partial.toString()).isBlank() || ex.message == "poor output")) {
                     partial.clear()
                     toolCut = false
                     emit(RouteEvent.Restart)
