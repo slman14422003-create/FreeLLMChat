@@ -103,7 +103,7 @@ class LocalBrainRound10Test {
     @Test fun followUpsAreNotLearnedOrServed() {
         org.junit.Assert.assertTrue(BrainPolicy.skipMemory("and why?", 3))
         org.junit.Assert.assertTrue(BrainPolicy.skipMemory("please explain that in more detail with a full example for beginners", 3))
-        org.junit.Assert.assertFalse(BrainPolicy.skipMemory("explain how photosynthesis works in green plants during the day", 3))
+        org.junit.Assert.assertFalse(BrainPolicy.skipMemory("explain how photosynthesis works in green plants during the day and why chlorophyll absorbs red and blue light", 3))
         org.junit.Assert.assertFalse(BrainPolicy.skipMemory("and why?", 1))
     }
 
