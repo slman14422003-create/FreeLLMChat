@@ -80,6 +80,7 @@ class BackupManager(
         val chats = obj["chats"] as? JsonArray ?: return
         val files = obj["files"] as? JsonObject
         val remap = HashMap<String, String>()
+        val store = attachments
         fun str(o: JsonObject, k: String): String? = (o[k] as? JsonPrimitive)?.contentOrNull
         fun lng(o: JsonObject, k: String): Long = str(o, k)?.toLongOrNull() ?: 0L
         for (el in chats) {
@@ -99,12 +100,12 @@ class BackupManager(
                 val m = me as? JsonObject ?: continue
                 var att: String? = null
                 val raw = str(m, "a")
-                if (!raw.isNullOrBlank() && files != null && attachments != null) {
+                if (!raw.isNullOrBlank() && files != null && store != null) {
                     val list = AttachmentCodec.decode(raw).mapNotNull { a ->
                         val path = remap[a.path] ?: run {
                             val b64 = (files[a.path] as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
                             val ext = a.path.substringAfterLast('.', "bin")
-                            val np = attachments.storeBytes(android.util.Base64.decode(b64, android.util.Base64.NO_WRAP), ext)
+                            val np = store.storeBytes(android.util.Base64.decode(b64, android.util.Base64.NO_WRAP), ext)
                             remap[a.path] = np
                             np
                         }
