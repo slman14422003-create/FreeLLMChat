@@ -1,6 +1,8 @@
 package com.freellm.chat.data
 
 import com.freellm.chat.FreeLlmApp
+import com.freellm.chat.domain.SpeechLang
+import com.freellm.chat.domain.VoiceTestAudio
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -21,7 +23,68 @@ import java.util.concurrent.TimeUnit
 
 enum class VoiceFail { NO_KEY, AUTH, RATE, TERMS, NETWORK, EMPTY, OTHER }
 
-class VoiceException(val kind: VoiceFail, message: String = "", val model: String = "") : Exception(message)
+class VoiceException(
+    val kind: VoiceFail,
+    message: String = "",
+    val model: String = "",
+    val httpCode: Int = 0,
+    val snippet: String = ""
+) : Exception(message) {
+    val transient: Boolean get() = kind == VoiceFail.NETWORK || kind == VoiceFail.OTHER
+}
+
+class Transcript(val text: String, val language: String?)
+
+data class VoiceStep(val step: String, val ok: Boolean, val code: Int, val kind: VoiceFail?)
+
+object VoiceErrors {
+    private val json = Json { ignoreUnknownKeys = true }
+    private val secret = Regex("gsk_[A-Za-z0-9_\\-]{6,}|Bearer\\s+\\S+")
+
+    fun redact(s: String, limit: Int = 100): String = secret.replace(s.replace('\n', ' ').replace('\r', ' '), "***").take(limit)
+
+    fun termsRequired(body: String): Boolean {
+        val err = try {
+            (json.parseToJsonElement(body) as? JsonObject)?.get("error") as? JsonObject
+        } catch (e: Exception) {
+            null
+        } ?: return false
+        val code = (err["code"] as? JsonPrimitive)?.contentOrNull.orEmpty().lowercase()
+        val msg = (err["message"] as? JsonPrimitive)?.contentOrNull.orEmpty().lowercase()
+        if (code == "model_terms_required") return true
+        return msg.contains("terms") && msg.contains("accept")
+    }
+
+    fun map(code: Int, body: String): VoiceException {
+        val kind = when {
+            termsRequired(body) -> VoiceFail.TERMS
+            code == 401 -> VoiceFail.AUTH
+            code == 429 -> VoiceFail.RATE
+            else -> VoiceFail.OTHER
+        }
+        val snip = redact(body)
+        return VoiceException(kind, "HTTP $code $snip", "", code, snip)
+    }
+}
+
+object VoiceFallback {
+    suspend fun <T> run(keys: List<String>, bases: List<String>, call: suspend (base: String, key: String) -> T): T {
+        if (keys.isEmpty()) throw VoiceException(VoiceFail.NO_KEY)
+        var last: VoiceException? = null
+        for (k in keys) {
+            for (b in bases) {
+                try {
+                    return call(b, k)
+                } catch (e: VoiceException) {
+                    last = e
+                    if (e.kind == VoiceFail.TERMS || e.kind == VoiceFail.EMPTY) throw e
+                    if (e.kind == VoiceFail.AUTH || e.kind == VoiceFail.RATE) break
+                }
+            }
+        }
+        throw last ?: VoiceException(VoiceFail.OTHER)
+    }
+}
 
 class GroqVoice(private val app: FreeLlmApp) {
     private val json = Json { ignoreUnknownKeys = true }
@@ -42,40 +105,13 @@ class GroqVoice(private val app: FreeLlmApp) {
         return if (px.isEmpty()) listOf(direct) else listOf("$px/groq/openai/v1", direct)
     }
 
-    private fun mapHttp(code: Int, body: String): VoiceException {
-        val low = body.lowercase()
-        val kind = when {
-            low.contains("terms") || low.contains("model_terms_required") -> VoiceFail.TERMS
-            code == 401 || code == 403 -> VoiceFail.AUTH
-            code == 429 -> VoiceFail.RATE
-            else -> VoiceFail.OTHER
-        }
-        return VoiceException(kind, "HTTP $code " + body.replace('\n', ' ').take(140))
-    }
-
-    private suspend fun <T> withKeys(call: suspend (base: String, key: String) -> T): T {
-        val ks = keys()
-        if (ks.isEmpty()) throw VoiceException(VoiceFail.NO_KEY)
-        val bs = bases()
-        var last: VoiceException? = null
-        for (k in ks) {
-            for (b in bs) {
-                try {
-                    return call(b, k)
-                } catch (e: VoiceException) {
-                    last = e
-                    if (e.kind != VoiceFail.NETWORK) break
-                }
-            }
-            if (last?.kind == VoiceFail.TERMS) break
-        }
-        throw last ?: VoiceException(VoiceFail.OTHER)
-    }
+    private suspend fun <T> withKeys(call: suspend (base: String, key: String) -> T): T =
+        VoiceFallback.run(keys(), bases(), call)
 
     private suspend fun send(req: Request): ByteArray = try {
         client.newCall(req).await().use { r ->
             val bytes = withContext(Dispatchers.IO) { r.body?.bytes() ?: ByteArray(0) }
-            if (!r.isSuccessful) throw mapHttp(r.code, String(bytes, Charsets.UTF_8))
+            if (!r.isSuccessful) throw VoiceErrors.map(r.code, String(bytes, Charsets.UTF_8))
             bytes
         }
     } catch (e: CancellationException) {
@@ -86,24 +122,36 @@ class GroqVoice(private val app: FreeLlmApp) {
         throw VoiceException(VoiceFail.NETWORK, e.javaClass.simpleName + ": " + e.message.orEmpty().take(80))
     }
 
-    suspend fun transcribe(wav: ByteArray, model: String, lang: String): String = withKeys { base, key ->
+    suspend fun ping() {
+        withKeys { base, key ->
+            send(Request.Builder().url("$base/models").header("Authorization", "Bearer $key").get().build())
+        }
+    }
+
+    suspend fun transcribe(wav: ByteArray, model: String, lang: String, prompt: String = ""): String =
+        transcribeDetailed(wav, model, lang, prompt).text
+
+    suspend fun transcribeDetailed(wav: ByteArray, model: String, lang: String, prompt: String = ""): Transcript = withKeys { base, key ->
         val form = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("file", "speech.wav", wav.toRequestBody("audio/wav".toMediaType()))
             .addFormDataPart("model", model)
-            .addFormDataPart("response_format", "json")
+            .addFormDataPart("response_format", "verbose_json")
             .addFormDataPart("temperature", "0")
         if (lang.isNotBlank() && lang != "auto") form.addFormDataPart("language", lang)
+        if (prompt.isNotBlank()) form.addFormDataPart("prompt", prompt)
         val req = Request.Builder().url("$base/audio/transcriptions")
             .header("Authorization", "Bearer $key")
             .post(form.build())
             .build()
         val bytes = send(req)
-        val text = try {
-            ((json.parseToJsonElement(String(bytes, Charsets.UTF_8)) as? JsonObject)?.get("text") as? JsonPrimitive)?.contentOrNull
+        val obj = try {
+            json.parseToJsonElement(String(bytes, Charsets.UTF_8)) as? JsonObject
         } catch (e: Exception) {
             null
         }
-        text?.trim() ?: throw VoiceException(VoiceFail.EMPTY)
+        val text = (obj?.get("text") as? JsonPrimitive)?.contentOrNull?.trim()
+        if (text == null) throw VoiceException(VoiceFail.EMPTY)
+        Transcript(text, SpeechLang.isoOf((obj?.get("language") as? JsonPrimitive)?.contentOrNull))
     }
 
     suspend fun speak(text: String, arabic: Boolean, voice: String): ByteArray = withKeys { base, key ->
@@ -121,17 +169,42 @@ class GroqVoice(private val app: FreeLlmApp) {
         try {
             send(req)
         } catch (e: VoiceException) {
-            throw VoiceException(e.kind, e.message.orEmpty(), payloadModel)
+            throw VoiceException(e.kind, e.message.orEmpty(), payloadModel, e.httpCode, e.snippet)
         }
     }
 
     suspend fun checkTts(arabic: Boolean): VoiceFail? = try {
-        speak(if (arabic) "مرحبا" else "Hello", arabic, if (arabic) AR_VOICES.first() else EN_VOICES.first())
+        speak(if (arabic) "\u0645\u0631\u062d\u0628\u0627" else "Hello", arabic, if (arabic) AR_VOICES.first() else EN_VOICES.first())
         null
     } catch (e: CancellationException) {
         throw e
     } catch (e: VoiceException) {
         e.kind
+    }
+
+    suspend fun selfTest(sttModel: String): List<VoiceStep> {
+        val out = ArrayList<VoiceStep>()
+        out.add(
+            try {
+                transcribe(VoiceTestAudio.wav(), sttModel, "en")
+                VoiceStep("stt", true, 0, null)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: VoiceException) {
+                if (e.kind == VoiceFail.EMPTY) VoiceStep("stt", true, 0, null) else VoiceStep("stt", false, e.httpCode, e.kind)
+            }
+        )
+        out.add(
+            try {
+                speak("Test", false, EN_VOICES.first())
+                VoiceStep("tts", true, 0, null)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: VoiceException) {
+                VoiceStep("tts", false, e.httpCode, e.kind)
+            }
+        )
+        return out
     }
 
     companion object {

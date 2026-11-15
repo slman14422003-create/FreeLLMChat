@@ -18,6 +18,12 @@ val modelsUrl: String = (project.findProperty("MODELS_URL") as String?)
 
 val appVersionCode: Int = (project.findProperty("VERSION_CODE") as String?)?.toIntOrNull() ?: 1
 
+val healthSeedDir = layout.buildDirectory.dir("generated/healthSeed")
+val copyHealthSeed by tasks.registering(Copy::class) {
+    from(rootProject.file("tools/health.json"))
+    into(healthSeedDir)
+}
+
 android {
     namespace = "com.freellm.chat"
     compileSdk = 35
@@ -31,6 +37,8 @@ android {
         buildConfigField("String", "MODELS_URL", "\"$modelsUrl\"")
         resourceConfigurations += listOf("ar", "en")
     }
+
+    sourceSets["main"].assets.srcDir(healthSeedDir)
 
     signingConfigs {
         if (useEnvKs) {
@@ -139,4 +147,8 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.kotlinx.serialization.json)
+}
+
+tasks.configureEach {
+    if (name.startsWith("merge") && name.endsWith("Assets")) dependsOn(copyHealthSeed)
 }

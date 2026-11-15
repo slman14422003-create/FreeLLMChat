@@ -30,7 +30,14 @@ data class RouterConfig(
     val idleTimeoutMs: Long = 20_000,
     val restartBelowChars: Int = 20,
     val hedgeMs: Long = 0,
-    val reasoningFactor: Int = 2
+    val reasoningFactor: Int = 2,
+    val minFirstTokenMs: Long = 8_000,
+    val maxFirstTokenMs: Long = 35_000,
+    val minIdleMs: Long = 6_000,
+    val maxIdleMs: Long = 25_000,
+    val fastFirstTokenMs: Long = 7_000,
+    val blipDelayMs: Long = 400,
+    val minSamples: Int = 5
 )
 
 sealed class ModelHealth {
@@ -51,6 +58,7 @@ class Health(private val config: RouterConfig) {
     private val transientKeys = HashSet<String>()
     private val lastOk = HashMap<String, Long>()
     private val forbidden = HashMap<String, Int>()
+    private val everOk = HashSet<String>()
 
     private fun cooldown(retryAfterSec: Long?, n: Int): Long {
         if (retryAfterSec != null && retryAfterSec > 0) {
@@ -82,6 +90,7 @@ class Health(private val config: RouterConfig) {
     @Synchronized
     fun onSuccess(t: Target, now: Long = Long.MIN_VALUE) {
         if (now != Long.MIN_VALUE) lastOk[t.key] = now
+        everOk.add(t.key)
         forbidden.remove(t.providerId)
         modelFails.remove(t.key)
         modelBackoff.remove(t.key)
@@ -120,7 +129,9 @@ class Health(private val config: RouterConfig) {
                 val f = (modelFails[t.key] ?: 0) + weight
                 if (f >= config.failureThreshold) {
                     val n = modelBackoff[t.key] ?: 0
-                    modelUntil[t.key] = now + cooldown(null, n)
+                    val len = cooldown(null, n)
+                    val capped = if (t.key !in everOk && n == 0) min(len, NEVER_OK_COOLDOWN_MS) else len
+                    modelUntil[t.key] = now + capped
                     modelBackoff[t.key] = n + 1
                     modelFails[t.key] = 0
                     transientKeys.add(t.key)
@@ -141,6 +152,45 @@ class Health(private val config: RouterConfig) {
         transientKeys.clear()
         modelFails.clear()
         return any
+    }
+
+    @Synchronized
+    fun onNetworkChange() {
+        clearTransient()
+        modelBackoff.replaceAll { _, v -> min(v, 1) }
+        providerBackoff.replaceAll { _, v -> min(v, 1) }
+    }
+
+    @Synchronized
+    fun export(now: Long): String = buildString {
+        for ((k, u) in modelUntil) if (u > now) append("m\t").append(k).append('\t').append(u).append('\t').append(modelBackoff[k] ?: 0).append('\n')
+        for ((k, u) in providerUntil) if (u > now) append("p\t").append(k).append('\t').append(u).append('\t').append(providerBackoff[k] ?: 0).append('\n')
+        for (k in everOk) append("o\t").append(k).append('\n')
+    }
+
+    @Synchronized
+    fun import(raw: String, now: Long) {
+        for (line in raw.lineSequence()) {
+            val f = line.split('\t')
+            when (f.firstOrNull()) {
+                "m" -> if (f.size >= 4) {
+                    val u = f[2].toLongOrNull() ?: continue
+                    if (u > now) {
+                        modelUntil[f[1]] = u
+                        modelBackoff[f[1]] = f[3].toIntOrNull() ?: 0
+                        transientKeys.add(f[1])
+                    }
+                }
+                "p" -> if (f.size >= 4) {
+                    val u = f[2].toLongOrNull() ?: continue
+                    if (u > now) {
+                        providerUntil[f[1]] = u
+                        providerBackoff[f[1]] = f[3].toIntOrNull() ?: 0
+                    }
+                }
+                "o" -> if (f.size >= 2) everOk.add(f[1])
+            }
+        }
     }
 
     @Synchronized
@@ -169,13 +219,32 @@ class Health(private val config: RouterConfig) {
     private companion object {
         const val FORBIDDEN_COOLDOWN_MS = 600_000L
         const val RECENT_OK_MS = 600_000L
+        const val NEVER_OK_COOLDOWN_MS = 20_000L
     }
 }
 
 object ContextTrimmer {
     private const val SHORT_RESULT = 700
 
-    fun estimate(s: String): Int = Math.ceil(s.length / 3.5).toInt() + 4
+    const val LATIN_CHARS_PER_TOKEN = 3.5
+    const val ARABIC_CHARS_PER_TOKEN = 2.2
+
+    fun charsPerToken(s: String): Double {
+        if (s.isEmpty()) return LATIN_CHARS_PER_TOKEN
+        var ar = 0
+        for (c in s) if (c in '\u0600'..'\u06FF') ar++
+        if (ar == 0) return LATIN_CHARS_PER_TOKEN
+        val share = ar.toDouble() / s.length
+        return 1.0 / (share / ARABIC_CHARS_PER_TOKEN + (1.0 - share) / LATIN_CHARS_PER_TOKEN)
+    }
+
+    fun estimate(s: String): Int {
+        if (s.isEmpty()) return 4
+        var ar = 0
+        for (c in s) if (c in '\u0600'..'\u06FF') ar++
+        val latin = s.length - ar
+        return Math.ceil(ar / ARABIC_CHARS_PER_TOKEN + latin / LATIN_CHARS_PER_TOKEN).toInt() + 4
+    }
 
     fun cost(m: ChatMsg): Int = estimate(m.content) + m.images.size * 1200
 
@@ -246,7 +315,7 @@ private class Chunk(val text: String?, val error: Throwable?)
 private class Lane(val t: Target, val ch: ReceiveChannel<Chunk>, val opened: Long)
 
 private const val CONTINUE_PROMPT =
-    "Continue your previous reply exactly where it stopped. Do not repeat anything and do not add an introduction. أكمل ردك السابق من حيث توقفت تماماً دون تكرار ودون مقدمة."
+    "Continue your previous reply exactly where it stopped. Do not repeat anything and do not add an introduction."
 private const val TOOL_CUT_PROMPT =
     "Your previous reply stopped while you were writing a tool block, so that block was discarded. Write the complete tool block again from its first character, or the final answer if no tool is needed."
 private const val HOLD_CHARS = 48
@@ -255,8 +324,10 @@ private const val TAIL_CHARS = 240
 private const val ALERT_AT = 0.8
 private const val PROACTIVE_AT = 0.9
 private const val DAY_MS = 86_400_000L
-private const val MIN_FIRST_TOKEN_MS = 25_000L
-private const val SLOW_P50_MS = 5_000L
+private const val FAST_MIN_MS = 6_000L
+private const val FAST_MAX_MS = 8_000L
+private const val HEDGE_HEADROOM = 0.5
+private const val HEDGE_PICK_PRESSURE = 0.8
 
 class Router(
     private val transport: ChatTransport,
@@ -268,9 +339,25 @@ class Router(
     val health = Health(config)
     val stats = ModelStats()
     var onOutcome: ((String, Boolean, Long?) -> Unit)? = null
+    var onStateChanged: (() -> Unit)? = null
     private val alerted = HashSet<String>()
     @Volatile var hedgeMs: Long = config.hedgeMs
     @Volatile var forceHedge: Boolean = false
+
+    fun snapshot(now: Long = clock()): String = "#stats\n" + stats.export(now) + "#health\n" + health.export(now)
+
+    fun restore(raw: String, now: Long = clock()) {
+        val i = raw.indexOf("#health\n")
+        val statsPart = raw.substringAfter("#stats\n", "").let { if (i >= 0) it.substringBefore("#health\n") else it }
+        val healthPart = if (i >= 0) raw.substring(i + 8) else ""
+        stats.import(statsPart, now)
+        health.import(healthPart, now)
+    }
+
+    fun onNetworkChange() {
+        health.onNetworkChange()
+        onStateChanged?.invoke()
+    }
 
     internal fun order(req: RouteRequest): List<Target> {
         val pool = if (req.needsVision) req.candidates.filter { it.model.vision } else req.candidates
@@ -286,44 +373,58 @@ class Router(
                 { if (req.estimatedTokens > 0 && !RequestFitter.fits(it, req.estimatedTokens)) 1 else 0 },
                 { if (req.preferredKey != null && it.key == req.preferredKey) 0 else 1 },
                 { if (req.proactive && limiter.pressure(it, clock()) >= PROACTIVE_AT) 1 else 0 },
+                { if (req.fast && it.model.reasoning) 1 else 0 },
                 { if (wanted != null && wanted in it.model.modes) 0 else 1 },
                 { -ModelCaps.matches(it.model, req.wantCaps) },
                 { if (req.adaptive) stats.failTier(it.key) else 0 },
+                { if (stats.samples(it.key) >= config.minSamples) -req.rating(it.key).coerceIn(-3, 3) else 0 },
+                { if (req.adaptive && stats.samples(it.key) >= config.minSamples) stats.latencyBucket(it.key) else 0 },
+                { it.model.priority },
                 { -req.rating(it.key).coerceIn(-3, 3) },
                 { if (req.adaptive) stats.latencyBucket(it.key) else 0 },
-                { it.model.priority },
                 { it.providerRank }
             )
         ))
     }
 
-    private fun firstTokenMs(t: Target): Long {
-        val base = if (t.model.reasoning) config.firstTokenTimeoutMs * config.reasoningFactor else config.firstTokenTimeoutMs
-        val lat = stats.latencyMs(t.key)
-        val scaled = if (lat != null) max(base, lat * 4) else base
-        val floor = if (lat != null && lat > SLOW_P50_MS) MIN_FIRST_TOKEN_MS else 0L
-        return max(scaled, floor)
+    private fun firstTokenMs(t: Target, fast: Boolean): Long {
+        val p95 = stats.p95(t.key)
+        if (fast) {
+            val derived = if (p95 != null) p95 * 3 / 2 else config.fastFirstTokenMs
+            return derived.coerceIn(FAST_MIN_MS, FAST_MAX_MS)
+        }
+        val factor = if (t.model.reasoning) config.reasoningFactor.toLong() else 1L
+        if (p95 == null) return config.firstTokenTimeoutMs * factor
+        return (p95 * 5 / 2).coerceIn(config.minFirstTokenMs * factor, config.maxFirstTokenMs * factor)
     }
 
     private fun idleMs(t: Target): Long {
-        val base = if (t.model.reasoning) config.idleTimeoutMs * config.reasoningFactor else config.idleTimeoutMs
-        val lat = stats.latencyMs(t.key) ?: return base
-        return max(base, lat * 2)
+        val p95 = stats.p95(t.key)
+        val factor = if (t.model.reasoning) config.reasoningFactor.toLong() else 1L
+        if (p95 == null) return config.idleTimeoutMs * factor
+        return p95.coerceIn(config.minIdleMs * factor, config.maxIdleMs * factor)
     }
 
     internal fun hedgeAllowed(t: Target): Boolean = !HedgePolicy.restricted(t.model.rpm, t.model.rpd)
 
-    private fun hedgeDelay(t: Target): Long {
+    internal fun hedgeAllowed(t: Target, fast: Boolean): Boolean =
+        hedgeAllowed(t) || (fast && limiter.pressure(t, clock()) <= HEDGE_HEADROOM)
+
+    private fun hedgeDelay(t: Target, fast: Boolean): Long {
         val base = hedgeMs
-        val lat = stats.latencyMs(t.key) ?: return base
+        val lat = stats.latencyMs(t.key)
+        if (fast) return ((lat?.times(2)) ?: (base / 2)).coerceIn(800L, 2500L)
+        if (lat == null) return base
         return (lat * 3).coerceIn(max(1800L, base / 2), base * 2)
     }
 
-    private fun pickHedge(ordered: List<Target>, t: Target, consumed: Set<String>): Target? {
+    private fun pickHedge(ordered: List<Target>, t: Target, consumed: Set<String>, sameProviderOk: Boolean): Target? {
         val rest = ordered.dropWhile { it != t }.drop(1).filter {
-            it.key !in consumed && health.blockedUntil(it, clock()) == null && limiter.blockedUntil(it, clock()) == null
+            it.key !in consumed && health.blockedUntil(it, clock()) == null && limiter.blockedUntil(it, clock()) == null &&
+                limiter.pressure(it, clock()) < HEDGE_PICK_PRESSURE
         }
-        return rest.firstOrNull { baseProviderId(it) != baseProviderId(t) } ?: rest.firstOrNull()
+        val other = rest.firstOrNull { baseProviderId(it) != baseProviderId(t) }
+        return other ?: if (sameProviderOk) rest.firstOrNull() else null
     }
 
     private fun buildMessages(req: RouteRequest, t: Target, partial: String, toolCut: Boolean = false): List<ChatMsg> {
@@ -381,6 +482,7 @@ class Router(
             health.onFailure(tt, ex, clock())
             stats.onFail(tt.key)
             onOutcome?.invoke(tt.key, false, null)
+            onStateChanged?.invoke()
             val after = health.blockedUntil(tt, clock())
             if (after != null && after != Long.MAX_VALUE) soonest = min(soonest, after)
             if (ex.kind == ErrorKind.AUTH) emit(RouteEvent.AuthFailed(tt.providerId, ex.httpCode, ex.httpCode == 403 && health.forbiddenCount(tt.providerId) > 1))
@@ -423,12 +525,17 @@ class Router(
             val hold = StringBuilder()
             var began = clock()
             var cur = t
+            val qc = StringBuilder()
+            var qcOn = !pinned && !qualityRetried && partial.isEmpty() &&
+                ordered.dropWhile { it != t }.drop(1).any {
+                    health.blockedUntil(it, clock()) == null && limiter.blockedUntil(it, clock()) == null
+                }
+            var firstSeen = false
 
-            suspend fun push(text: String) {
+            suspend fun release(text: String) {
                 if (text.isEmpty()) return
                 if (!got) {
                     got = true
-                    stats.onFirstToken(cur.key, clock() - began)
                     val prev = shown
                     shown = cur
                     if (prev == null) emit(RouteEvent.Started(cur))
@@ -438,28 +545,47 @@ class Router(
                 emit(RouteEvent.Delta(text))
             }
 
+            suspend fun push(text: String) {
+                if (text.isEmpty()) return
+                if (!firstSeen) {
+                    firstSeen = true
+                    stats.onFirstToken(cur.key, clock() - began)
+                }
+                if (qcOn) {
+                    qc.append(text)
+                    if (qc.length >= QUALITY_CHECK_BELOW) {
+                        qcOn = false
+                        val buffered = qc.toString()
+                        qc.setLength(0)
+                        release(buffered)
+                    }
+                    return
+                }
+                release(text)
+            }
+
             try {
                 coroutineScope {
                     val scope = this
                     fun open(tt: Target, m: List<ChatMsg>): Lane = Lane(
                         tt,
-                        transport.stream(tt, m, req.maxTokens, if (tt.model.reasoning) null else req.temperature)
+                        transport.stream(tt, m, req.maxTokens, if (tt.model.reasoning) null else req.temperature, req.fast)
                             .map { Chunk(it, null) }
                             .catch { emit(Chunk(null, it)) }
                             .produceIn(scope),
                         clock()
                     )
                     val primary = open(t, msgs)
-                    val firstMs = firstTokenMs(t)
+                    val firstMs = firstTokenMs(t, req.fast)
                     val idle = idleMs(t)
                     var ch = primary.ch
                     var r0: ChannelResult<Chunk>? = null
                     var waitLeft = firstMs
-                    val hedgeAfter = if (!pinned && partial.isEmpty() && hedgeMs > 0 && !t.model.reasoning && (forceHedge || hedgeAllowed(t))) hedgeDelay(t) else 0L
+                    val hedgeAfter = if (!pinned && partial.isEmpty() && hedgeMs > 0 && !t.model.reasoning && (forceHedge || hedgeAllowed(t, req.fast))) hedgeDelay(t, req.fast) else 0L
                     if (hedgeAfter in 1 until firstMs) {
                         r0 = withTimeoutOrNull(hedgeAfter) { ch.receiveCatching() }
                         waitLeft = firstMs - hedgeAfter
-                        val cand = if (r0 == null) pickHedge(ordered, t, consumed) else null
+                        val cand = if (r0 == null) pickHedge(ordered, t, consumed, !HedgePolicy.restricted(t.model.rpm, t.model.rpd)) else null
                         if (cand != null) {
                             consumed.add(cand.key)
                             limiter.record(cand, clock())
@@ -532,16 +658,25 @@ class Router(
                             if (rest.isNotEmpty()) push(rest) else got = true
                             holding = false
                         }
-                        if (!got) throw LlmException(ErrorKind.EMPTY)
-                        if (!pinned && !qualityRetried && partial.length < QUALITY_CHECK_BELOW &&
-                            OutputQuality.isPoor(partial.toString()) &&
-                            ordered.dropWhile { it != cur }.drop(1).any {
-                                health.blockedUntil(it, clock()) == null && limiter.blockedUntil(it, clock()) == null
+                        if (qcOn) {
+                            qcOn = false
+                            val buffered = qc.toString()
+                            qc.setLength(0)
+                            if (buffered.isNotEmpty()) {
+                                val visible = ThinkSplit.strip(buffered)
+                                val why = when {
+                                    OutputQuality.isPoor(visible) -> "poor output"
+                                    LangGuard.mismatch(req.lang, visible) -> "language mismatch"
+                                    else -> null
+                                }
+                                if (why != null) {
+                                    qualityRetried = true
+                                    throw LlmException(ErrorKind.EMPTY, message = why)
+                                }
+                                release(buffered)
                             }
-                        ) {
-                            qualityRetried = true
-                            throw LlmException(ErrorKind.EMPTY, message = "poor output")
                         }
+                        if (!got) throw LlmException(ErrorKind.EMPTY)
                         completed = true
                     } finally {
                         ch.cancel()
@@ -551,6 +686,12 @@ class Router(
                 if (!got) limiter.refund(cur, clock())
                 throw e
             } catch (e: Throwable) {
+                if (qc.isNotEmpty()) {
+                    val buffered = qc.toString()
+                    qc.setLength(0)
+                    qcOn = false
+                    release(buffered)
+                }
                 val ex = classify(e)
                 if (ex.kind == ErrorKind.NETWORK && !got) limiter.refund(cur, clock())
                 fail(cur, ex)
@@ -567,7 +708,7 @@ class Router(
                     partial.setLength(trimmed.length)
                     toolCut = true
                 }
-                if (got && (partial.length < config.restartBelowChars || ThinkSplit.strip(partial.toString()).isBlank() || ex.message == "poor output")) {
+                if (got && (partial.length < config.restartBelowChars || ThinkSplit.strip(partial.toString()).isBlank() || ex.message == "poor output" || ex.message == "language mismatch")) {
                     partial.clear()
                     toolCut = false
                     emit(RouteEvent.Restart)
@@ -578,6 +719,7 @@ class Router(
                 health.onSuccess(cur, clock())
                 stats.onOk(cur.key)
                 onOutcome?.invoke(cur.key, true, stats.latencyMs(cur.key))
+                onStateChanged?.invoke()
                 emit(RouteEvent.Done(cur))
                 return@flow
             }
@@ -588,7 +730,7 @@ class Router(
         if (again && !pinned && partial.isEmpty() && blip) {
             val cleared = health.clearTransient()
             if (cleared || reasons.values.any { it.reason == ReasonKind.ERROR }) {
-                delay(1000)
+                delay(config.blipDelayMs)
                 emitAll(runOnce(req, false))
                 return@flow
             }

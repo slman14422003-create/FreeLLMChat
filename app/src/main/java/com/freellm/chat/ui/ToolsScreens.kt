@@ -264,6 +264,9 @@ fun VoiceSettingsScreen(app: FreeLlmApp, onBack: () -> Unit) {
     val dictation by app.settings.voiceDictation.collectAsStateWithLifecycle(initialValue = true)
     val uri = androidx.compose.ui.platform.LocalUriHandler.current
     var checking by remember { mutableStateOf(false) }
+    var testing by remember { mutableStateOf(false) }
+    var testResult by remember { mutableStateOf<List<String>>(emptyList()) }
+    val testCtx = androidx.compose.ui.platform.LocalContext.current
     var termsResult by remember { mutableStateOf<Map<String, com.freellm.chat.data.VoiceFail?>>(emptyMap()) }
     fun termsLabel(f: com.freellm.chat.data.VoiceFail?): Int = when (f) {
         null -> R.string.voice_terms_ok
@@ -388,6 +391,24 @@ fun VoiceSettingsScreen(app: FreeLlmApp, onBack: () -> Unit) {
                     }
                 )
             }
+            SettingsGroup(Modifier.appear(4)) {
+                SettingsRow(
+                    Icons.Outlined.Mic,
+                    stringResource(R.string.voice_test),
+                    stringResource(if (testing) R.string.voice_test_running else R.string.voice_test_desc),
+                    onClick = {
+                        if (!testing && hasKey) {
+                            testing = true
+                            scope.launch {
+                                val steps = app.groqVoice.selfTest(model)
+                                testResult = steps.map { voiceStepText(testCtx, it) }
+                                testing = false
+                            }
+                        }
+                    }
+                )
+            }
+            testResult.forEach { Text(it, style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant, modifier = Modifier.padding(horizontal = Spacing.sm)) }
             Text(stringResource(R.string.voice_terms_help), style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant, modifier = Modifier.padding(Spacing.sm))
             Text(stringResource(R.string.voice_note), style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant, modifier = Modifier.padding(Spacing.sm))
         }

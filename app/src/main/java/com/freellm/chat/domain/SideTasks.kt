@@ -41,6 +41,23 @@ object StrongPicker {
             )
 }
 
+object SidePicker {
+    const val MAX_PRESSURE = 0.5
+    const val RESERVED = 2
+
+    fun pick(candidates: List<Target>, health: Health, limiter: UsageLimiter, now: Long): List<Target> {
+        val reserved = if (candidates.size > RESERVED + 2) {
+            candidates.sortedBy { it.model.priority }.take(RESERVED).map { it.key }.toSet()
+        } else {
+            emptySet()
+        }
+        return LightPicker.pick(
+            candidates.filter { it.key !in reserved && limiter.pressure(it, now) < MAX_PRESSURE },
+            health, limiter, now
+        )
+    }
+}
+
 class SideTasks(
     private val transport: ChatTransport,
     private val router: Router,
@@ -53,7 +70,7 @@ class SideTasks(
         maxTokens: Int = 300,
         attempts: Int = 2,
         timeoutMs: Long = TIMEOUT_MS,
-        picker: (List<Target>, Health, UsageLimiter, Long) -> List<Target> = LightPicker::pick,
+        picker: (List<Target>, Health, UsageLimiter, Long) -> List<Target> = SidePicker::pick,
         temperature: Double? = null
     ): String? {
         val picks = picker(candidates, router.health, router.limiter, clock()).take(attempts)

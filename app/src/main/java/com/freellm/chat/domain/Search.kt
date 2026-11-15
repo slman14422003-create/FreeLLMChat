@@ -58,8 +58,8 @@ object HtmlText {
     private val spaces = Regex("[ \\t\\u00A0\\u200B]+")
     private val named = mapOf(
         "amp" to "&", "lt" to "<", "gt" to ">", "quot" to "\"", "apos" to "'", "nbsp" to " ",
-        "hellip" to "…", "ndash" to "–", "mdash" to "—", "laquo" to "«", "raquo" to "»",
-        "rsquo" to "’", "lsquo" to "‘", "rdquo" to "”", "ldquo" to "“", "copy" to "©"
+        "hellip" to "\u2026", "ndash" to "\u2013", "mdash" to "\u2014", "laquo" to "\u00AB", "raquo" to "\u00BB",
+        "rsquo" to "\u2019", "lsquo" to "\u2018", "rdquo" to "\u201D", "ldquo" to "\u201C", "copy" to "\u00A9"
     )
 
     fun decode(s: String): String {
@@ -90,7 +90,7 @@ object HtmlText {
         for (raw in t.split('\n')) {
             val line = spaces.replace(raw, " ").trim()
             if (line.isEmpty()) continue
-            val keep = line.length >= KEEP_LINE || line.last() in ".!?؟:"
+            val keep = line.length >= KEEP_LINE || line.last() in ".!?\u061F:"
             if (!keep) continue
             if (out.isNotEmpty() && out.last() == line) continue
             out.add(line)
@@ -217,7 +217,7 @@ data class SearchBundle(val queries: List<String>, val items: List<SourceItem>) 
         items.forEachIndexed { i, s ->
             sb.append('[').append(i + 1).append("] ")
                 .append(SourcesPrompt.clean(s.title.ifBlank { UrlPolicy.host(s.url) }))
-                .append(" — ").append(SourcesPrompt.clean(s.url)).append('\n')
+                .append(" \u2014 ").append(SourcesPrompt.clean(s.url)).append('\n')
                 .append(SourcesPrompt.clean(s.text)).append("\n\n")
         }
         return sb.append("</sources>").toString().trim()
@@ -229,7 +229,7 @@ data class SearchBundle(val queries: List<String>, val items: List<SourceItem>) 
         if (total <= budgetTokens) return this
         val each = (budgetTokens / items.size - 12).coerceAtLeast(60)
         val chars = (each * 3.5).toInt()
-        return copy(items = items.map { if (it.text.length > chars) it.copy(text = it.text.take(chars).trimEnd() + "…") else it })
+        return copy(items = items.map { if (it.text.length > chars) it.copy(text = it.text.take(chars).trimEnd() + "\u2026") else it })
     }
 }
 
@@ -350,4 +350,18 @@ object SearchPolicy {
         continuing: Boolean,
         quotaLeft: Int
     ): Boolean = enabled && hasKey && needsFresh && !answeredLocally && !hasAttachment && !continuing && quotaLeft > 0
+
+    private val factualAsk = Regex("\\b(who is|who was|what is|history of|how many|when did|where is)\\b", RegexOption.IGNORE_CASE)
+
+    fun shouldAssist(
+        enabled: Boolean,
+        hasKey: Boolean,
+        needsFresh: Boolean,
+        text: String,
+        hasAttachment: Boolean,
+        continuing: Boolean,
+        quotaLeft: Int,
+        limit: Int
+    ): Boolean = enabled && hasKey && !needsFresh && !hasAttachment && !continuing && factualAsk.containsMatchIn(text) &&
+        limit > 0 && quotaLeft * 2 > limit
 }

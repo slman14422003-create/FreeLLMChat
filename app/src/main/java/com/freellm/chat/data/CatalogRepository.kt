@@ -25,6 +25,16 @@ object CatalogGuard {
     private fun hostOf(url: String): String =
         url.trim().substringAfter("://", "").substringBefore('/').substringBefore('?').substringAfter('@').substringBefore(':').lowercase()
 
+    fun prune(cat: Catalog, today: java.time.LocalDate): Catalog =
+        cat.copy(models = cat.models.filter { m ->
+            val e = m.expiresAt ?: return@filter true
+            try {
+                !java.time.LocalDate.parse(e.take(10)).isBefore(today)
+            } catch (ex: Exception) {
+                true
+            }
+        })
+
     fun sanitize(remote: Catalog, bundled: Catalog?): Catalog {
         val known = bundled?.providers.orEmpty().associateBy { it.id }
         val safe = remote.providers.mapNotNull { p ->
@@ -50,6 +60,7 @@ class CatalogRepository(
         coerceInputValues = true
     }
     private val cacheFile = File(context.filesDir, "models_cache.json")
+    private val etagFile = File(context.filesDir, "models_cache.etag")
     private val _catalog = MutableStateFlow(Catalog())
     val catalog: StateFlow<Catalog> = _catalog
 
@@ -77,17 +88,36 @@ class CatalogRepository(
                 val bundled = readAssets()
                 val cached = readCache()?.let { CatalogGuard.sanitize(it, bundled) }
                 val initial = if (cached != null && (bundled == null || cached.version >= bundled.version)) cached else bundled ?: cached
-                if (initial != null) _catalog.value = initial
-                if (initial === bundled) cacheFile.delete()
+                if (initial != null) _catalog.value = CatalogGuard.prune(initial, java.time.LocalDate.now())
+                if (initial === bundled) {
+                    cacheFile.delete()
+                    etagFile.delete()
+                }
             }
             val fresh = cacheFile.exists() &&
                 System.currentTimeMillis() - cacheFile.lastModified() < TTL_MS
             if (force || !fresh) {
                 try {
                     val client = http.newBuilder().callTimeout(15, TimeUnit.SECONDS).build()
-                    val req = Request.Builder().url(url).build()
-                    val raw = client.newCall(req).execute().use { r ->
-                        if (r.isSuccessful) r.body?.bytes() else null
+                    val etag = if (cacheFile.exists() && etagFile.exists()) etagFile.readText().trim() else ""
+                    val rb = Request.Builder().url(url)
+                    if (etag.isNotEmpty()) rb.header("If-None-Match", etag)
+                    var newEtag = ""
+                    var notModified = false
+                    val raw = client.newCall(rb.build()).execute().use { r ->
+                        if (r.code == 304) {
+                            notModified = true
+                            null
+                        } else if (r.isSuccessful) {
+                            newEtag = r.header("ETag").orEmpty()
+                            r.body?.bytes()
+                        } else {
+                            null
+                        }
+                    }
+                    if (notModified) {
+                        cacheFile.setLastModified(System.currentTimeMillis())
+                        _catalog.value = CatalogGuard.prune(_catalog.value, java.time.LocalDate.now())
                     }
                     val sum = if (raw == null) null else try {
                         client.newCall(Request.Builder().url(url + ".sha256").build()).execute().use { r ->
@@ -103,7 +133,8 @@ class CatalogRepository(
                         val floor = bundledNow?.version ?: 0
                         if (parsed != null && parsed.version >= floor) {
                             cacheFile.writeText(text)
-                            _catalog.value = parsed
+                            if (newEtag.isNotEmpty()) etagFile.writeText(newEtag) else etagFile.delete()
+                            _catalog.value = CatalogGuard.prune(parsed, java.time.LocalDate.now())
                         }
                     }
                 } catch (e: Exception) {

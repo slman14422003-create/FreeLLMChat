@@ -85,7 +85,7 @@ private fun MainNav(app: FreeLlmApp) {
             route == "privacy" -> privacyFrom
             route == "tour" -> "about"
             route == "about" -> "settings"
-            route == "providers" || route == "status" || route == "usage" || route == "brain" || route == "search" || route == "tools" || route == "voice" -> "settings"
+            route == "providers" || route == "status" || route == "usage" || route == "brain" || route == "search" || route == "tools" || route == "voice" || route == "diag" || route == "health" -> "settings"
             else -> "chat"
         }
     }
@@ -121,6 +121,8 @@ private fun MainNav(app: FreeLlmApp) {
                 onSearch = { route = "search" },
                 onTools = { route = "tools" },
                 onVoice = { route = "voice" },
+                onDiag = { route = "diag" },
+                onHealth = { route = "health" },
                 onWipeChats = { chatVm.deleteAllChats() },
                 onAbout = { route = "about" },
                 onPrivacy = {
@@ -149,6 +151,8 @@ private fun MainNav(app: FreeLlmApp) {
             r == "search" -> SearchSettingsScreen(app = app, onBack = { route = "settings" })
             r == "tools" -> ToolsSettingsScreen(app = app, onBack = { route = "settings" })
             r == "voice" -> VoiceSettingsScreen(app = app, onBack = { route = "settings" })
+            r == "diag" -> DiagnosticsScreen(app = app, onBack = { route = "settings" })
+            r == "health" -> ModelHealthScreen(app = app, onBack = { route = "settings" })
             r.startsWith("provider:") -> ProviderWizardScreen(
                 app = app,
                 providerId = r.removePrefix("provider:"),
@@ -162,6 +166,6 @@ private fun MainNav(app: FreeLlmApp) {
 private fun depthOf(r: String): Int = when {
     r == "chat" -> 0
     r == "settings" -> 1
-    r == "providers" || r == "status" || r == "usage" || r == "brain" || r == "about" || r == "search" || r == "tools" || r == "voice" -> 2
+    r == "providers" || r == "status" || r == "usage" || r == "brain" || r == "about" || r == "search" || r == "tools" || r == "voice" || r == "diag" || r == "health" -> 2
     else -> 3
 }

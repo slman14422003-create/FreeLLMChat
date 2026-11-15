@@ -21,6 +21,7 @@ import com.freellm.chat.data.db.MessageEntity
 import com.freellm.chat.domain.AmbiguityResolver
 import com.freellm.chat.domain.CacheKey
 import com.freellm.chat.domain.Difficulty
+import kotlinx.coroutines.async
 import com.freellm.chat.domain.QuestionClassifier
 import com.freellm.chat.domain.CachePolicy
 import com.freellm.chat.domain.CompareChoice
@@ -179,6 +180,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
     }
 
     fun open(id: Long) {
+        app.warmUp()
         job?.cancel()
         dismissCompare()
         stream.value = null
@@ -641,8 +643,8 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         }
     }
 
-    private suspend fun systemPrompt(cid: Long, codeFiles: Boolean = true): String {
-        val style = when (app.settings.style.first()) {
+    private suspend fun systemPrompt(cid: Long, codeFiles: Boolean = true, g: com.freellm.chat.data.GenSettings? = null, lang: String? = null): String {
+        val style = when (g?.style ?: app.settings.style.first()) {
             "concise" -> "Be brief."
             "detailed" -> "Be thorough and structured."
             "teacher" -> "Teach step by step with simple examples."
@@ -654,11 +656,12 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                 java.util.Locale.getDefault().displayLanguage
             )
         }
-        val custom = vars(app.settings.instructions.first().trim())
-        val facts = app.settings.facts.first().trim().take(1500)
+        val custom = vars((g?.instructions ?: app.settings.instructions.first()).trim())
+        val facts = (g?.facts ?: app.settings.facts.first()).trim().take(1500)
         val convo = vars(repo.conversation(cid)?.instructions.orEmpty().trim())
         return listOf(
             SYSTEM_PROMPT,
+            com.freellm.chat.domain.LangGuard.instruction(lang),
             if (codeFiles) com.freellm.chat.domain.CodeFiles.SYSTEM else "",
             style,
             if (facts.isNotEmpty()) "User facts (use naturally): $facts" else "",
@@ -673,6 +676,12 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         synchronized(summarizing) { if (!summarizing.add(cid)) return }
         app.appScope.launch {
             try {
+                delay(SUMMARY_IDLE_MS)
+                var idle = 0
+                while (generating && idle < 60) {
+                    delay(1000)
+                    idle++
+                }
                 val msgs = repo.messagesOnce(cid).filter { it.role == "user" || it.role == "assistant" }
                 val conv = repo.conversation(cid) ?: return@launch
                 val (older, _) = ContextPlanner.split(msgs, ContextPlanner.KEEP_RECENT) { it.role }
@@ -698,7 +707,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         val a = prefix.lastOrNull() ?: return ""
         val b = next.firstOrNull() ?: return ""
         if (a.isWhitespace() || b.isWhitespace()) return ""
-        if (b in ".,;:!?)]}،؛؟") return ""
+        if (b in ".,;:!?)]}\u060C\u061B\u061F") return ""
         return " "
     }
 
@@ -735,11 +744,14 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
     }
 
     private suspend fun generate(cid: Long, exclude: String?, cont: MessageEntity? = null) {
+        val t0 = System.currentTimeMillis()
+        val g = app.settings.snapshot()
+        val voice = voiceMode
         val stored = repo.messagesOnce(cid)
             .filter { it.role == "user" || it.role == "assistant" }
             .let { l -> if (cont != null) l.filter { it.id <= cont.id } else l }
         val conv = repo.conversation(cid)
-        val summaryOn = app.settings.contextSummary.first()
+        val summaryOn = g.contextSummary && !voice
         var windowed = stored
         var summaryLine = ""
         if (summaryOn) {
@@ -753,15 +765,16 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                 summaryLine = listOf(have, extra).filter { it.isNotEmpty() }.joinToString("\n")
             }
         }
+        if (voice) windowed = stored.takeLast(VOICE_HISTORY)
         val lastUserId = stored.lastOrNull { it.role == "user" }?.id
-        var history = toChat(windowed, lastUserId, app.settings.smartAttachments.first()).toMutableList()
+        var history = toChat(windowed, lastUserId, g.smartAttachments).toMutableList()
         val prefix = cont?.content.orEmpty()
         if (cont != null) history.add(ChatMsg("user", CONTINUE_PROMPT))
 
         val all = manager.activeTargets()
         val sel = selection.value
         val adaptive = sel == "ADAPT"
-        val saver = app.settings.tokenSaver.first()
+        val saver = g.tokenSaver
         val lastUser = stored.lastOrNull { it.role == "user" }?.content.orEmpty()
         val userTurns = stored.filter { it.role == "user" }
         val prevUser = if (userTurns.size > 1) userTurns[userTurns.size - 2].content else ""
@@ -776,17 +789,21 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         val hasAtt = lastUserMsg?.let { AttachmentCodec.decode(it.attachments).isNotEmpty() } == true
         val skipLocal = skipLocalOnce
         skipLocalOnce = false
-        val smart = app.settings.smartRouting.first()
+        val smart = g.smartRouting
         var cls = QuestionClassifier.classify(ctxText, hasAtt)
-        if (smart && adaptive && cls.ambiguous && cont == null && exclude == null && !followUp) {
-            kotlinx.coroutines.withTimeoutOrNull(2500) { AmbiguityResolver.resolve(app.sideTasks, all, lastUser) }?.let { cls = cls.copy(type = it, ambiguous = false) }
+        if (smart && adaptive && cls.ambiguous && cont == null && exclude == null && !followUp && !voice) {
+            cls = cls.copy(type = AmbiguityResolver.heuristic(lastUser), ambiguous = false)
         }
-        val cacheTtl = CachePolicy.ttlMs(app.settings.cacheTtlHours.first())
-        val cacheKey = if (app.settings.answerCache.first() && cont == null && !hasAtt && !sel.startsWith("PIN:") &&
-            stored.lastOrNull()?.role == "user" && CacheKey.cacheable(lastUser) && !skipMemory && !cls.needsFresh
+        val msgLang = com.freellm.chat.domain.LangGuard.detect(lastUser)
+        val guardLang = if (cont != null || com.freellm.chat.domain.LangGuard.translationIntent(lastUser)) null else msgLang
+        val tClass = System.currentTimeMillis()
+        val cacheTtl = CachePolicy.ttlMs(g.cacheTtlHours)
+        val cacheKey = if (g.answerCache && cont == null && !hasAtt && !sel.startsWith("PIN:") &&
+            stored.lastOrNull()?.role == "user" && CacheKey.cacheable(lastUser) && !skipMemory && !cls.needsFresh &&
+            !com.freellm.chat.domain.LangGuard.isGreeting(lastUser)
         ) CacheKey.of(
             lastUser, CacheKey.contextOf(stored.dropLast(1).map { it.content }),
-            app.settings.style.first(), app.settings.instructions.first(), java.util.Locale.getDefault().language
+            g.style, g.instructions, msgLang.orEmpty()
         ) else null
         if (cacheKey != null && exclude == null && !skipLocal) {
             val hit = repo.cacheGet(cacheKey, cacheTtl, System.currentTimeMillis())
@@ -810,7 +827,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
             }
         }
         if (cont == null && exclude == null && !skipLocal && !hasAtt && !skipMemory && !cls.needsFresh && !LocalBrain.isTimeSensitive(lastUser) &&
-            stored.lastOrNull()?.role == "user" && app.settings.brainLocalFirst.first()
+            stored.lastOrNull()?.role == "user" && g.brainLocalFirst
         ) {
             val hit = withContext(kotlinx.coroutines.Dispatchers.Default) { brain.bestStrict(lastUser, LOCAL_CONFIDENT) }
             if (hit != null) {
@@ -843,7 +860,8 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         val lastHasImages = lastUserMsg?.let { AttachmentCodec.decode(it.attachments).any { a -> a.isImage } } == true
         val needsVision = lastHasImages && history.any { it.images.isNotEmpty() }
         var mode = modeOf(sel)
-        if (adaptive) {
+        if (voice && mode != ChatMode.PINNED) mode = ChatMode.FAST
+        else if (adaptive) {
             mode = if (!smart) kind.mode else when {
                 cls.type == com.freellm.chat.domain.QType.CODE -> ChatMode.CODE
                 cls.difficulty == Difficulty.HARD -> ChatMode.SMART
@@ -861,7 +879,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
             if (mode == ChatMode.PINNED) mode = ChatMode.AUTO
             val filtered = all.filter { it.key != exclude }
             if (filtered.isNotEmpty()) cands = filtered
-        } else if (mode == ChatMode.PINNED && app.settings.autoSwitch.first()) {
+        } else if (mode == ChatMode.PINNED && g.autoSwitch) {
             // Pinned model first, but fall through to the next one when its free plan runs out.
             preferred = sel.removePrefix("PIN:")
             mode = ChatMode.AUTO
@@ -873,8 +891,8 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
             app.getString(R.string.history_image_placeholder)
         ).toMutableList()
         val hint = if (adaptive || saver) kind.hint else ""
-        val deep = if ((app.settings.deepThink.first() || (smart && adaptive && cls.difficulty == Difficulty.HARD)) && kind != TaskKind.QUICK) DEEP_THINK_PROMPT else ""
-        val memory = if (cont == null && !hasAtt && !shortFollowUp && app.settings.brainContext.first()) {
+        val deep = if (!voice && (g.deepThink || (smart && adaptive && cls.difficulty == Difficulty.HARD)) && kind != TaskKind.QUICK) DEEP_THINK_PROMPT else ""
+        val memory = if (cont == null && !hasAtt && !shortFollowUp && g.brainContext && !voice) {
             val m = withContext(kotlinx.coroutines.Dispatchers.Default) { brain.search(lastUser, 2, 0.5) }.filter { it.entry.answer.length <= 3000 }
             if (m.isEmpty()) "" else buildString {
                 append("Past answers (use only if relevant):")
@@ -884,14 +902,16 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         val summaryText = if (summaryLine.isEmpty()) "" else ContextPlanner.asSystemLine(summaryLine)
         var bundle: SearchBundle? = null
         var searchNote: String? = null
-        val useLocal = app.settings.localSearch.first()
-        val searchOn = SearchPolicy.resolveEnabled(app.settings.webSearch.first(), useLocal || SearchFactory.anyConfigured(app.secrets))
-        if (searchOn) {
+        val tSearch0 = System.currentTimeMillis()
+        var lateSearch: kotlinx.coroutines.Deferred<com.freellm.chat.domain.SearchOutcome?>? = null
+        val useLocal = g.localSearch
+        val searchOn = SearchPolicy.resolveEnabled(g.webSearch, useLocal || SearchFactory.anyConfigured(app.secrets))
+        if (searchOn && !voice) {
             val keyed = SearchFactory.resolve(
-                com.freellm.chat.domain.SearchKind.of(app.settings.searchProvider.first()), app.searchHttp, app.secrets, app.settings.proxyUrl.first()
+                com.freellm.chat.domain.SearchKind.of(g.searchProvider), app.searchHttp, app.secrets, g.proxyUrl
             )
             val keyedLeft = keyed?.let {
-                app.searchQuota.remaining(it.kind, SearchLimits.effective(it.kind, app.settings.searchLimits.first()), System.currentTimeMillis())
+                app.searchQuota.remaining(it.kind, SearchLimits.effective(it.kind, g.searchLimits), System.currentTimeMillis())
             } ?: 0
             val prov: com.freellm.chat.domain.SearchProvider? = when {
                 keyed != null && keyedLeft > 0 ->
@@ -900,14 +920,25 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                 else -> keyed
             }
             if (prov != null) {
-                val limit = SearchLimits.effective(prov.kind, app.settings.searchLimits.first())
+                val limit = SearchLimits.effective(prov.kind, g.searchLimits)
                 val left = app.searchQuota.remaining(prov.kind, limit, System.currentTimeMillis())
+                if (SearchPolicy.shouldAssist(true, true, cls.needsFresh, lastUser, hasAtt, cont != null, left, limit)) {
+                    lateSearch = viewModelScope.async(kotlinx.coroutines.Dispatchers.IO) {
+                        kotlinx.coroutines.withTimeoutOrNull(SEARCH_BUDGET_MS) {
+                            app.webSearch.run(
+                                prov, limit, lastUser, all, QueryBuilder.isTechnical(lastUser, cls.type),
+                                CachePolicy.ttlMs(g.searchCacheHours),
+                                maxQueries = if (prov.kind == com.freellm.chat.domain.SearchKind.LOCAL) 2 else QueryBuilder.MAX_QUERIES
+                            )
+                        }
+                    }
+                }
                 if (SearchPolicy.shouldSearch(true, true, cls.needsFresh, false, hasAtt, cont != null, left)) {
                     stream.value = StreamUi(active = true, status = app.getString(R.string.searching_web))
                     val out = kotlinx.coroutines.withTimeoutOrNull(SEARCH_BUDGET_MS) {
                         app.webSearch.run(
                             prov, limit, lastUser, all, QueryBuilder.isTechnical(lastUser, cls.type),
-                            CachePolicy.ttlMs(app.settings.searchCacheHours.first()),
+                            CachePolicy.ttlMs(g.searchCacheHours),
                             maxQueries = if (prov.kind == com.freellm.chat.domain.SearchKind.LOCAL) 2 else QueryBuilder.MAX_QUERIES
                         )
                     } ?: com.freellm.chat.domain.SearchOutcome(
@@ -928,34 +959,37 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                 }
             }
         }
-        val styleNow = app.settings.style.first()
+        val searchMs = System.currentTimeMillis() - tSearch0
+        val styleNow = g.style
         bundle = bundle?.let { it.copy(items = it.items.take(AnswerPolicy.maxSources(styleNow))) }
         var toolSpecs: List<ToolSpec> = emptyList()
-        if (cont == null && app.settings.toolsEnabled.first() && !ToolPolicy.trivial(lastUser)) {
-            val off = app.settings.toolsOff.first()
+        val wsFiles = if (voice) false else withContext(kotlinx.coroutines.Dispatchers.IO) { app.workspace.count(cid) } > 0
+        if (cont == null && g.toolsEnabled && !voice && !ToolPolicy.trivial(lastUser) && ToolPolicy.hasIntent(lastUser, wsFiles)) {
+            val off = g.toolsOff
             val enabledTools = ToolCatalog.ids().filter { it !in off }.toSet()
             toolSpecs = ToolPolicy.select(
-                lastUser, enabledTools, app.settings.toolsMode.first(),
-                app.toolHost.hasRunner(), withContext(kotlinx.coroutines.Dispatchers.IO) { app.workspace.count(cid) } > 0
+                lastUser, enabledTools, g.toolsMode,
+                app.toolHost.hasRunner(), wsFiles
             )
         }
         val projectMode = ToolPolicy.projectMode(toolSpecs)
         val sys = listOf(
-            systemPrompt(cid, !projectMode && (kind == TaskKind.CODE || com.freellm.chat.domain.CodeFiles.wantsProject(lastUser))),
+            systemPrompt(cid, !projectMode && !voice && (kind == TaskKind.CODE || com.freellm.chat.domain.CodeFiles.wantsProject(lastUser)), g, guardLang ?: msgLang),
             if (followUp) CONTINUITY_PROMPT else "", hint, deep, memory, summaryText,
             AnswerPolicy.build(AnswerPolicy.spec(lastUser, styleNow, bundle)),
             if (toolSpecs.isNotEmpty()) ToolProtocol.system(toolSpecs, projectMode) else "",
             if (voiceMode) VOICE_PROMPT else "",
             if (!projectMode && com.freellm.chat.domain.CodeFiles.wantsZip(lastUser)) com.freellm.chat.domain.CodeFiles.ZIP_SYSTEM else ""
         ).filter { it.isNotEmpty() }.joinToString("\n")
-        val temp = if (app.settings.answerTemperature.first()) TemperaturePolicy.pick(kind, cls, bundle != null) else null
+        val temp = if (g.answerTemperature) TemperaturePolicy.pick(kind, cls, bundle != null) else null
         val maxTok = when {
             cont != null -> null
-            app.settings.dynamicTokens.first() -> MaxTokensPlanner.plan(kind, lastUser, app.settings.style.first(), hasAtt, bundle != null)
+            voice -> VOICE_MAX_TOKENS
+            g.dynamicTokens -> MaxTokensPlanner.plan(kind, lastUser, g.style, hasAtt, bundle != null)
             saver && kind == TaskKind.QUICK -> QUICK_MAX_TOKENS
             else -> null
         }
-        val wantCaps = if (smart && adaptive) cls.caps else emptyList()
+        val wantCaps = if (smart && adaptive && !voice) cls.caps else emptyList()
         var msgs = listOf(ChatMsg("system", sys)) + history
         val maxWin = cands.maxOfOrNull { it.model.contextWindow } ?: 0
         if (maxWin > 0) msgs = RequestFitter.clampLast(msgs, maxWin - minOf(4096, maxWin / 4))
@@ -978,9 +1012,14 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
             rating = { app.ratings.effective(it, wantCaps.contains("arabic")) },
             wantCaps = wantCaps,
             temperature = temp,
-            proactive = app.settings.budgetAlerts.first(),
-            estimatedTokens = RequestFitter.needed(msgs, maxTok)
+            proactive = g.budgetAlerts,
+            estimatedTokens = RequestFitter.needed(msgs, maxTok),
+            fast = voice || (adaptive && (kind == TaskKind.QUICK || cls.difficulty == Difficulty.EASY)),
+            lang = guardLang
         )
+        val tPre = System.currentTimeMillis()
+        var firstTokenAt = 0L
+        var switches = 0
 
         val text = StringBuilder(prefix)
         val notes = mutableListOf<String>()
@@ -996,7 +1035,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                 }
             )
             var note = app.getString(R.string.adaptive_note, label)
-            if (saved >= 40) note += " · " + app.getString(R.string.tokens_saved, saved)
+            if (saved >= 40) note += " \u00B7 " + app.getString(R.string.tokens_saved, saved)
             notes.add(note)
         }
         if (needsVision) notes.add(app.getString(R.string.vision_note))
@@ -1029,7 +1068,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
             },
             { st ->
                 toolSteps.add(st)
-                notes.add("🔧 " + st.name + " · " + st.summary.take(110))
+                notes.add("🔧 " + st.name + " \u00B7 " + st.summary.take(110))
                 push(true)
             }
         )
@@ -1041,6 +1080,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                         push(true)
                     }
                     is RouteEvent.Delta -> {
+                        if (firstTokenAt == 0L) firstTokenAt = System.currentTimeMillis()
                         if (released) {
                             text.append(ev.text)
                         } else {
@@ -1055,6 +1095,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                         push()
                     }
                     is RouteEvent.Switched -> {
+                        switches++
                         target = ev.target
                         notes.add(app.getString(R.string.switched_to, ev.target.model.displayName))
                         notice.value = app.getString(R.string.switched_notice)
@@ -1104,6 +1145,15 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                 }
                 val finalText = text.toString()
                 val t = target
+                var lateSources: List<StoredSource> = emptyList()
+                val late = lateSearch
+                if (late != null) {
+                    val outcome = if (error == null && completedOk) kotlinx.coroutines.withTimeoutOrNull(4000) { late.await() } else null
+                    if (outcome == null) late.cancel()
+                    lateSources = outcome?.bundle?.let { b ->
+                        b.copy(items = b.items.take(AnswerPolicy.maxSources(styleNow))).fit((maxWin / 3).coerceIn(1200, 4500)).stored()
+                    }.orEmpty()
+                }
                 var savedId: Long? = null
                 val alive = repo.conversation(cid) != null
                 if (cont != null) {
@@ -1117,7 +1167,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                         repo.updateAssistant(
                             id = cont.id,
                             content = finalText,
-                            modelName = if (changed) "${cont.modelName.orEmpty()} → ${t.model.displayName}" else cont.modelName,
+                            modelName = if (changed) "${cont.modelName.orEmpty()} \u2192 ${t.model.displayName}" else cont.modelName,
                             providerName = t.providerName,
                             modelKey = t.key,
                             notes = allNotes
@@ -1134,7 +1184,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                             modelKey = t?.key,
                             notes = notes.joinToString("\n").ifEmpty { null },
                             createdAt = System.currentTimeMillis(),
-                            sources = SourcesPrompt.encode(liveSources)
+                            sources = SourcesPrompt.encode(liveSources + lateSources)
                         )
                     )
                 }
@@ -1157,14 +1207,16 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                         error = null
                     }
                 } else if (completedOk && error == null && finalText.isNotBlank() && t != null && !hasAtt &&
-                    finalText.length > prefix.length && usedBundle == null && toolSteps.isEmpty() && app.settings.brainLearn.first() &&
-                    BrainPolicy.canLearn(lastUser, finalText, stored.size, cls.needsFresh)
+                    finalText.length > prefix.length && usedBundle == null && toolSteps.isEmpty() && g.brainLearn &&
+                    BrainPolicy.canLearn(lastUser, finalText, stored.size, cls.needsFresh) &&
+                    !com.freellm.chat.domain.LangGuard.isGreeting(lastUser) && !com.freellm.chat.domain.LangGuard.mismatch(msgLang, finalText)
                 ) {
                     val learned = withContext(kotlinx.coroutines.Dispatchers.Default) { brain.learn(lastUser, finalText) }
                     if (learned != null) app.brainStore.save()
                 }
                 if (completedOk && cacheKey != null && usedBundle == null && toolSteps.isEmpty() && error == null && t != null && finalText.length > prefix.length &&
-                    finalText.isNotBlank() && !OutputQuality.isPoor(finalText)
+                    finalText.isNotBlank() && !OutputQuality.isPoor(finalText) &&
+                    !com.freellm.chat.domain.LangGuard.isGreeting(lastUser) && !com.freellm.chat.domain.LangGuard.mismatch(msgLang, finalText)
                 ) {
                     repo.cachePut(
                         AnswerCacheEntity(
@@ -1176,7 +1228,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                 }
                 val sid = savedId
                 if (sid != null && error == null && t != null && usedBundle != null &&
-                    Verifier.shouldVerify(app.settings.verifyAnswers.first(), cls.needsFresh, cls.difficulty, true, finalText.isNotBlank())
+                    Verifier.shouldVerify(g.verifyAnswers, cls.needsFresh, cls.difficulty, true, finalText.isNotBlank())
                 ) {
                     val srcBlock = usedBundle.block()
                     val answeredKey = t.key
@@ -1187,6 +1239,16 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                             repo.setNotes(sid, listOf(Verifier.warning(v.unsupported), baseNotes).filter { it.isNotEmpty() }.joinToString("\n"))
                         }
                     }
+                }
+                if (cont == null || t != null) {
+                    val end = System.currentTimeMillis()
+                    app.timing.add(
+                        com.freellm.chat.domain.TimingEntry(
+                            end, tClass - t0, tPre - tClass - searchMs, searchMs,
+                            if (firstTokenAt > 0) firstTokenAt - tPre else 0L, switches,
+                            t?.model?.displayName.orEmpty(), end - t0, error == null && completedOk
+                        )
+                    )
                 }
                 if (summaryOn && error == null) maybeSummarize(cid)
                 val err = error
@@ -1204,7 +1266,10 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         private const val SWEEP_MIN_AGE_MS = 600_000L
         private const val MAX_HISTORY_IMAGES = 4
         private const val MAX_RESUME = 2
-        private const val RESUME_DELAY_MS = 15_000L
+        private const val RESUME_DELAY_MS = 2_000L
+        private const val VOICE_MAX_TOKENS = 320
+        private const val VOICE_HISTORY = 8
+        private const val SUMMARY_IDLE_MS = 6_000L
         private const val QUICK_MAX_TOKENS = 1800
         private const val FILE_BUDGET_LAST = 2200
         private const val FILE_BUDGET_OLD = 350
@@ -1221,7 +1286,6 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         private const val SYSTEM_PROMPT =
             "Helpful assistant. Reply in the user's language."
         private const val CONTINUE_PROMPT =
-            "Continue your previous reply exactly where it stopped. Do not repeat anything and do not add an introduction. " +
-                "أكمل ردك السابق من حيث توقفت تماماً دون تكرار ودون مقدمة."
+            "Continue your previous reply exactly where it stopped. Do not repeat anything and do not add an introduction."
     }
 }

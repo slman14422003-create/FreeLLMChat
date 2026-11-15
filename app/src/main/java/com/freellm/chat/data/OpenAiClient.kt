@@ -45,11 +45,11 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
 
     private fun endpoint(base: String): String = base.trim().trimEnd('/') + "/chat/completions"
 
-    private fun body(t: Target, msgs: List<ChatMsg>, stream: Boolean, maxTokens: Int?, temperature: Double? = null): String =
+    private fun body(t: Target, msgs: List<ChatMsg>, stream: Boolean, maxTokens: Int?, temperature: Double? = null, fast: Boolean = false): String =
         buildJsonObject {
             put("model", t.model.id)
             put("stream", stream)
-            if (maxTokens != null) put("max_tokens", if (t.model.reasoning) maxOf(maxTokens, REASONING_MIN_TOKENS) else maxTokens)
+            if (maxTokens != null) put("max_tokens", if (t.model.reasoning) maxOf(maxTokens, if (fast) FAST_REASONING_MIN_TOKENS else REASONING_MIN_TOKENS) else maxTokens)
             if (temperature != null) put("temperature", temperature)
             putJsonArray("messages") {
                 msgs.forEach { m ->
@@ -151,7 +151,10 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
     override fun stream(target: Target, messages: List<ChatMsg>, maxTokens: Int?): Flow<String> =
         stream(target, messages, maxTokens, null)
 
-    override fun stream(target: Target, messages: List<ChatMsg>, maxTokens: Int?, temperature: Double?): Flow<String> = flow {
+    override fun stream(target: Target, messages: List<ChatMsg>, maxTokens: Int?, temperature: Double?): Flow<String> =
+        stream(target, messages, maxTokens, temperature, false)
+
+    override fun stream(target: Target, messages: List<ChatMsg>, maxTokens: Int?, temperature: Double?, fast: Boolean): Flow<String> = flow {
         val all = orderedBases(target)
         for ((i, base) in all.withIndex()) {
             var emitted = false
@@ -163,7 +166,7 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
                 while (true) {
                     var cut = false
                     try {
-                        streamOnce(target, base, msgs, maxTokens, temperature, ttfb) { cut = true }.collect {
+                        streamOnce(target, base, msgs, maxTokens, temperature, ttfb, fast) { cut = true }.collect {
                             if (!emitted) badBase.remove(base)
                             emitted = true
                             acc.append(it)
@@ -193,10 +196,11 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
         maxTokens: Int?,
         temperature: Double?,
         ttfbMs: Long = 0L,
+        fast: Boolean = false,
         onLength: () -> Unit = {}
     ): Flow<String> = flow {
         val req = try {
-            request(target, base, body(target, messages, true, maxTokens, temperature))
+            request(target, base, body(target, messages, true, maxTokens, temperature, fast))
         } catch (e: IllegalArgumentException) {
             throw LlmException(ErrorKind.BAD_REQUEST, message = "invalid url or key format")
         }
@@ -281,6 +285,18 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
         }
     }.flowOn(Dispatchers.IO)
 
+    suspend fun warm(target: Target) {
+        val base = bases(target).firstOrNull() ?: return
+        withContext(Dispatchers.IO) {
+            try {
+                val host = hostOf(base)
+                val url = base.substringBefore("://") + "://" + host + "/"
+                http.newCall(Request.Builder().url(url).head().build()).execute().close()
+            } catch (e: Exception) {
+            }
+        }
+    }
+
     suspend fun test(target: Target): LlmException? {
         val all = bases(target)
         var last: LlmException? = null
@@ -362,6 +378,7 @@ private const val AUTO_CONTINUE =
     "Continue exactly where your previous message stopped. Do not repeat anything already written and do not add any preface."
 
 private const val REASONING_MIN_TOKENS = 3000
+private const val FAST_REASONING_MIN_TOKENS = 1024
 private const val TTFB_MS = 7_000L
 private const val TTFB_REASONING_MS = 30_000L
 private const val BAD_BASE_MS = 120_000L

@@ -73,6 +73,9 @@ interface ChatTransport {
 
     fun stream(target: Target, messages: List<ChatMsg>, maxTokens: Int?, temperature: Double?): Flow<String> =
         stream(target, messages, maxTokens)
+
+    fun stream(target: Target, messages: List<ChatMsg>, maxTokens: Int?, temperature: Double?, fast: Boolean): Flow<String> =
+        stream(target, messages, maxTokens, temperature)
 }
 
 data class RouteRequest(
@@ -89,7 +92,9 @@ data class RouteRequest(
     val proactive: Boolean = false,
     val estimatedTokens: Int = 0,
     val wantCaps: List<String> = emptyList(),
-    val temperature: Double? = null
+    val temperature: Double? = null,
+    val fast: Boolean = false,
+    val lang: String? = null
 )
 
 enum class FailKind { NO_PROVIDER, PINNED_MISSING, NO_VISION, ALL_FAILED }

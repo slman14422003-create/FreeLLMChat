@@ -70,6 +70,11 @@ class ProviderManager(
         }
     }.flowOn(Dispatchers.Default)
 
+    suspend fun warmUp() {
+        val top = activeTargets().filter { '#' !in it.providerId }.sortedBy { it.model.priority }.distinctBy { it.providerId }.take(3)
+        coroutineScope { top.map { t -> async { client.warm(t) } }.awaitAll() }
+    }
+
     private fun expired(m: ModelDef, today: LocalDate): Boolean {
         val e = m.expiresAt ?: return false
         return try {

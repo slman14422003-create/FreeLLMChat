@@ -72,7 +72,7 @@ class RouterTest {
         assertEquals(partial + " and the rest", textOf(events))
         assertTrue(events.any { it is RouteEvent.Switched })
         val second = tr.calls[1].second
-        assertTrue(second.last().content.contains("أكمل"))
+        assertTrue(second.last().content.contains("\u0623\u0643\u0645\u0644"))
         assertEquals("assistant", second[second.size - 2].role)
         assertEquals(partial, second[second.size - 2].content)
         assertTrue(events.last() is RouteEvent.Done)
@@ -167,7 +167,8 @@ class RouterTest {
         val router = Router(tr, clock = { 0L })
         val events = router.stream(req(a, b)).toList()
         assertEquals(listOf(a.key, b.key), tr.calls.map { it.first })
-        assertTrue(events.any { it is RouteEvent.Restart })
+        assertTrue(events.none { it is RouteEvent.Restart })
+        assertEquals("A proper full answer.", textOf(events))
         assertEquals((events.last() as RouteEvent.Done).target.key, b.key)
     }
 

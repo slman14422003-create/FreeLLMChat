@@ -17,6 +17,37 @@ import kotlinx.coroutines.flow.map
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
+data class GenSettings(
+    val contextSummary: Boolean,
+    val smartAttachments: Boolean,
+    val tokenSaver: Boolean,
+    val smartRouting: Boolean,
+    val cacheTtlHours: Int,
+    val answerCache: Boolean,
+    val style: String,
+    val instructions: String,
+    val facts: String,
+    val brainLocalFirst: Boolean,
+    val autoSwitch: Boolean,
+    val deepThink: Boolean,
+    val brainContext: Boolean,
+    val localSearch: Boolean,
+    val webSearch: Boolean?,
+    val searchProvider: String,
+    val proxyUrl: String,
+    val searchLimits: Map<com.freellm.chat.domain.SearchKind, Int>,
+    val searchCacheHours: Int,
+    val toolsEnabled: Boolean,
+    val toolsOff: Set<String>,
+    val toolsMode: String,
+    val answerTemperature: Boolean,
+    val dynamicTokens: Boolean,
+    val budgetAlerts: Boolean,
+    val brainLearn: Boolean,
+    val verifyAnswers: Boolean,
+    val autoResume: Boolean
+)
+
 class SettingsStore(context: Context) {
     private val ds = context.applicationContext.dataStore
 
@@ -132,6 +163,40 @@ class SettingsStore(context: Context) {
     val voiceBargeIn: Flow<Boolean> = data.map { it[K.VOICE_BARGE_IN] ?: false }.distinctUntilChanged()
     val voiceSilenceMs: Flow<Int> = data.map { it[K.VOICE_SILENCE]?.toIntOrNull()?.coerceIn(500, 2500) ?: 900 }.distinctUntilChanged()
     val voiceDictation: Flow<Boolean> = data.map { it[K.VOICE_DICTATION] ?: true }.distinctUntilChanged()
+
+    suspend fun snapshot(): GenSettings {
+        val p = data.first()
+        return GenSettings(
+            contextSummary = p[K.CONTEXT_SUMMARY] ?: true,
+            smartAttachments = p[K.SMART_ATTACH] ?: true,
+            tokenSaver = p[K.TOKEN_SAVER] ?: true,
+            smartRouting = p[K.SMART_ROUTING] ?: true,
+            cacheTtlHours = p[K.CACHE_TTL]?.toIntOrNull()?.coerceIn(1, 720) ?: 24,
+            answerCache = p[K.ANSWER_CACHE] ?: true,
+            style = p[K.STYLE] ?: "default",
+            instructions = p[K.INSTRUCTIONS] ?: "",
+            facts = p[K.FACTS] ?: "",
+            brainLocalFirst = p[K.BRAIN_LOCAL_FIRST] ?: true,
+            autoSwitch = p[K.AUTO_SWITCH] ?: true,
+            deepThink = p[K.DEEP_THINK] ?: false,
+            brainContext = p[K.BRAIN_CONTEXT] ?: true,
+            localSearch = p[K.LOCAL_SEARCH] ?: false,
+            webSearch = p[K.WEB_SEARCH],
+            searchProvider = p[K.SEARCH_PROVIDER] ?: "tavily",
+            proxyUrl = p[K.PROXY]?.trim().orEmpty(),
+            searchLimits = com.freellm.chat.domain.SearchLimits.decode(p[K.SEARCH_LIMITS]),
+            searchCacheHours = p[K.SEARCH_CACHE_HOURS]?.toIntOrNull()?.coerceIn(1, 168) ?: 6,
+            toolsEnabled = p[K.TOOLS] ?: true,
+            toolsOff = p[K.TOOLS_OFF] ?: emptySet(),
+            toolsMode = p[K.TOOLS_MODE] ?: "smart",
+            answerTemperature = p[K.ANSWER_TEMPERATURE] ?: true,
+            dynamicTokens = p[K.DYNAMIC_TOKENS] ?: true,
+            budgetAlerts = p[K.BUDGET_ALERTS] ?: true,
+            brainLearn = p[K.BRAIN_LEARN] ?: true,
+            verifyAnswers = p[K.VERIFY_ANSWERS] ?: false,
+            autoResume = p[K.AUTO_RESUME] ?: true
+        )
+    }
 
     private fun decode(s: String?): Map<String, String> =
         (s ?: "").split(",").mapNotNull { e ->

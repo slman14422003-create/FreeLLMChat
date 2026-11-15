@@ -10,14 +10,14 @@ import org.junit.Test
 
 class QuestionClassifierTest {
     @Test fun codeQuestionIsCode() {
-        val c = QuestionClassifier.classify("اكتب دالة بايثون تعكس النص")
+        val c = QuestionClassifier.classify("\u0627\u0643\u062A\u0628 \u062F\u0627\u0644\u0629 \u0628\u0627\u064A\u062B\u0648\u0646 \u062A\u0639\u0643\u0633 \u0627\u0644\u0646\u0635")
         assertEquals(QType.CODE, c.type)
         assertTrue("code" in c.caps)
         assertTrue(c.arabic)
     }
 
     @Test fun shortGreetingIsEasy() {
-        val c = QuestionClassifier.classify("مرحبا كيف حالك")
+        val c = QuestionClassifier.classify("\u0645\u0631\u062D\u0628\u0627 \u0643\u064A\u0641 \u062D\u0627\u0644\u0643")
         assertEquals(QType.SHORT, c.type)
         assertEquals(Difficulty.EASY, c.difficulty)
         assertTrue("fast" in c.caps)
@@ -33,7 +33,7 @@ class QuestionClassifierTest {
 
     @Test fun freshnessIsDetected() {
         assertTrue(QuestionClassifier.classify("what is the latest Kotlin version").needsFresh)
-        assertTrue(QuestionClassifier.classify("ما هو سعر الذهب اليوم").needsFresh)
+        assertTrue(QuestionClassifier.classify("\u0645\u0627 \u0647\u0648 \u0633\u0639\u0631 \u0627\u0644\u0630\u0647\u0628 \u0627\u0644\u064A\u0648\u0645").needsFresh)
         assertFalse(QuestionClassifier.classify("what is a monad").needsFresh)
     }
 
@@ -44,7 +44,7 @@ class QuestionClassifierTest {
 
     @Test fun arabicRatioHandlesMixedAndEmpty() {
         assertEquals(0.0, QuestionClassifier.arabicRatio("123 !!"), 0.0)
-        assertTrue(QuestionClassifier.arabicRatio("hello مرحبا") in 0.3..0.7)
+        assertTrue(QuestionClassifier.arabicRatio("hello \u0645\u0631\u062D\u0628\u0627") in 0.3..0.7)
     }
 
     @Test fun ambiguityReplyParsing() {
@@ -72,11 +72,8 @@ class QuestionClassifierTest {
         assertEquals("b", r.order(req(listOf("arabic", "reasoning"))).first().model.id)
     }
 
-    @Test fun resolverUsesLightModelOnce() = runTest {
-        val a = Target("a", "a", "https://example.com", emptyMap(), "k", ModelDef(id = "a", provider = "a", displayName = "a", priority = 1, modes = listOf("fast")))
-        val tr = FakeTransport { _, _, _ -> flow { emit("code") } }
-        val side = SideTasks(tr, Router(tr, clock = { 0L }), clock = { 0L })
-        assertEquals(QType.CODE, AmbiguityResolver.resolve(side, listOf(a), "some text"))
-        assertEquals(1, tr.calls.size)
+    @Test fun resolverUsesLocalHeuristicsOnly() {
+        assertEquals(QType.CODE, AmbiguityResolver.heuristic("fix this {broken} build"))
+        assertEquals(QType.GENERAL, AmbiguityResolver.heuristic("tell me something about your day and how things are going lately in general terms"))
     }
 }

@@ -208,7 +208,7 @@ object ToolProtocol {
     }
 
     fun result(name: String, r: ToolResult): String {
-        val body = r.text.trim().let { if (it.length > MAX_RESULT_CHARS) it.take(MAX_RESULT_CHARS) + "\n…[truncated]" else it }
+        val body = r.text.trim().let { if (it.length > MAX_RESULT_CHARS) it.take(MAX_RESULT_CHARS) + "\n\u2026[truncated]" else it }
         val safe = body.replace("</untrusted>", "< /untrusted>").replace("</tool_result>", "< /tool_result>")
         val wrapped = if (r.untrusted) "<untrusted source=\"" + name + "\">\n" + safe + "\n</untrusted>" else safe
         return "<tool_result name=\"" + name + "\" ok=\"" + r.ok + "\">\n" + wrapped + "\n</tool_result>"
@@ -327,30 +327,30 @@ object ToolPolicy {
 
     private val opt = RegexOption.IGNORE_CASE
     private val math = Regex(
-        "\\d\\s*[-+*/^×÷%]\\s*\\d|\\b(calculate|compute|solve|equation|integral|derivative|sqrt|factorial|percent|percentage|average|mean|probability|sum of|prime|gcd|lcm|modulo|matrix|logarithm|sine|cosine)\\b|" +
-            "احسب|حساب|معادلة|معادله|تكامل|مشتق|تفاضل|جذر|نسبة|نسبه|احتمال|متوسط|مضروب|عاملي|أولي|اولي|قاسم|مضاعف|لوغاريتم|جيب|تقريب|رياضيات|مسألة|مسأله",
+        "\\d\\s*[-+*/^\u00D7\u00F7%]\\s*\\d|\\b(calculate|compute|solve|equation|integral|derivative|sqrt|factorial|percent|percentage|average|mean|probability|sum of|prime|gcd|lcm|modulo|matrix|logarithm|sine|cosine)\\b|" +
+            "\u0627\u062D\u0633\u0628|\u062D\u0633\u0627\u0628|\u0645\u0639\u0627\u062F\u0644\u0629|\u0645\u0639\u0627\u062F\u0644\u0647|\u062A\u0643\u0627\u0645\u0644|\u0645\u0634\u062A\u0642|\u062A\u0641\u0627\u0636\u0644|\u062C\u0630\u0631|\u0646\u0633\u0628\u0629|\u0646\u0633\u0628\u0647|\u0627\u062D\u062A\u0645\u0627\u0644|\u0645\u062A\u0648\u0633\u0637|\u0645\u0636\u0631\u0648\u0628|\u0639\u0627\u0645\u0644\u064A|\u0623\u0648\u0644\u064A|\u0627\u0648\u0644\u064A|\u0642\u0627\u0633\u0645|\u0645\u0636\u0627\u0639\u0641|\u0644\u0648\u063A\u0627\u0631\u064A\u062A\u0645|\u062C\u064A\u0628|\u062A\u0642\u0631\u064A\u0628|\u0631\u064A\u0627\u0636\u064A\u0627\u062A|\u0645\u0633\u0623\u0644\u0629|\u0645\u0633\u0623\u0644\u0647",
         opt
     )
     private val convert = Regex(
-        "\\b(convert|conversion|how many (km|kilometers|miles|meters|kg|pounds|liters|gallons|hours|minutes)|in (km|kg|miles|celsius|fahrenheit|usd|eur|sar))\\b|حوّل|حول |تحويل|كم يساوي|كم تساوي|بالدولار|بالريال|بالكيلو|بالميل|سعر الصرف|exchange rate",
+        "\\b(convert|conversion|how many (km|kilometers|miles|meters|kg|pounds|liters|gallons|hours|minutes)|in (km|kg|miles|celsius|fahrenheit|usd|eur|sar))\\b|\u062D\u0648\u0651\u0644|\u062D\u0648\u0644 |\u062A\u062D\u0648\u064A\u0644|\u0643\u0645 \u064A\u0633\u0627\u0648\u064A|\u0643\u0645 \u062A\u0633\u0627\u0648\u064A|\u0628\u0627\u0644\u062F\u0648\u0644\u0627\u0631|\u0628\u0627\u0644\u0631\u064A\u0627\u0644|\u0628\u0627\u0644\u0643\u064A\u0644\u0648|\u0628\u0627\u0644\u0645\u064A\u0644|\u0633\u0639\u0631 \u0627\u0644\u0635\u0631\u0641|exchange rate",
         opt
     )
     private val date = Regex(
-        "\\b(today|tomorrow|yesterday|date|time|weekday|hijri|days (until|left|between)|how long until|age)\\b|التاريخ|اليوم|غدا|غداً|أمس|امس|الساعة|هجري|هجرية|كم يوم|كم باقي|كم باقٍ|متى|عمر",
+        "\\b(today|tomorrow|yesterday|date|time|weekday|hijri|days (until|left|between)|how long until|age)\\b|\u0627\u0644\u062A\u0627\u0631\u064A\u062E|\u0627\u0644\u064A\u0648\u0645|\u063A\u062F\u0627|\u063A\u062F\u0627\u064B|\u0623\u0645\u0633|\u0627\u0645\u0633|\u0627\u0644\u0633\u0627\u0639\u0629|\u0647\u062C\u0631\u064A|\u0647\u062C\u0631\u064A\u0629|\u0643\u0645 \u064A\u0648\u0645|\u0643\u0645 \u0628\u0627\u0642\u064A|\u0643\u0645 \u0628\u0627\u0642\u064D|\u0645\u062A\u0649|\u0639\u0645\u0631",
         opt
     )
     private val fresh = Regex(
-        "\\b(search|latest|news|current|price|weather|score|released|release date|who won|stock)\\b|ابحث|بحث|آخر|اخر|أخبار|اخبار|الآن|حاليا|حالياً|سعر|طقس|نتيجة|صدر",
+        "\\b(search|latest|news|current|price|weather|score|released|release date|who won|stock)\\b|\u0627\u0628\u062D\u062B|\u0628\u062D\u062B|\u0622\u062E\u0631|\u0627\u062E\u0631|\u0623\u062E\u0628\u0627\u0631|\u0627\u062E\u0628\u0627\u0631|\u0627\u0644\u0622\u0646|\u062D\u0627\u0644\u064A\u0627|\u062D\u0627\u0644\u064A\u0627\u064B|\u0633\u0639\u0631|\u0637\u0642\u0633|\u0646\u062A\u064A\u062C\u0629|\u0635\u062F\u0631",
         opt
     )
-    private val factual = Regex("\\b(who is|what is|who was|define|definition|history of)\\b|من هو|من هي|ما هو|ما هي|تعريف|نبذة|تاريخ ", opt)
+    private val factual = Regex("\\b(who is|what is|who was|define|definition|history of)\\b|\u0645\u0646 \u0647\u0648|\u0645\u0646 \u0647\u064A|\u0645\u0627 \u0647\u0648|\u0645\u0627 \u0647\u064A|\u062A\u0639\u0631\u064A\u0641|\u0646\u0628\u0630\u0629|\u062A\u0627\u0631\u064A\u062E ", opt)
     private val url = Regex("https?://\\S+", opt)
     private val codeish = Regex(
-        "\\b(code|function|script|javascript|js|algorithm|debug|bug|regex|json|xml|snippet|implement|refactor)\\b|كود|دالة|دوال|سكربت|سكريبت|خوارزمية|برمجة|برنامج|اختبر|شغل|شغّل|نفذ|نفّذ|صحح|أصلح|اصلح|خطأ",
+        "\\b(code|function|script|javascript|js|algorithm|debug|bug|regex|json|xml|snippet|implement|refactor)\\b|\u0643\u0648\u062F|\u062F\u0627\u0644\u0629|\u062F\u0648\u0627\u0644|\u0633\u0643\u0631\u0628\u062A|\u0633\u0643\u0631\u064A\u0628\u062A|\u062E\u0648\u0627\u0631\u0632\u0645\u064A\u0629|\u0628\u0631\u0645\u062C\u0629|\u0628\u0631\u0646\u0627\u0645\u062C|\u0627\u062E\u062A\u0628\u0631|\u0634\u063A\u0644|\u0634\u063A\u0651\u0644|\u0646\u0641\u0630|\u0646\u0641\u0651\u0630|\u0635\u062D\u062D|\u0623\u0635\u0644\u062D|\u0627\u0635\u0644\u062D|\u062E\u0637\u0623",
         opt
     )
     private val project = Regex(
-        "\\b(project|app|application|website|web ?site|api|bot|game|extension|plugin|scaffold|repo|files)\\b|مشروع|تطبيق|موقع|بوت|لعبة|إضافة|اضافة|ملفات|هيكل",
+        "\\b(project|app|application|website|web ?site|api|bot|game|extension|plugin|scaffold|repo|files)\\b|\u0645\u0634\u0631\u0648\u0639|\u062A\u0637\u0628\u064A\u0642|\u0645\u0648\u0642\u0639|\u0628\u0648\u062A|\u0644\u0639\u0628\u0629|\u0625\u0636\u0627\u0641\u0629|\u0627\u0636\u0627\u0641\u0629|\u0645\u0644\u0641\u0627\u062A|\u0647\u064A\u0643\u0644",
         opt
     )
 
@@ -367,6 +367,11 @@ object ToolPolicy {
             factual.containsMatchIn(t) || url.containsMatchIn(t) || codeish.containsMatchIn(t) || project.containsMatchIn(t) ||
             utility.containsMatchIn(t))
     }
+
+    fun hasIntent(text: String, workspaceHasFiles: Boolean): Boolean =
+        workspaceHasFiles || math.containsMatchIn(text) || convert.containsMatchIn(text) || date.containsMatchIn(text) ||
+            fresh.containsMatchIn(text) || factual.containsMatchIn(text) || url.containsMatchIn(text) ||
+            codeish.containsMatchIn(text) || project.containsMatchIn(text) || utility.containsMatchIn(text)
 
     fun projectIntent(text: String, workspaceHasFiles: Boolean): Boolean {
         val wants = CodeFiles.wantsProject(text) || (project.containsMatchIn(text) && codeish.containsMatchIn(text))
@@ -530,7 +535,7 @@ class ToolRunner(private val router: Router, private val executor: ToolExecutor)
         val arg = call.args.entries.firstOrNull { it.key != "content" && it.key != "code" }?.value.orEmpty()
         val a = arg.replace('\n', ' ').take(48)
         val res = r.text.replace('\n', ' ').trim().take(64)
-        return if (a.isEmpty()) res else "$a → $res"
+        return if (a.isEmpty()) res else "$a \u2192 $res"
     }
 
     companion object {

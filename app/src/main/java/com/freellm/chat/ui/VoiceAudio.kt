@@ -1,12 +1,18 @@
 package com.freellm.chat.ui
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.media.AudioAttributes
+import android.media.AudioDeviceInfo
+import android.media.AudioFocusRequest
 import android.media.AudioFormat
+import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
+import android.os.Build
+import com.freellm.chat.domain.Utterance
 import com.freellm.chat.domain.VadEvent
 import com.freellm.chat.domain.VoiceVad
 import com.freellm.chat.domain.Wav
@@ -17,8 +23,78 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 
-class MicCapture(var silenceMs: Int) {
+class AudioRoute(ctx: Context) {
+    private val am = ctx.applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private var request: AudioFocusRequest? = null
+    private var prevMode = AudioManager.MODE_NORMAL
+    @Volatile var headset = false
+        private set
+
+    fun acquire() {
+        runCatching {
+            val attrs = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build()
+            val r = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                .setAudioAttributes(attrs)
+                .setOnAudioFocusChangeListener { }
+                .build()
+            request = r
+            am.requestAudioFocus(r)
+        }
+        runCatching { routeHeadset() }
+    }
+
+    @SuppressLint("NewApi")
+    private fun routeHeadset() {
+        prevMode = am.mode
+        if (Build.VERSION.SDK_INT >= 31) {
+            val dev = am.availableCommunicationDevices.firstOrNull {
+                it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO || it.type == AudioDeviceInfo.TYPE_BLE_HEADSET
+            } ?: return
+            am.mode = AudioManager.MODE_IN_COMMUNICATION
+            headset = am.setCommunicationDevice(dev)
+            if (!headset) am.mode = prevMode
+        } else {
+            val bt = am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO }
+            if (bt && am.isBluetoothScoAvailableOffCall) {
+                am.mode = AudioManager.MODE_IN_COMMUNICATION
+                @Suppress("DEPRECATION")
+                am.startBluetoothSco()
+                @Suppress("DEPRECATION")
+                am.isBluetoothScoOn = true
+                headset = true
+            }
+        }
+    }
+
+    @SuppressLint("NewApi")
+    fun release() {
+        runCatching {
+            if (headset) {
+                if (Build.VERSION.SDK_INT >= 31) {
+                    am.clearCommunicationDevice()
+                } else {
+                    @Suppress("DEPRECATION")
+                    am.stopBluetoothSco()
+                    @Suppress("DEPRECATION")
+                    am.isBluetoothScoOn = false
+                }
+                am.mode = prevMode
+            }
+        }
+        headset = false
+        runCatching { request?.let { am.abandonAudioFocusRequest(it) } }
+        request = null
+    }
+}
+
+class MicCapture(var silenceMs: Int, private val route: AudioRoute? = null) {
     val level = MutableStateFlow(0f)
+
+    @Volatile var noise = 0.0
+        private set
 
     private fun write(out: ByteArrayOutputStream, pcm: ShortArray, n: Int) {
         val b = ByteArray(n * 2)
@@ -29,14 +105,53 @@ class MicCapture(var silenceMs: Int) {
         out.write(b, 0, b.size)
     }
 
+    private fun source(bargeIn: Boolean): Int =
+        if (bargeIn || route?.headset == true) MediaRecorder.AudioSource.VOICE_COMMUNICATION else MediaRecorder.AudioSource.MIC
+
     @SuppressLint("MissingPermission")
-    suspend fun nextUtterance(idleMs: Long, bargeIn: Boolean = false, onStart: () -> Unit = {}): ByteArray? =
+    suspend fun calibrate(ms: Int = CALIBRATION_MS): Double = withContext(Dispatchers.IO) {
+        val min = AudioRecord.getMinBufferSize(RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
+        if (min <= 0) return@withContext 0.0
+        val rec = AudioRecord(source(false), RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(min, FRAME * 8))
+        if (rec.state != AudioRecord.STATE_INITIALIZED) {
+            rec.release()
+            return@withContext 0.0
+        }
+        val values = ArrayList<Double>()
+        val pcm = ShortArray(FRAME)
+        try {
+            rec.startRecording()
+            val end = System.currentTimeMillis() + ms
+            while (isActive && System.currentTimeMillis() < end) {
+                val n = rec.read(pcm, 0, FRAME)
+                if (n < 0) break
+                if (n == 0) {
+                    delay(10)
+                    continue
+                }
+                values.add(VoiceVad.rms(pcm, n))
+            }
+        } finally {
+            runCatching { rec.stop() }
+            rec.release()
+        }
+        val v = if (values.size < 3) 0.0 else values.sorted()[values.size / 2]
+        noise = v
+        v
+    }
+
+    @SuppressLint("MissingPermission")
+    suspend fun nextUtterance(
+        idleMs: Long,
+        bargeIn: Boolean = false,
+        onReady: () -> Unit = {},
+        onStart: () -> Unit = {}
+    ): Utterance? =
         withContext(Dispatchers.IO) {
             val frame = FRAME
             val min = AudioRecord.getMinBufferSize(RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
             if (min <= 0) return@withContext null
-            val source = if (bargeIn) MediaRecorder.AudioSource.VOICE_COMMUNICATION else MediaRecorder.AudioSource.MIC
-            val rec = AudioRecord(source, RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(min, frame * 8))
+            val rec = AudioRecord(source(bargeIn), RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(min, frame * 8))
             if (rec.state != AudioRecord.STATE_INITIALIZED) {
                 rec.release()
                 return@withContext null
@@ -46,12 +161,14 @@ class MicCapture(var silenceMs: Int) {
                 aec = runCatching { AcousticEchoCanceler.create(rec.audioSessionId)?.also { it.enabled = true } }.getOrNull()
             }
             val vad = VoiceVad(silenceMs = silenceMs, minRms = if (bargeIn) 900.0 else 320.0)
+            if (noise > 0.0) vad.calibrate(noise, bargeIn)
             val pcm = ShortArray(frame)
             val roll = ArrayList<ShortArray>()
             val out = ByteArrayOutputStream()
             val began = System.currentTimeMillis()
             try {
                 rec.startRecording()
+                onReady()
                 while (isActive) {
                     val n = rec.read(pcm, 0, frame)
                     if (n < 0) break
@@ -74,7 +191,9 @@ class MicCapture(var silenceMs: Int) {
                         roll.add(pcm.copyOf(n))
                         if (roll.size > ROLL_FRAMES) roll.removeAt(0)
                     }
-                    if (ev == VadEvent.END) return@withContext Wav.encode(out.toByteArray(), RATE)
+                    if (ev == VadEvent.END) {
+                        return@withContext Utterance(Wav.encode(out.toByteArray(), RATE), vad.lastTotalMs, vad.speechRatio)
+                    }
                     if (ev == VadEvent.TOO_SHORT) out.reset()
                     if (!vad.isSpeaking && System.currentTimeMillis() - began > idleMs) return@withContext null
                 }
@@ -92,6 +211,7 @@ class MicCapture(var silenceMs: Int) {
         const val FRAME = 480
         const val FRAME_MS = 30
         const val ROLL_FRAMES = 10
+        const val CALIBRATION_MS = 600
     }
 }
 

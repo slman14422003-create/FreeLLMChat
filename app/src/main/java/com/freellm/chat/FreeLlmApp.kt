@@ -57,8 +57,40 @@ class FreeLlmApp : Application() {
             failLog = com.freellm.chat.domain.FailureLog(usage)
         ).also { r ->
             r.onOutcome = { k, ok, ms -> ratings.outcome(k, ok, ms) }
+            restoreRouter(r)
+            r.onStateChanged = { scheduleSave(r) }
         }
     }
+    val timing: com.freellm.chat.domain.TimingLog by lazy { com.freellm.chat.domain.TimingLog(usage) }
+    private val savePending = java.util.concurrent.atomic.AtomicBoolean(false)
+    @Volatile private var lastWarm = 0L
+
+    private fun restoreRouter(r: Router) {
+        runCatching { usage.read(ROUTER_STATE_KEY)?.let { r.restore(it) } }
+        if (!r.stats.hasHistory()) {
+            runCatching {
+                val text = assets.open("health.json").bufferedReader().use { it.readText() }
+                r.stats.seed(com.freellm.chat.domain.HealthSeed.parse(text))
+            }
+        }
+    }
+
+    private fun scheduleSave(r: Router) {
+        if (!savePending.compareAndSet(false, true)) return
+        appScope.launch {
+            kotlinx.coroutines.delay(3_000)
+            savePending.set(false)
+            runCatching { usage.write(ROUTER_STATE_KEY, r.snapshot()) }
+        }
+    }
+
+    fun warmUp() {
+        val now = System.currentTimeMillis()
+        if (now - lastWarm < 60_000) return
+        lastWarm = now
+        appScope.launch { runCatching { manager.warmUp() } }
+    }
+
     val sideTasks: com.freellm.chat.domain.SideTasks by lazy { com.freellm.chat.domain.SideTasks(client, router) }
     val searchHttp: OkHttpClient by lazy {
         http.newBuilder().connectTimeout(8, TimeUnit.SECONDS).readTimeout(12, TimeUnit.SECONDS).callTimeout(15, TimeUnit.SECONDS).build()
@@ -96,12 +128,38 @@ class FreeLlmApp : Application() {
                 router.forceHedge = it == true
             }
         }
+        registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
+            private var started = 0
+            override fun onActivityStarted(activity: android.app.Activity) {
+                if (started++ == 0) warmUp()
+            }
+            override fun onActivityStopped(activity: android.app.Activity) {
+                started = (started - 1).coerceAtLeast(0)
+            }
+            override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: android.os.Bundle?) {}
+            override fun onActivityResumed(activity: android.app.Activity) {}
+            override fun onActivityPaused(activity: android.app.Activity) {}
+            override fun onActivitySaveInstanceState(activity: android.app.Activity, outState: android.os.Bundle) {}
+            override fun onActivityDestroyed(activity: android.app.Activity) {}
+        })
         runCatching {
             val cm = getSystemService(android.net.ConnectivityManager::class.java)
             cm.registerDefaultNetworkCallback(object : android.net.ConnectivityManager.NetworkCallback() {
+                private var vpn: Boolean? = null
+
                 override fun onAvailable(network: android.net.Network) {
                     http.connectionPool.evictAll()
-                    router.health.clearTransient()
+                    router.onNetworkChange()
+                }
+
+                override fun onCapabilitiesChanged(network: android.net.Network, caps: android.net.NetworkCapabilities) {
+                    val now = caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN)
+                    val was = vpn
+                    vpn = now
+                    if (was != null && was != now) {
+                        http.connectionPool.evictAll()
+                        router.onNetworkChange()
+                    }
                 }
 
                 override fun onLost(network: android.net.Network) {
@@ -111,6 +169,8 @@ class FreeLlmApp : Application() {
         }
     }
 }
+
+private const val ROUTER_STATE_KEY = "router_state_v1"
 
 object Ipv4FirstDns : Dns {
     override fun lookup(hostname: String): List<InetAddress> =

@@ -26,10 +26,10 @@ data class Classification(
 
 object QuestionClassifier {
     private val fresh = Regex(
-        "\\b(latest|current|currently|today|now|news|price|prices|version|release|released)\\b|حالي|حاليا|حالياً|آخر|اخر|أحدث|احدث|الآن|الان|اليوم|أخبار|اخبار|سعر|أسعار|اسعار|إصدار|اصدار",
+        "\\b(latest|current|currently|today|now|news|price|prices|version|release|released)\\b|\u062D\u0627\u0644\u064A|\u062D\u0627\u0644\u064A\u0627|\u062D\u0627\u0644\u064A\u0627\u064B|\u0622\u062E\u0631|\u0627\u062E\u0631|\u0623\u062D\u062F\u062B|\u0627\u062D\u062F\u062B|\u0627\u0644\u0622\u0646|\u0627\u0644\u0627\u0646|\u0627\u0644\u064A\u0648\u0645|\u0623\u062E\u0628\u0627\u0631|\u0627\u062E\u0628\u0627\u0631|\u0633\u0639\u0631|\u0623\u0633\u0639\u0627\u0631|\u0627\u0633\u0639\u0627\u0631|\u0625\u0635\u062F\u0627\u0631|\u0627\u0635\u062F\u0627\u0631",
         RegexOption.IGNORE_CASE
     )
-    private val steps = Regex("step by step|خطوة بخطوة|\\n\\s*(\\d+[.)]|[-*])\\s", RegexOption.IGNORE_CASE)
+    private val steps = Regex("step by step|\u062E\u0637\u0648\u0629 \u0628\u062E\u0637\u0648\u0629|\\n\\s*(\\d+[.)]|[-*])\\s", RegexOption.IGNORE_CASE)
 
     fun arabicRatio(text: String): Double {
         var letters = 0
@@ -84,8 +84,18 @@ object AmbiguityResolver {
         }
     }
 
-    suspend fun resolve(side: SideTasks, candidates: List<Target>, text: String): QType? =
-        side.run(candidates, SYSTEM, text.take(600), 5, 1, 2_500L)?.let { parse(it) }
+    private val codeHint = Regex("[{};=<>]|\\b(error|exception|stack|compile|build|crash)\\b", RegexOption.IGNORE_CASE)
+    private val reasonHint = Regex("\\b(why|how come|explain|compare|difference|pros and cons)\\b", RegexOption.IGNORE_CASE)
+
+    fun heuristic(text: String): QType {
+        val t = text.trim()
+        return when {
+            codeHint.containsMatchIn(t) -> QType.CODE
+            reasonHint.containsMatchIn(t) -> QType.COMPLEX
+            t.length <= 140 && (t.endsWith("?") || t.endsWith("\u061F")) -> QType.SHORT
+            else -> QType.GENERAL
+        }
+    }
 }
 
 object ModelCaps {

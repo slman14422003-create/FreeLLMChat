@@ -102,7 +102,7 @@ private fun ChoiceDialog(
 }
 
 @Composable
-fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit, onStatus: () -> Unit, onUsage: () -> Unit, onBrain: () -> Unit, onSearch: () -> Unit, onAbout: () -> Unit, onPrivacy: () -> Unit, onTools: () -> Unit = {}, onVoice: () -> Unit = {}, onWipeChats: () -> Unit = {}) {
+fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit, onStatus: () -> Unit, onUsage: () -> Unit, onBrain: () -> Unit, onSearch: () -> Unit, onAbout: () -> Unit, onPrivacy: () -> Unit, onTools: () -> Unit = {}, onVoice: () -> Unit = {}, onDiag: () -> Unit = {}, onHealth: () -> Unit = {}, onWipeChats: () -> Unit = {}) {
     val cs = MaterialTheme.colorScheme
     val theme by app.settings.theme.collectAsStateWithLifecycle(initialValue = "system")
     val proxy by app.settings.proxyUrl.collectAsStateWithLifecycle(initialValue = "")
@@ -345,6 +345,8 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
                 )
                 SettingsRow(Icons.Outlined.Speed, stringResource(R.string.model_status), onClick = onStatus)
                 SettingsRow(Icons.Outlined.Info, stringResource(R.string.usage_title), onClick = onUsage)
+                SettingsRow(Icons.Outlined.Speed, stringResource(R.string.health_title), onClick = onHealth)
+                SettingsRow(Icons.Outlined.Info, stringResource(R.string.diag_title), onClick = onDiag)
             }
 
             BackupSection(app, Modifier.appear(3))
@@ -640,7 +642,7 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
                 SettingsRow(
                     Icons.Outlined.Info,
                     stringResource(R.string.about),
-                    stringResource(R.string.about_body) + " · " + BuildConfig.VERSION_NAME,
+                    stringResource(R.string.about_body) + " \u00B7 " + BuildConfig.VERSION_NAME,
                     onClick = onAbout
                 )
             }
