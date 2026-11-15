@@ -922,7 +922,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
             if (prov != null) {
                 val limit = SearchLimits.effective(prov.kind, g.searchLimits)
                 val left = app.searchQuota.remaining(prov.kind, limit, System.currentTimeMillis())
-                if (SearchPolicy.shouldAssist(true, true, cls.needsFresh, lastUser, hasAtt, cont != null, left, limit)) {
+                if (SearchPolicy.shouldAssist(true, true, cls.needsFresh, lastUser, hasAtt, cont != null, left, limit.amount)) {
                     lateSearch = viewModelScope.async(kotlinx.coroutines.Dispatchers.IO) {
                         kotlinx.coroutines.withTimeoutOrNull(SEARCH_BUDGET_MS) {
                             app.webSearch.run(
