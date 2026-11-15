@@ -70,7 +70,7 @@ class RouterSwitchTest {
         val after = events.drop(restartAt).filterIsInstance<RouteEvent.Delta>().joinToString("") { it.text }
         assertEquals("A complete answer from the second model.", after)
         assertEquals("user", tr.calls[1].second.last().role)
-        assertFalse(tr.calls[1].second.last().content.contains("أكمل"))
+        assertFalse(tr.calls[1].second.last().content.contains("Continue your previous reply"))
     }
 
     @Test fun failureEventCarriesStructuredReasons() = runTest {
