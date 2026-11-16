@@ -1,5 +1,5 @@
 {
-  "version": 11,
+  "version": 12,
   "providers": [
     {
       "id": "gemini",
@@ -1136,21 +1136,6 @@
       ]
     },
     {
-      "id": "liquid/lfm-2.5-2.6b:free",
-      "provider": "openrouter",
-      "displayName": "liquid/lfm-2.5-2.6b:free",
-      "priority": 204,
-      "contextWindow": 64000,
-      "modes": [
-        "smart"
-      ],
-      "vision": false,
-      "reasoning": false,
-      "trainsOnData": true,
-      "rpm": 20,
-      "caps": []
-    },
-    {
       "id": "nvidia/nemotron-3.5-lightning:free",
       "provider": "openrouter",
       "displayName": "nvidia/nemotron-3.5-lightning:free",
@@ -1165,6 +1150,25 @@
       "rpm": 20,
       "caps": [
         "fast",
+        "long_context"
+      ]
+    },
+    {
+      "id": "recursive/flint-v1.0:free",
+      "provider": "openrouter",
+      "displayName": "recursive/flint-v1.0:free",
+      "priority": 206,
+      "contextWindow": 262000,
+      "modes": [
+        "code",
+        "smart"
+      ],
+      "vision": false,
+      "reasoning": false,
+      "trainsOnData": true,
+      "rpm": 20,
+      "caps": [
+        "code",
         "long_context"
       ]
     }
