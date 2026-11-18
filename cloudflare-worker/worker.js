@@ -20,6 +20,7 @@ const MAX_PAGE_BYTES = 700000;
 const MAX_REQUEST_BYTES = 30 * 1024 * 1024;
 const HEADER_TIMEOUT_MS = 12000;
 const TOTAL_BUDGET_MS = 25000;
+const MAX_HEADER_TIMEOUT_MS = 60000;
 const RATE_LIMIT_PER_MINUTE = 60;
 const RATE_WINDOW_MS = 60000;
 const RATE_MAX_ENTRIES = 5000;
@@ -171,6 +172,7 @@ const STRIP = [
   "x-forwarded-for",
   "x-forwarded-proto",
   "x-real-ip",
+  "x-freellm-ttfb",
 ];
 
 export default {
@@ -242,14 +244,17 @@ export default {
     }
 
     const started = Date.now();
+    const hint = Number(request.headers.get("x-freellm-ttfb") || 0);
+    const headerMs = hint > 0 ? Math.min(Math.max(HEADER_TIMEOUT_MS, hint + 2000), MAX_HEADER_TIMEOUT_MS) : HEADER_TIMEOUT_MS;
+    const budgetMs = Math.max(TOTAL_BUDGET_MS, headerMs + 8000);
     let upstream = null;
     let lastError = null;
     let timedOut = false;
     for (let attempt = 0; attempt < 2; attempt++) {
-      const left = TOTAL_BUDGET_MS - (Date.now() - started);
+      const left = budgetMs - (Date.now() - started);
       if (left < 4000) break;
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort("upstream_timeout"), Math.min(HEADER_TIMEOUT_MS, left));
+      const timer = setTimeout(() => ctrl.abort("upstream_timeout"), Math.min(headerMs, left));
       try {
         const r = await fetch(target, {
           method: request.method,

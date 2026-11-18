@@ -204,6 +204,15 @@ class RouterTest {
     }
 
     @Test
+    fun notFoundModelRecoversAfterDeadWindow() {
+        val h = Health(RouterConfig())
+        val t = tgt("a", "m", 1)
+        h.onFailure(t, LlmException(ErrorKind.NOT_FOUND, 404), 0L)
+        assertTrue(h.state(t, 1_000L) is ModelHealth.Dead)
+        assertTrue(h.state(t, 1_800_001L) is ModelHealth.Ready)
+    }
+
+    @Test
     fun outputQualityRules() {
         assertTrue(OutputQuality.isPoor(""))
         assertTrue(OutputQuality.isPoor("x"))

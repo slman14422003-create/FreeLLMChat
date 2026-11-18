@@ -205,7 +205,7 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
         } catch (e: IllegalArgumentException) {
             throw LlmException(ErrorKind.BAD_REQUEST, message = "invalid url or key format")
         }
-        val call = http.newCall(req)
+        val call = http.newCall(req.newBuilder().header(WORKER_TTFB_HEADER, ttfbMs.toString()).build())
         val handle = currentCoroutineContext()[Job]?.invokeOnCompletion { call.cancel() }
         val timedOut = AtomicBoolean(false)
         val gotHeaders = AtomicBoolean(false)
@@ -238,6 +238,7 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
                 val source = r.body?.source() ?: throw LlmException(ErrorKind.EMPTY)
                 var finished = false
                 var thinking = false
+                var sawText = false
                 while (true) {
                     val line = (try {
                         source.readUtf8Line()
@@ -265,6 +266,7 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
                             thinking = true
                             emit("<think>")
                         }
+                        sawText = true
                         emit(p.reasoning)
                     }
                     if (!p.content.isNullOrEmpty()) {
@@ -272,13 +274,14 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
                             thinking = false
                             emit("</think>\n")
                         }
+                        sawText = true
                         emit(p.content)
                     }
                     if (p.length) onLength()
                     if (p.finished) finished = true
                 }
                 if (thinking) emit("</think>\n")
-                if (!finished) throw LlmException(ErrorKind.INTERRUPTED, message = "no terminator")
+                if (!finished && !sawText) throw LlmException(ErrorKind.INTERRUPTED, message = "no terminator")
             }
         } finally {
             dog?.cancel()
@@ -386,6 +389,7 @@ private const val AUTO_CONTINUE =
 
 private const val REASONING_MIN_TOKENS = 3000
 private const val FAST_REASONING_MIN_TOKENS = 1024
+private const val WORKER_TTFB_HEADER = "x-freellm-ttfb"
 private const val TTFB_MS = 8_000L
 private const val TTFB_REASONING_MS = 30_000L
 private const val BAD_BASE_MS = 120_000L

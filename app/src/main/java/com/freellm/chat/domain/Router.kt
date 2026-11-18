@@ -53,7 +53,7 @@ class Health(private val config: RouterConfig) {
     private val modelBackoff = HashMap<String, Int>()
     private val providerUntil = HashMap<String, Long>()
     private val providerBackoff = HashMap<String, Int>()
-    private val dead = HashSet<String>()
+    private val dead = HashMap<String, Long>()
     private val authFailed = HashSet<String>()
     private val transientKeys = HashSet<String>()
     private val lastOk = HashMap<String, Long>()
@@ -71,7 +71,8 @@ class Health(private val config: RouterConfig) {
     @Synchronized
     fun blockedUntil(t: Target, now: Long): Long? {
         if (t.providerId in authFailed) return Long.MAX_VALUE
-        if (t.key in dead) return Long.MAX_VALUE
+        val deadUntil = dead[t.key] ?: 0L
+        if (deadUntil > now) return deadUntil
         val until = max(providerUntil[t.providerId] ?: 0L, modelUntil[t.key] ?: 0L)
         return if (until > now) until else null
     }
@@ -79,7 +80,7 @@ class Health(private val config: RouterConfig) {
     @Synchronized
     fun state(t: Target, now: Long): ModelHealth {
         if (t.providerId in authFailed) return ModelHealth.ProviderDown
-        if (t.key in dead) return ModelHealth.Dead
+        if ((dead[t.key] ?: 0L) > now) return ModelHealth.Dead
         val until = max(providerUntil[t.providerId] ?: 0L, modelUntil[t.key] ?: 0L)
         return if (until > now) ModelHealth.Cooling(until) else ModelHealth.Ready
     }
@@ -91,6 +92,7 @@ class Health(private val config: RouterConfig) {
     fun onSuccess(t: Target, now: Long = Long.MIN_VALUE) {
         if (now != Long.MIN_VALUE) lastOk[t.key] = now
         everOk.add(t.key)
+        dead.remove(t.key)
         if (forbidden.remove(t.providerId) != null) providerUntil.remove(t.providerId)
         modelFails.remove(t.key)
         modelBackoff.remove(t.key)
@@ -118,7 +120,7 @@ class Health(private val config: RouterConfig) {
                 authFailed.add(t.providerId)
             }
             ErrorKind.POLICY -> authFailed.add(t.providerId)
-            ErrorKind.NOT_FOUND -> dead.add(t.key)
+            ErrorKind.NOT_FOUND -> { dead[t.key] = now + DEAD_MS }
             else -> {
                 val recentlyOk = lastOk[t.key]?.let { now - it in 0..RECENT_OK_MS } == true
                 val weight = when {
@@ -218,6 +220,7 @@ class Health(private val config: RouterConfig) {
 
     private companion object {
         const val FORBIDDEN_COOLDOWN_MS = 60_000L
+        const val DEAD_MS = 1_800_000L
         const val RECENT_OK_MS = 600_000L
         const val NEVER_OK_COOLDOWN_MS = 20_000L
     }
