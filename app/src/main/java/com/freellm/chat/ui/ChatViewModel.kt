@@ -180,11 +180,11 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
 
     fun open(id: Long) {
         app.warmUp()
-        job?.cancel()
-        dismissCompare()
-        stream.value = null
-        conversationId.value = id
         viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
+            job?.cancelAndJoin()
+            dismissCompare()
+            stream.value = null
+            conversationId.value = id
             val c = repo.conversation(id)
             selection.value = c?.pinnedModel?.let { "PIN:$it" } ?: nonPin()
         }
@@ -732,14 +732,20 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         var tries = 0
         try {
             while (lastError != null && !lastPinned && !lastNoResume && tries < MAX_RESUME) {
+                if (conversationId.value != cid) break
                 tries++
+                delay(RESUME_DELAY_MS * tries)
+                if (conversationId.value != cid) break
+                val last = repo.messagesOnce(cid).lastOrNull { it.role == "user" || it.role == "assistant" }
+                if (last == null || last.role != "assistant" || last.content.isBlank()) {
+                    stream.value = StreamUi(error = lastError, pinnedFailure = lastPinned)
+                    break
+                }
                 notice.value = app.getString(R.string.auto_resume_notice, tries)
                 stream.value = StreamUi(active = true)
-                delay(RESUME_DELAY_MS * tries)
-                val last = repo.messagesOnce(cid).lastOrNull { it.role == "user" || it.role == "assistant" } ?: return
                 lastError = null
                 lastNoResume = false
-                if (last.role == "assistant") generate(cid, null, last) else generate(cid, null)
+                generate(cid, null, last)
             }
         } catch (e: CancellationException) {
             stream.value = null
