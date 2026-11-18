@@ -21,7 +21,7 @@ const MAX_REQUEST_BYTES = 30 * 1024 * 1024;
 const HEADER_TIMEOUT_MS = 12000;
 const TOTAL_BUDGET_MS = 25000;
 const MAX_HEADER_TIMEOUT_MS = 60000;
-const RATE_LIMIT_PER_MINUTE = 60;
+const RATE_LIMIT_PER_MINUTE = 300;
 const RATE_WINDOW_MS = 60000;
 const RATE_MAX_ENTRIES = 5000;
 const RETRY_STATUS = new Set([502, 503, 504, 520, 521, 522, 523, 524]);
@@ -192,7 +192,7 @@ export default {
     if (!env.SECRET || parts.shift() !== env.SECRET) return new Response("Not found", { status: 404 });
     const ip = request.headers.get("cf-connecting-ip") || "unknown";
     if (rateLimited(ip, Date.now())) {
-      return errorResponse(429, "rate limit exceeded", { "retry-after": "60" });
+      return errorResponse(503, "worker rate limit exceeded", { "retry-after": "30" });
     }
     if (parts[0] === "_debug" && env.DEBUG === "1") {
       const probe = async (u) => {

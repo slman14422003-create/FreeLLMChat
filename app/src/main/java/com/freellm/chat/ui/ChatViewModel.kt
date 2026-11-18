@@ -721,8 +721,14 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         activeCid = cid
         try {
             runAdaptiveInner(cid, exclude, cont)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            lastError = e.javaClass.simpleName + ": " + (e.message ?: "")
+            stream.value = StreamUi(error = lastError)
         } finally {
             activeCid = null
+            if (stream.value?.active == true) stream.value = null
         }
     }
 

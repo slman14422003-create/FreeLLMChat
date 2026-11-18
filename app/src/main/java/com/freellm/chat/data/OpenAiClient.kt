@@ -205,7 +205,8 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
         } catch (e: IllegalArgumentException) {
             throw LlmException(ErrorKind.BAD_REQUEST, message = "invalid url or key format")
         }
-        val call = http.newCall(req.newBuilder().header(WORKER_TTFB_HEADER, ttfbMs.toString()).build())
+        val viaWorker = base == target.baseUrl && target.altBaseUrl.isNotBlank()
+        val call = http.newCall(if (viaWorker && ttfbMs > 0) req.newBuilder().header(WORKER_TTFB_HEADER, ttfbMs.toString()).build() else req)
         val handle = currentCoroutineContext()[Job]?.invokeOnCompletion { call.cancel() }
         val timedOut = AtomicBoolean(false)
         val gotHeaders = AtomicBoolean(false)
