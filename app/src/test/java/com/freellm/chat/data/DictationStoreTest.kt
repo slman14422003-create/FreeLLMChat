@@ -38,7 +38,7 @@ class DictationStoreTest {
     }
 
     @Test fun resumeAndRange() {
-        val f = File.createTempFile("m", ".part").apply { writeBytes(ByteArray(10)); deleteOnExit() }
+        val f = File.createTempFile("mdl", ".part").apply { writeBytes(ByteArray(10)); deleteOnExit() }
         assertEquals(10L, ModelStore.resumeOffset(f))
         assertEquals("bytes=10-", ModelStore.rangeHeader(10))
         assertNull(ModelStore.rangeHeader(0))
@@ -48,7 +48,7 @@ class DictationStoreTest {
     }
 
     @Test fun checksumVerification() {
-        val f = File.createTempFile("m", ".bin").apply { writeText("abc"); deleteOnExit() }
+        val f = File.createTempFile("mdl", ".bin").apply { writeText("abc"); deleteOnExit() }
         val good = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         assertTrue(ModelStore.verify(f, good))
         assertFalse(ModelStore.verify(f, "00"))
