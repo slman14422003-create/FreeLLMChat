@@ -184,7 +184,7 @@ class RouterHedgeTest {
             if (t.providerId == "a") flow<String> { delay(1500); emit("primary") } else flow<String> { delay(5000); emit("second") }
         }
         val router = Router(tr, cfg, clock = { 0L })
-        repeat(5) { router.stats.onFirstToken(a.key, 2500) }
+        repeat(5) { router.stats.onFirstToken(a.key, 3000) }
         val events = router.stream(req(a, b)).toList()
         assertEquals("primary", text(events))
         assertEquals(1, tr.calls.size)

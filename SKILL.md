@@ -187,3 +187,4 @@ description: Progress log and working notes for the FreeLLMChat Android project 
 - Tests: RouteStateTest, RouterDirectFirstTest, HealthClearProviderTest, SideTasksRouteTest, NetDnsTest, OpenAiClientRouteTest, plus additions to ProviderErrorsTest, ProxyRoutingTest, AdaptiveTest, RouterHedgeTest, Round11Test and SearchClientsTest.
 - Not compiled locally (no Android SDK or Gradle): run `./gradlew testDebugUnitTest assembleDebug` first.
 
+- Test fix: RouterHedgeTest.hedgeDelayFollowsP95WithHistory seeded p95 2500 gave hedge delay 1500 ms, equal to the primary's 1500 ms answer (a virtual-time tie that opened a hedge); the seed is now 3000 ms (delay 1800 ms). Keep seeded p95 times 0.6 clear of any fake-transport delay.
