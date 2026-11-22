@@ -120,6 +120,7 @@ class Health(private val config: RouterConfig) {
                 authFailed.add(t.providerId)
             }
             ErrorKind.POLICY -> authFailed.add(t.providerId)
+            ErrorKind.REGION -> Unit
             ErrorKind.NOT_FOUND -> { dead[t.key] = now + DEAD_MS }
             else -> {
                 val recentlyOk = lastOk[t.key]?.let { now - it in 0..RECENT_OK_MS } == true
@@ -202,6 +203,11 @@ class Health(private val config: RouterConfig) {
         providerUntil.keys.removeAll { mine(it) }
         providerBackoff.keys.removeAll { mine(it) }
         forbidden.keys.removeAll { mine(it) }
+        modelUntil.keys.removeAll { mine(it.substringBefore('/')) }
+        modelBackoff.keys.removeAll { mine(it.substringBefore('/')) }
+        modelFails.keys.removeAll { mine(it.substringBefore('/')) }
+        dead.keys.removeAll { mine(it.substringBefore('/')) }
+        transientKeys.removeAll { mine(it.substringBefore('/')) }
     }
 
     @Synchronized
@@ -344,6 +350,7 @@ class Router(
 ) {
     val health = Health(config)
     val stats = ModelStats()
+    val routes = RouteState(clock)
     var onOutcome: ((String, Boolean, Long?) -> Unit)? = null
     var onStateChanged: (() -> Unit)? = null
     private val alerted = HashSet<String>()
@@ -362,6 +369,7 @@ class Router(
 
     fun onNetworkChange() {
         health.onNetworkChange()
+        routes.reset()
         onStateChanged?.invoke()
     }
 
@@ -421,17 +429,47 @@ class Router(
 
     private fun hedgeDelay(t: Target, firstMessage: Boolean): Long {
         if (firstMessage) return HEDGE_FIRST_MS
-        val lat = stats.latencyMs(t.key)
-        return ((lat?.times(2)) ?: HEDGE_FIRST_MS).coerceIn(HEDGE_MIN_MS, HEDGE_MAX_MS)
+        val ref = stats.p95(t.key) ?: stats.latencyMs(t.key)?.times(2) ?: HEDGE_FIRST_MS
+        return (ref * 6 / 10).coerceIn(HEDGE_MIN_MS, HEDGE_MAX_MS)
     }
 
     private fun pickHedge(ordered: List<Target>, t: Target, consumed: Set<String>, sameProviderOk: Boolean): Target? {
-        val rest = ordered.dropWhile { it != t }.drop(1).filter {
+        val rest = ordered.dropWhile { it.key != t.key }.drop(1).filter {
             it.key !in consumed && health.blockedUntil(it, clock()) == null && limiter.blockedUntil(it, clock()) == null &&
-                limiter.pressure(it, clock()) < HEDGE_PICK_PRESSURE
+                limiter.pressure(it, clock()) < HEDGE_PICK_PRESSURE &&
+                (routes.directAllowed(it) || routes.route(it) == NetRoute.WORKER)
         }
         val other = rest.firstOrNull { baseProviderId(it) != baseProviderId(t) }
         return other ?: if (sameProviderOk) rest.firstOrNull() else null
+    }
+
+    private fun sendTarget(t: Target): Target =
+        if (t.hasWorker && routes.route(t) == NetRoute.WORKER) t.viaWorker() else t
+
+    fun routed(t: Target): Target = sendTarget(t)
+
+    fun report(t: Target, ex: LlmException?) {
+        if (ex == null) {
+            health.onSuccess(t, clock())
+            stats.onOk(t.key)
+            if (t.via == NetRoute.WORKER) routes.onWorkerSuccess(t.providerId) else routes.onDirectSuccess(t.providerId)
+            onStateChanged?.invoke()
+            return
+        }
+        val rk = routeKind(ex)
+        var deferred = false
+        if (rk && t.via == NetRoute.DIRECT) {
+            routes.onDirectFailure(t.providerId, ex.kind)
+            deferred = t.hasWorker
+        } else if (rk && t.via == NetRoute.WORKER) {
+            routes.onWorkerFailure(t.providerId)
+        }
+        failLog.add(clock(), t.providerName, ex.kind.name)
+        if (!deferred) {
+            health.onFailure(t, ex, clock())
+            stats.onFail(t.key)
+        }
+        onStateChanged?.invoke()
     }
 
     private fun buildMessages(req: RouteRequest, t: Target, partial: String, toolCut: Boolean = false): List<ChatMsg> {
@@ -447,7 +485,7 @@ class Router(
         return ContextTrimmer.trim(msgs, window, reserve, keep)
     }
 
-    internal fun classify(e: Throwable): LlmException = when (e) {
+    fun classify(e: Throwable): LlmException = when (e) {
         is LlmException -> e
         is SocketTimeoutException -> LlmException(ErrorKind.TIMEOUT, message = "timeout")
         is IOException -> LlmException(ErrorKind.NETWORK, message = "network")
@@ -482,8 +520,28 @@ class Router(
         var qualityRetried = false
         var toolCut = false
         val consumed = HashSet<String>()
+        val queue = ArrayList<Target>(ordered)
+        val deferred = LinkedHashMap<String, Target>()
+        val workerDead = HashSet<String>()
+        var pass2 = false
+        var qi = 0
 
-        suspend fun fail(tt: Target, ex: LlmException) {
+        suspend fun fail(tt: Target, ex: LlmException, gotText: Boolean): Boolean {
+            val rk = routeKind(ex) && !gotText
+            if (rk && tt.via == NetRoute.DIRECT) {
+                routes.onDirectFailure(tt.providerId, ex.kind)
+                if (tt.hasWorker) {
+                    reasons[tt.providerName] = FailReason(tt.providerName, ReasonKind.ERROR, ex.kind)
+                    failLog.add(clock(), tt.providerName, ex.kind.name)
+                    limiter.refund(tt, clock())
+                    deferred.putIfAbsent(tt.key, tt)
+                    onStateChanged?.invoke()
+                    return true
+                }
+            } else if (rk && tt.via == NetRoute.WORKER) {
+                routes.onWorkerFailure(tt.providerId)
+                workerDead.add(baseProviderId(tt))
+            }
             reasons[tt.providerName] = FailReason(tt.providerName, ReasonKind.ERROR, ex.kind)
             failLog.add(clock(), tt.providerName, ex.kind.name)
             health.onFailure(tt, ex, clock())
@@ -493,10 +551,22 @@ class Router(
             val after = health.blockedUntil(tt, clock())
             if (after != null && after != Long.MAX_VALUE) soonest = min(soonest, after)
             if (ex.kind == ErrorKind.AUTH) emit(RouteEvent.AuthFailed(tt.providerId, ex.httpCode, ex.httpCode == 403 && health.forbiddenCount(tt.providerId) > 1))
+            return false
         }
 
-        for (t in ordered) {
+        while (true) {
+            if (qi >= queue.size) {
+                if (!pass2 && deferred.isNotEmpty()) {
+                    pass2 = true
+                    consumed.clear()
+                    queue.addAll(deferred.values.map { it.viaWorker() })
+                } else {
+                    break
+                }
+            }
+            val t = queue[qi++]
             if (t.key in consumed) continue
+            if (pass2 && baseProviderId(t) in workerDead) continue
             val skipBlocked = !pinned || (ordered.size > 1 && t !== ordered.last())
             if (skipBlocked) {
                 val until = health.blockedUntil(t, clock())
@@ -518,6 +588,17 @@ class Router(
                     continue
                 }
             }
+            var send = t
+            if (t.via == NetRoute.DIRECT) {
+                if (t.hasWorker && routes.route(t) == NetRoute.WORKER) {
+                    send = t.viaWorker()
+                } else if (!routes.directAllowed(t)) {
+                    if (t.hasWorker) deferred.putIfAbsent(t.key, t)
+                    reasons.putIfAbsent(t.providerName, FailReason(t.providerName, ReasonKind.COOLING))
+                    soonest = min(soonest, routes.retryAt(t))
+                    continue
+                }
+            }
             if (req.proactive) {
                 val bp = limiter.budgetPressure(t, clock())
                 val tag = (if (t.perModelLimits) t.key else t.providerId) + "|" + clock() / DAY_MS
@@ -531,10 +612,10 @@ class Router(
             var holding = tail.isNotEmpty()
             val hold = StringBuilder()
             var began = clock()
-            var cur = t
+            var cur = send
             val qc = StringBuilder()
             var qcOn = !pinned && !qualityRetried && partial.isEmpty() &&
-                ordered.dropWhile { it != t }.drop(1).any {
+                queue.drop(qi).any {
                     health.blockedUntil(it, clock()) == null && limiter.blockedUntil(it, clock()) == null
                 }
             var firstSeen = false
@@ -592,13 +673,13 @@ class Router(
                             .produceIn(scope),
                         clock()
                     )
-                    val primary = open(t, msgs)
+                    val primary = open(send, msgs)
                     val firstMs = firstTokenMs(t, req.fast)
                     val idle = idleMs(t)
                     var ch = primary.ch
                     var r0: ChannelResult<Chunk>? = null
                     var waitLeft = firstMs
-                    val hedgeAfter = if (!pinned && partial.isEmpty() && hedgeMs > 0 && !t.model.reasoning && (forceHedge || hedgeAllowed(t))) hedgeDelay(t, req.firstMessage) else 0L
+                    val hedgeAfter = if (!pass2 && !pinned && partial.isEmpty() && hedgeMs > 0 && !t.model.reasoning && (forceHedge || hedgeAllowed(t))) hedgeDelay(t, req.firstMessage) else 0L
                     if (hedgeAfter in 1 until firstMs) {
                         r0 = withTimeoutOrNull(hedgeAfter) { ch.receiveCatching() }
                         waitLeft = firstMs - hedgeAfter
@@ -606,7 +687,7 @@ class Router(
                         if (cand != null) {
                             consumed.add(cand.key)
                             limiter.record(cand, clock())
-                            var lanes = listOf(primary, open(cand, buildMessages(req, cand, "")))
+                            var lanes = listOf(primary, open(sendTarget(cand), buildMessages(req, cand, "")))
                             val won = withTimeoutOrNull(waitLeft) {
                                 var found: Pair<Lane, ChannelResult<Chunk>>? = null
                                 while (found == null && lanes.isNotEmpty()) {
@@ -617,7 +698,7 @@ class Router(
                                     val chunk = res.getOrNull()
                                     val err: Throwable? = if (chunk == null) LlmException(ErrorKind.EMPTY) else chunk.error
                                     if (err != null) {
-                                        fail(lane.t, classify(err))
+                                        fail(lane.t, classify(err), false)
                                         lane.ch.cancel()
                                         lanes = lanes.filter { it !== lane }
                                     } else {
@@ -628,7 +709,7 @@ class Router(
                             }
                             if (won == null) {
                                 for (l in lanes) {
-                                    fail(l.t, LlmException(ErrorKind.TIMEOUT, message = "first token timeout"))
+                                    fail(l.t, LlmException(ErrorKind.TIMEOUT, message = "first token timeout"), false)
                                     l.ch.cancel()
                                 }
                                 return@coroutineScope
@@ -690,10 +771,10 @@ class Router(
                 throw e
             } catch (e: Throwable) {
                 val ex = classify(e)
-                if (ex.kind == ErrorKind.NETWORK && !got) limiter.refund(cur, clock())
-                fail(cur, ex)
-                if (pinned) {
-                    val moreKeys = ordered.dropWhile { it != cur }.drop(1).isNotEmpty()
+                val deferredNow = fail(cur, ex, got)
+                if (ex.kind == ErrorKind.NETWORK && !got && !deferredNow) limiter.refund(cur, clock())
+                if (pinned && !deferredNow) {
+                    val moreKeys = queue.drop(qi).isNotEmpty()
                     val switchable = ex.kind == ErrorKind.RATE_LIMIT || ex.kind == ErrorKind.PAYMENT || ex.kind == ErrorKind.AUTH
                     if (!(moreKeys && switchable)) {
                         emit(failure(reasons.values.toList(), soonest, clock(), true))
@@ -713,6 +794,7 @@ class Router(
                 continue
             }
             if (completed) {
+                if (cur.via == NetRoute.WORKER) routes.onWorkerSuccess(cur.providerId) else routes.onDirectSuccess(cur.providerId)
                 health.onSuccess(cur, clock())
                 stats.onOk(cur.key)
                 onOutcome?.invoke(cur.key, true, stats.latencyMs(cur.key))
@@ -725,7 +807,7 @@ class Router(
             it.reason == ReasonKind.COOLING || (it.reason == ReasonKind.ERROR && it.error == ErrorKind.NETWORK)
         }
         if (again && !pinned && partial.isEmpty() && blip) {
-            val cleared = health.clearTransient()
+            val cleared = health.clearTransient() or routes.clearDirectBad()
             if (cleared || reasons.values.any { it.reason == ReasonKind.ERROR }) {
                 delay(config.blipDelayMs)
                 emitAll(runOnce(req, false))
@@ -735,6 +817,9 @@ class Router(
         emit(failure(reasons.values.toList(), soonest, clock(), pinned))
     }
 }
+
+internal fun routeKind(ex: LlmException): Boolean =
+    ex.kind == ErrorKind.REGION || ((ex.kind == ErrorKind.NETWORK || ex.kind == ErrorKind.TIMEOUT) && ex.connect)
 
 object HedgePolicy {
     const val RPM_CAP = 30

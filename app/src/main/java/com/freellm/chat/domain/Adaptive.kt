@@ -146,9 +146,16 @@ class ModelStats(private val clock: () -> Long = { System.currentTimeMillis() })
 
     @Synchronized
     fun latencyBucket(key: String): Int {
-        val s = map[key] ?: return 1
-        if (s.samples == 0 && !s.seeded) return 1
-        return (s.latencyMs / 3000).toInt().coerceAtMost(4)
+        val s = map[key] ?: return 2
+        if (s.samples == 0 && !s.seeded) return 2
+        val ms = s.latencyMs
+        return when {
+            ms < 700 -> 0
+            ms < 1500 -> 1
+            ms < 3000 -> 2
+            ms < 6000 -> 3
+            else -> 4
+        }
     }
 
     @Synchronized

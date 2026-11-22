@@ -92,6 +92,7 @@ class SettingsStore(context: Context) {
         val TOOLS_MODE = stringPreferencesKey("tools_mode")
         val TOOLS_OFF = stringSetPreferencesKey("tools_off")
         val RUNNER_URL = stringPreferencesKey("runner_url")
+        val NET_PATH = stringPreferencesKey("net_path")
     }
 
     private val data: Flow<Preferences> = ds.data.catch { emit(emptyPreferences()) }
@@ -106,6 +107,8 @@ class SettingsStore(context: Context) {
     val selection: Flow<String> = data.map { it[K.SELECTION] ?: "ADAPT" }.distinctUntilChanged()
 
     val proxyUrl: Flow<String> = data.map { it[K.PROXY]?.trim().orEmpty() }.distinctUntilChanged()
+
+    val netPath: Flow<String> = data.map { if (it[K.NET_PATH] == "vpn_only") "vpn_only" else "auto" }.distinctUntilChanged()
 
     val proxyNoticeSeen: Flow<Boolean> = data.map { it[K.PROXY_NOTICE] ?: false }.distinctUntilChanged()
 
@@ -215,6 +218,10 @@ class SettingsStore(context: Context) {
 
     suspend fun setProxyUrl(v: String) {
         ds.edit { it[K.PROXY] = v.trim() }
+    }
+
+    suspend fun setNetPath(v: String) {
+        ds.edit { it[K.NET_PATH] = if (v == "vpn_only") "vpn_only" else "auto" }
     }
 
     suspend fun setProxyNoticeSeen() {

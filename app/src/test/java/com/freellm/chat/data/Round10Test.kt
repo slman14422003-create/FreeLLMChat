@@ -14,10 +14,27 @@ class ProxyRoutingTest {
         assertEquals("https://api.groq.com/openai/v1" to "", ProxyRouting.baseFor(groq, "", "   ", ""))
     }
 
-    @Test fun proxyRoutesKnownHostAndKeepsDirectFallback() {
+    @Test fun proxyRoutesKnownHostDirectFirstWorkerSecond() {
         val (base, alt) = ProxyRouting.baseFor(groq, null, "https://p.example.dev/", "")
-        assertEquals("https://p.example.dev/groq/openai/v1", base)
-        assertEquals("https://api.groq.com/openai/v1", alt)
+        assertEquals("https://api.groq.com/openai/v1", base)
+        assertEquals("https://p.example.dev/groq/openai/v1", alt)
+    }
+
+    @Test fun withoutProxySecondIsBlank() {
+        val (base, alt) = ProxyRouting.baseFor(groq, null, "", "")
+        assertEquals("https://api.groq.com/openai/v1", base)
+        assertEquals("", alt)
+    }
+
+    @Test fun customProviderIsUnchanged() {
+        val p = ProviderDef("mine", "Mine", "", custom = true)
+        assertEquals("https://my.host/v1" to "", ProxyRouting.baseFor(p, "https://my.host/v1/", "https://p.example.dev", ""))
+    }
+
+    @Test fun userSuppliedOtherProxyIsUnchanged() {
+        val (base, alt) = ProxyRouting.baseFor(groq, "https://other.dev", "https://p.example.dev", "")
+        assertEquals("https://other.dev/groq/openai/v1", base)
+        assertEquals("", alt)
     }
 }
 

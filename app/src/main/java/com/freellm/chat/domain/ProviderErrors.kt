@@ -25,6 +25,18 @@ object ProviderErrors {
         lower.contains("invalid key") || lower.contains("invalid api key") || lower.contains("invalid_api_key") ||
             lower.contains("api key not valid") || lower.contains("unauthorized") || lower.contains("permission")
 
+    private val regionPhrases = listOf(
+        "location is not supported", "user location", "not supported in your country", "country, region, or territory",
+        "unsupported_country_region_territory", "not available in your region", "not available in your country",
+        "error code: 1020", "attention required", "access denied. please check your network settings"
+    )
+
+    private fun regionText(lower: String): Boolean =
+        regionPhrases.any { lower.contains(it) } || (lower.contains("<html") && lower.contains("cloudflare"))
+
+    fun isRegionBlock(code: Int, lower: String): Boolean =
+        code == 451 || ((code == 400 || code == 403) && regionText(lower))
+
     fun secondsToUtcMidnight(nowMs: Long): Long {
         val now = Instant.ofEpochMilli(nowMs).atZone(ZoneOffset.UTC)
         val next = now.toLocalDate().plusDays(1).atStartOfDay(ZoneOffset.UTC)
@@ -37,6 +49,7 @@ object ProviderErrors {
             l.contains("not found") || l.contains("does not exist") || l.contains("not_found") || l.contains("decommissioned")
             )
         return when {
+            isRegionBlock(code, l) -> ErrorKind.REGION
             code == 429 -> ErrorKind.RATE_LIMIT
             code == 402 -> ErrorKind.PAYMENT
             isPolicy(l) && (code == 400 || code == 404 || code == 403) -> ErrorKind.POLICY
@@ -56,6 +69,7 @@ object ProviderErrors {
     fun streamKind(message: String): ErrorKind {
         val l = message.lowercase()
         return when {
+            regionText(l) -> ErrorKind.REGION
             isPolicy(l) -> ErrorKind.POLICY
             rateWord.containsMatchIn(l) || isQuota(l) -> ErrorKind.RATE_LIMIT
             else -> ErrorKind.SERVER

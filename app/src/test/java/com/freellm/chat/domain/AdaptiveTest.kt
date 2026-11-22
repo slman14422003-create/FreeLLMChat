@@ -41,4 +41,23 @@ class AdaptiveTest {
         assertEquals(1, s.failTier("a/m"))
         assertEquals(0, s.failTier("b/m"))
     }
+
+    @Test
+    fun latencyBucketThresholds() {
+        val s = ModelStats()
+        s.onFirstToken("a/m", 699)
+        s.onFirstToken("b/m", 700)
+        s.onFirstToken("c/m", 1499)
+        s.onFirstToken("d/m", 1500)
+        s.onFirstToken("e/m", 2999)
+        s.onFirstToken("f/m", 3000)
+        s.onFirstToken("g/m", 5999)
+        s.onFirstToken("h/m", 6000)
+        assertEquals(listOf(0, 1, 1, 2, 2, 3, 3, 4), listOf("a/m", "b/m", "c/m", "d/m", "e/m", "f/m", "g/m", "h/m").map { s.latencyBucket(it) })
+    }
+
+    @Test
+    fun latencyBucketWithoutSampleIsTwo() {
+        assertEquals(2, ModelStats().latencyBucket("x/m"))
+    }
 }

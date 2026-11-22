@@ -165,4 +165,28 @@ class RouterHedgeTest {
         val second = tr.calls.last().second
         assertEquals(body, second[second.size - 2].content)
     }
+
+    @Test fun primaryAnsweringDuringRaceWindowOpensHedge() = runTest {
+        val a = tgt("a", 1)
+        val b = tgt("b", 2)
+        val tr = FakeTransport { t, _, _ ->
+            if (t.providerId == "a") flow<String> { delay(1500); emit("primary") } else flow<String> { delay(5000); emit("second") }
+        }
+        val events = Router(tr, cfg, clock = { 0L }).stream(req(a, b)).toList()
+        assertEquals("primary", text(events))
+        assertEquals(2, tr.calls.size)
+    }
+
+    @Test fun hedgeDelayFollowsP95WithHistory() = runTest {
+        val a = tgt("a", 1)
+        val b = tgt("b", 2)
+        val tr = FakeTransport { t, _, _ ->
+            if (t.providerId == "a") flow<String> { delay(1500); emit("primary") } else flow<String> { delay(5000); emit("second") }
+        }
+        val router = Router(tr, cfg, clock = { 0L })
+        repeat(5) { router.stats.onFirstToken(a.key, 2500) }
+        val events = router.stream(req(a, b)).toList()
+        assertEquals("primary", text(events))
+        assertEquals(1, tr.calls.size)
+    }
 }

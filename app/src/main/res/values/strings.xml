@@ -446,6 +446,8 @@
     <string name="worker_check_fail">الـ Worker لا يرد، تحقق من الرابط والسر</string>
     <string name="err_label_policy">إعدادات الخصوصية تمنع المودل</string>
     <string name="err_msg_policy">المزود يرفض المودلات المجانية بسبب إعدادات الخصوصية. في OpenRouter افتح Settings ثم Privacy وفعّل خيار نشر المودلات المجانية (Free model publication) ثم أعد اختبار المفتاح. %1$s</string>
+    <string name="err_label_region">محظور في منطقتك</string>
+    <string name="err_msg_region">هذا المزود محظور في منطقتك. استخدم VPN أو فعّل الـ worker من الإعدادات أو اختر مزوداً آخر.</string>
     <string name="zip_save">مشاركة المشروع كملف ZIP</string>
     <string name="zip_failed">تعذّر إنشاء ملف ZIP</string>
     <string name="zip_saved">تم حفظ ملف ZIP (%1$d ملف)</string>
@@ -571,4 +573,21 @@
     <string name="health_provider_down">Provider disabled</string>
     <string name="health_ready">Ready</string>
     <string name="health_row">%1$s, latency %2$s ms, success %3$s, runs %4$d</string>
+    <string name="net_path_title">مسار الاتصال</string>
+    <string name="net_path_auto">تلقائي</string>
+    <string name="net_path_vpn_only">VPN فقط (يمنع الطلبات عندما لا يكون VPN مفعلاً)</string>
+    <string name="net_path_vpn_only_short">VPN فقط</string>
+    <string name="net_section_title">الشبكة</string>
+    <string name="net_current_path">المسار الحالي: %1$s</string>
+    <string name="net_path_value_vpn">VPN</string>
+    <string name="net_path_value_direct">مباشر</string>
+    <string name="net_validated_line">الاتصال مؤكد: %1$s</string>
+    <string name="net_yes">نعم</string>
+    <string name="net_no">لا</string>
+    <string name="net_setting_line">إعداد مسار الاتصال: %1$s</string>
+    <string name="net_routes_none">لا توجد مشاكل في المسارات</string>
+    <string name="net_route_direct">مباشر</string>
+    <string name="net_route_worker">عبر الـ worker</string>
+    <string name="net_route_blocked">المباشر محظور</string>
+    <string name="net_route_row">%1$s: %2$s (%3$d ث)</string>
 </resources>

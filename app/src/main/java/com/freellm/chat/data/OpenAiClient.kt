@@ -4,6 +4,7 @@ import com.freellm.chat.domain.ChatMsg
 import com.freellm.chat.domain.ChatTransport
 import com.freellm.chat.domain.ErrorKind
 import com.freellm.chat.domain.LlmException
+import com.freellm.chat.domain.NetRoute
 import com.freellm.chat.domain.ProviderErrors
 import com.freellm.chat.domain.Target
 import com.freellm.chat.domain.baseProviderId
@@ -31,6 +32,7 @@ import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
@@ -38,7 +40,12 @@ import java.net.SocketTimeoutException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
-class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
+class OpenAiClient(
+    private val http: OkHttpClient,
+    private val vpnActive: () -> Boolean = { false }
+) : ChatTransport {
+    private val h1 by lazy { http.newBuilder().protocols(listOf(Protocol.HTTP_1_1)).build() }
+    private val h1Until = ConcurrentHashMap<String, Long>()
     private val json = Json { ignoreUnknownKeys = true }
     private val mediaJson = "application/json; charset=utf-8".toMediaType()
 
@@ -101,10 +108,12 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
 
     private fun mapIo(e: IOException, base: String = ""): LlmException {
         val where = if (base.isBlank()) "" else hostOf(base) + " "
-        return if (e is SocketTimeoutException) {
-            LlmException(ErrorKind.TIMEOUT, message = where + e.message.orEmpty().take(90))
+        return if (e.message == "vpn required") {
+            LlmException(ErrorKind.NETWORK, message = "vpn required")
+        } else if (e is SocketTimeoutException) {
+            LlmException(ErrorKind.TIMEOUT, message = where + e.message.orEmpty().take(90), connect = true)
         } else {
-            LlmException(ErrorKind.NETWORK, message = where + e.javaClass.simpleName + ": " + e.message.orEmpty().take(80))
+            LlmException(ErrorKind.NETWORK, message = where + e.javaClass.simpleName + ": " + e.message.orEmpty().take(80), connect = true)
         }
     }
 
@@ -128,21 +137,8 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
         null
     }
 
-    private val badBase = ConcurrentHashMap<String, Long>()
-
-    private fun bases(t: Target): List<String> =
-        listOf(t.baseUrl) + listOfNotNull(t.altBaseUrl.takeIf { it.isNotBlank() && it != t.baseUrl })
-
-    internal fun orderedBases(t: Target, now: Long = System.currentTimeMillis()): List<String> {
-        val all = bases(t)
-        if (all.size < 2) return all
-        val first = now - (badBase[all[0]] ?: 0L) < BAD_BASE_MS
-        val second = now - (badBase[all[1]] ?: 0L) < BAD_BASE_MS
-        return if (first && !second) listOf(all[1], all[0]) + all.drop(2) else all
-    }
-
     private fun retryable(e: LlmException): Boolean = when (e.kind) {
-        ErrorKind.TIMEOUT, ErrorKind.NETWORK -> true
+        ErrorKind.TIMEOUT, ErrorKind.NETWORK, ErrorKind.REGION -> true
         ErrorKind.AUTH -> e.httpCode == 403
         ErrorKind.NOT_FOUND -> e.httpCode == 404 && e.message.orEmpty().trim().equals("Not found", ignoreCase = true)
         ErrorKind.SERVER -> e.httpCode in listOf(502, 503, 504) || e.httpCode in 520..530
@@ -156,37 +152,26 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
         stream(target, messages, maxTokens, temperature, false)
 
     override fun stream(target: Target, messages: List<ChatMsg>, maxTokens: Int?, temperature: Double?, fast: Boolean): Flow<String> = flow {
-        val all = orderedBases(target)
-        for ((i, base) in all.withIndex()) {
-            var emitted = false
-            val ttfb = if (target.model.reasoning) TTFB_REASONING_MS else TTFB_MS
+        val base = target.activeBase
+        val ttfb = if (target.model.reasoning) TTFB_REASONING_MS else TTFB_MS
+        val acc = StringBuilder()
+        var msgs = messages
+        var round = 0
+        while (true) {
+            var cut = false
             try {
-                val acc = StringBuilder()
-                var msgs = messages
-                var round = 0
-                while (true) {
-                    var cut = false
-                    try {
-                        streamOnce(target, base, msgs, maxTokens, temperature, ttfb, fast) { cut = true }.collect {
-                            if (!emitted) badBase.remove(base)
-                            emitted = true
-                            acc.append(it)
-                            emit(it)
-                        }
-                    } catch (e: LlmException) {
-                        if (round == 0) throw e
-                        break
-                    }
-                    val visible = ThinkSplit.strip(acc.toString())
-                    if (!cut || round >= MAX_AUTO_CONTINUE || visible.isBlank()) break
-                    round++
-                    msgs = messages + ChatMsg("assistant", visible) + ChatMsg("user", AUTO_CONTINUE)
+                streamOnce(target, base, msgs, maxTokens, temperature, ttfb, fast) { cut = true }.collect {
+                    acc.append(it)
+                    emit(it)
                 }
-                return@flow
             } catch (e: LlmException) {
-                if (!emitted && (e.kind == ErrorKind.TIMEOUT || e.kind == ErrorKind.NETWORK)) badBase[base] = System.currentTimeMillis()
-                if (emitted || i == all.lastIndex || !retryable(e)) throw e
+                if (round == 0) throw e
+                break
             }
+            val visible = ThinkSplit.strip(acc.toString())
+            if (!cut || round >= MAX_AUTO_CONTINUE || visible.isBlank()) break
+            round++
+            msgs = messages + ChatMsg("assistant", visible) + ChatMsg("user", AUTO_CONTINUE)
         }
     }.flowOn(Dispatchers.IO)
 
@@ -205,8 +190,11 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
         } catch (e: IllegalArgumentException) {
             throw LlmException(ErrorKind.BAD_REQUEST, message = "invalid url or key format")
         }
-        val viaWorker = base == target.baseUrl && target.altBaseUrl.isNotBlank()
-        val call = http.newCall(if (viaWorker && ttfbMs > 0) req.newBuilder().header(WORKER_TTFB_HEADER, ttfbMs.toString()).build() else req)
+        val viaWorker = target.via == NetRoute.WORKER && target.hasWorker
+        val h1Key = baseProviderId(target)
+        val useH1 = System.currentTimeMillis() < (h1Until[h1Key] ?: 0L)
+        val client = if (useH1) h1 else http
+        val call = client.newCall(if (viaWorker && ttfbMs > 0) req.newBuilder().header(WORKER_TTFB_HEADER, ttfbMs.toString()).build() else req)
         val handle = currentCoroutineContext()[Job]?.invokeOnCompletion { call.cancel() }
         val timedOut = AtomicBoolean(false)
         val gotHeaders = AtomicBoolean(false)
@@ -221,7 +209,10 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
             val resp = try {
                 call.execute()
             } catch (e: IOException) {
-                if (timedOut.get()) throw LlmException(ErrorKind.TIMEOUT, message = hostOf(base) + " no response in " + ttfbMs / 1000 + "s")
+                if (timedOut.get()) {
+                    if (!useH1 && vpnActive()) h1Until[h1Key] = System.currentTimeMillis() + H1_FALLBACK_MS
+                    throw LlmException(ErrorKind.TIMEOUT, message = hostOf(base) + " no response in " + ttfbMs / 1000 + "s", connect = true)
+                }
                 if (call.isCanceled()) throw CancellationException("cancelled")
                 throw mapIo(e, base)
             }
@@ -291,11 +282,13 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
     }.flowOn(Dispatchers.IO)
 
     suspend fun warm(target: Target) {
-        val base = bases(target).firstOrNull() ?: return
+        val worker = target.via == NetRoute.WORKER && target.hasWorker
+        val base = target.activeBase
+        if (base.isBlank()) return
         withContext(Dispatchers.IO) {
             try {
                 val id = baseProviderId(target)
-                val req = if (target.altBaseUrl.isNotBlank()) {
+                val req = if (worker) {
                     val root = base.replace(Regex("/" + Regex.escape(id) + "(/.*)?$"), "")
                     Request.Builder().url("$root/_ping").get().build()
                 } else {
@@ -309,7 +302,7 @@ class OpenAiClient(private val http: OkHttpClient) : ChatTransport {
     }
 
     suspend fun test(target: Target): LlmException? {
-        val all = bases(target)
+        val all = listOf(target.baseUrl) + listOfNotNull(target.altBaseUrl.takeIf { it.isNotBlank() && it != target.baseUrl })
         var last: LlmException? = null
         val trail = ArrayList<String>()
         for ((i, base) in all.withIndex()) {
@@ -393,4 +386,4 @@ private const val FAST_REASONING_MIN_TOKENS = 1024
 private const val WORKER_TTFB_HEADER = "x-freellm-ttfb"
 private const val TTFB_MS = 8_000L
 private const val TTFB_REASONING_MS = 30_000L
-private const val BAD_BASE_MS = 120_000L
+private const val H1_FALLBACK_MS = 600_000L

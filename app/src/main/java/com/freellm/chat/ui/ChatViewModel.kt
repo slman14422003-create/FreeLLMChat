@@ -905,18 +905,21 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
             if (prov != null) {
                 val limit = SearchLimits.effective(prov.kind, g.searchLimits)
                 val left = app.searchQuota.remaining(prov.kind, limit, System.currentTimeMillis())
+                val mandatoryNow = SearchPolicy.shouldSearch(true, true, cls.needsFresh, false, hasAtt, cont != null, left)
+                val rewriteAssist = !com.freellm.chat.domain.QueryBuilder.skipRewrite(lastUser, hasAtt, mandatoryNow)
                 if (SearchPolicy.shouldAssist(true, true, cls.needsFresh, lastUser, hasAtt, cont != null, left, limit.amount)) {
                     lateSearch = viewModelScope.async(kotlinx.coroutines.Dispatchers.IO) {
                         kotlinx.coroutines.withTimeoutOrNull(LATE_SEARCH_MS) {
                             app.webSearch.run(
                                 prov, limit, lastUser, all, QueryBuilder.isTechnical(lastUser, cls.type),
                                 CachePolicy.ttlMs(g.searchCacheHours),
-                                maxQueries = if (prov.kind == com.freellm.chat.domain.SearchKind.LOCAL) 2 else QueryBuilder.MAX_QUERIES
+                                maxQueries = if (prov.kind == com.freellm.chat.domain.SearchKind.LOCAL) 2 else QueryBuilder.MAX_QUERIES,
+                                rewrite = rewriteAssist
                             )
                         }
                     }
                 }
-                if (SearchPolicy.shouldSearch(true, true, cls.needsFresh, false, hasAtt, cont != null, left)) {
+                if (mandatoryNow) {
                     stream.value = StreamUi(active = true, status = app.getString(R.string.searching_web))
                     mandatorySearch = viewModelScope.async(kotlinx.coroutines.Dispatchers.IO) {
                         app.webSearch.run(

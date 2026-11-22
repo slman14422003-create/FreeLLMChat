@@ -15,7 +15,7 @@ object HistoryImages {
 object ResumePolicy {
     fun skip(kind: FailKind, reasons: List<FailReason>): Boolean =
         kind == FailKind.NO_PROVIDER || kind == FailKind.NO_VISION || kind == FailKind.PINNED_MISSING ||
-            reasons.any { it.error == ErrorKind.AUTH || it.error == ErrorKind.POLICY }
+            reasons.any { it.error == ErrorKind.AUTH || it.error == ErrorKind.POLICY || it.error == ErrorKind.REGION }
 }
 
 object BrainPolicy {

@@ -71,8 +71,12 @@ class ProviderManager(
     }.flowOn(Dispatchers.Default)
 
     suspend fun warmUp() {
-        val top = activeTargets().filter { '#' !in it.providerId }.sortedBy { it.model.priority }.distinctBy { it.providerId }.take(2)
-        coroutineScope { top.map { t -> async { client.warm(t) } }.awaitAll() }
+        val top = activeTargets()
+            .filter { '#' !in it.providerId }
+            .sortedWith(compareBy<Target>({ if (router.stats.samples(it.key) > 0) 0 else 1 }, { it.model.priority }))
+            .distinctBy { it.providerId }
+            .take(3)
+        coroutineScope { top.map { t -> async { client.warm(router.routed(t)) } }.awaitAll() }
     }
 
     private fun expired(m: ModelDef, today: LocalDate): Boolean {

@@ -187,12 +187,12 @@ class Round11Test {
         assertTrue(failed.last() is RouteEvent.Failed)
     }
 
-    @Test fun latencyBucketStepIsThreeSeconds() {
+    @Test fun latencyBucketUsesThresholds() {
         val s = ModelStats()
         s.onFirstToken("p/a", 2_900)
         s.onFirstToken("p/b", 3_100)
-        assertEquals(0, s.latencyBucket("p/a"))
-        assertEquals(1, s.latencyBucket("p/b"))
+        assertEquals(2, s.latencyBucket("p/a"))
+        assertEquals(3, s.latencyBucket("p/b"))
     }
 
     @Test fun poorReplyIsShownThenRestartedOnNextModel() = runTest {

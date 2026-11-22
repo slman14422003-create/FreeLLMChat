@@ -13,6 +13,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.Call
 import okhttp3.Callback
+import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -38,9 +39,26 @@ internal suspend fun Call.await(): Response = suspendCancellableCoroutine { cont
 }
 
 abstract class HttpSearch(private val http: OkHttpClient, private val proxy: String = "") : SearchProvider {
-    internal fun endpoint(id: String, host: String, path: String): String {
+    internal fun endpoint(id: String, host: String, path: String): String = host + path
+
+    internal fun altEndpoint(id: String, path: String): String? {
         val px = proxy.trim().trimEnd('/')
-        return if (px.isEmpty()) host + path else px + "/" + id + path
+        return if (px.isEmpty()) null else px + "/" + id + path
+    }
+
+    protected fun urlWith(base: String, params: List<Pair<String, String>>): HttpUrl {
+        val b = base.toHttpUrl().newBuilder()
+        params.forEach { (k, v) -> b.addQueryParameter(k, v) }
+        return b.build()
+    }
+
+    protected fun altUrlWith(id: String, path: String, params: List<Pair<String, String>>): String? {
+        val base = altEndpoint(id, path) ?: return null
+        return try {
+            urlWith(base, params).toString()
+        } catch (e: IllegalArgumentException) {
+            null
+        }
     }
 
     private val mediaJson = "application/json; charset=utf-8".toMediaType()
@@ -52,7 +70,24 @@ abstract class HttpSearch(private val http: OkHttpClient, private val proxy: Str
             extra.forEach { (k, v) -> put(k, v) }
         }.toString().toRequestBody(mediaJson)
 
-    protected suspend fun run(req: Request): String = withContext(Dispatchers.IO) {
+    protected suspend fun run(req: Request, altUrl: String? = null): String {
+        val alt = altUrl?.let { u ->
+            try {
+                req.newBuilder().url(u).build()
+            } catch (e: IllegalArgumentException) {
+                null
+            }
+        }
+        return try {
+            runOnce(req)
+        } catch (e: LlmException) {
+            val unreachable = e.kind == ErrorKind.TIMEOUT || e.kind == ErrorKind.NETWORK || e.httpCode == 403 || e.httpCode == 451
+            if (alt == null || !unreachable) throw e
+            runOnce(alt)
+        }
+    }
+
+    private suspend fun runOnce(req: Request): String = withContext(Dispatchers.IO) {
         val resp = try {
             http.newCall(req).await()
         } catch (e: SocketTimeoutException) {
@@ -95,13 +130,10 @@ class GoogleSearch(http: OkHttpClient, private val key: String, private val cx: 
     override val kind = SearchKind.GOOGLE
 
     override suspend fun search(query: String, count: Int): List<SearchResult> {
-        val url = endpoint("google", "https://www.googleapis.com", "/customsearch/v1").toHttpUrl().newBuilder()
-            .addQueryParameter("key", key)
-            .addQueryParameter("cx", cx)
-            .addQueryParameter("q", query)
-            .addQueryParameter("num", count.coerceIn(1, 10).toString())
-            .build()
-        return SearchParsers.google(run(Request.Builder().url(url).header("Accept", "application/json").build()))
+        val params = listOf("key" to key, "cx" to cx, "q" to query, "num" to count.coerceIn(1, 10).toString())
+        val url = urlWith(endpoint("google", "https://www.googleapis.com", "/customsearch/v1"), params)
+        val alt = altUrlWith("google", "/customsearch/v1", params)
+        return SearchParsers.google(run(Request.Builder().url(url).header("Accept", "application/json").build(), alt))
     }
 }
 
@@ -109,15 +141,14 @@ class BraveSearch(http: OkHttpClient, private val key: String, proxy: String = "
     override val kind = SearchKind.BRAVE
 
     override suspend fun search(query: String, count: Int): List<SearchResult> {
-        val url = endpoint("brave", "https://api.search.brave.com", "/res/v1/web/search").toHttpUrl().newBuilder()
-            .addQueryParameter("q", query)
-            .addQueryParameter("count", count.coerceIn(1, 20).toString())
-            .build()
+        val params = listOf("q" to query, "count" to count.coerceIn(1, 20).toString())
+        val url = urlWith(endpoint("brave", "https://api.search.brave.com", "/res/v1/web/search"), params)
+        val alt = altUrlWith("brave", "/res/v1/web/search", params)
         val req = Request.Builder().url(url)
             .header("Accept", "application/json")
             .header("X-Subscription-Token", key)
             .build()
-        return SearchParsers.brave(run(req))
+        return SearchParsers.brave(run(req, alt))
     }
 }
 
@@ -130,7 +161,7 @@ class TavilySearch(http: OkHttpClient, private val key: String, proxy: String = 
             .header("Authorization", "Bearer $key")
             .post(jsonBody(query, count.coerceIn(1, 10), "query", "max_results", mapOf("search_depth" to "basic")))
             .build()
-        return SearchParsers.tavily(run(req))
+        return SearchParsers.tavily(run(req, altEndpoint("tavily", "/search")))
     }
 }
 
@@ -143,7 +174,7 @@ class SerperSearch(http: OkHttpClient, private val key: String, proxy: String = 
             .header("X-API-KEY", key)
             .post(jsonBody(query, count.coerceIn(1, 10), "q", "num"))
             .build()
-        return SearchParsers.serper(run(req))
+        return SearchParsers.serper(run(req, altEndpoint("serper", "/search")))
     }
 }
 

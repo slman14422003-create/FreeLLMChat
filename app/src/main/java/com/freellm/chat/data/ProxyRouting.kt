@@ -28,7 +28,7 @@ object ProxyRouting {
         return when {
             customIsOtherProxy -> viaProxy(p.id, defaultDirect, c) to ""
             alreadyProxied -> direct to ""
-            hasProxy && knownHost -> viaProxy(p.id, direct, px) to direct
+            hasProxy && knownHost -> direct to viaProxy(p.id, direct, px)
             else -> direct to ""
         }
     }

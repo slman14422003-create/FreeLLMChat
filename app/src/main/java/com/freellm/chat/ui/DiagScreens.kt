@@ -21,6 +21,11 @@ import androidx.compose.ui.unit.dp
 import com.freellm.chat.FreeLlmApp
 import com.freellm.chat.R
 import com.freellm.chat.domain.ModelHealth
+import com.freellm.chat.domain.NetSummary
+import com.freellm.chat.domain.RouteInfo
+import com.freellm.chat.domain.RouteLabel
+import com.freellm.chat.domain.label
+import com.freellm.chat.domain.remainingSec
 import com.freellm.chat.domain.StatRow
 import com.freellm.chat.domain.Target
 import com.freellm.chat.domain.TimingEntry
@@ -32,9 +37,15 @@ import java.util.Date
 fun DiagnosticsScreen(app: FreeLlmApp, onBack: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     var items by remember { mutableStateOf<List<TimingEntry>>(emptyList()) }
+    var net by remember { mutableStateOf(NetSummary(false, false, "auto")) }
+    var routes by remember { mutableStateOf<List<RouteInfo>>(emptyList()) }
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
             items = app.timing.all()
+            net = NetSummary(app.netState.vpn, app.netState.validated, app.netState.mode)
+            routes = app.router.routes.snapshot()
+            now = System.currentTimeMillis()
             delay(2000)
         }
     }
@@ -44,6 +55,28 @@ fun DiagnosticsScreen(app: FreeLlmApp, onBack: () -> Unit) {
             Modifier.padding(pad).verticalScroll(rememberScrollState()).padding(horizontal = Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
+            Text(stringResource(R.string.net_section_title), style = MaterialTheme.typography.titleSmall)
+            val pathName = stringResource(if (net.vpn) R.string.net_path_value_vpn else R.string.net_path_value_direct)
+            val yesNo = stringResource(if (net.validated) R.string.net_yes else R.string.net_no)
+            val modeName = stringResource(if (net.mode == "vpn_only") R.string.net_path_vpn_only_short else R.string.net_path_auto)
+            Text(stringResource(R.string.net_current_path, pathName), style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant)
+            Text(stringResource(R.string.net_validated_line, yesNo), style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant)
+            Text(stringResource(R.string.net_setting_line, modeName), style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant)
+            if (routes.isEmpty()) Text(stringResource(R.string.net_routes_none), style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant)
+            routes.forEach { r ->
+                val label = stringResource(
+                    when (r.label()) {
+                        RouteLabel.WORKER -> R.string.net_route_worker
+                        RouteLabel.BLOCKED -> R.string.net_route_blocked
+                        RouteLabel.DIRECT -> R.string.net_route_direct
+                    }
+                )
+                Text(
+                    stringResource(R.string.net_route_row, r.providerId, label, r.remainingSec(now)),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (r.directBad) cs.error else cs.onSurfaceVariant
+                )
+            }
             if (items.isEmpty()) Text(stringResource(R.string.diag_empty), color = cs.onSurfaceVariant)
             items.forEach { e ->
                 Column(Modifier.padding(vertical = 4.dp)) {

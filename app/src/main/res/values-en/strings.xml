@@ -446,6 +446,8 @@
     <string name="worker_check_fail">The Worker is not responding, check the URL and secret</string>
     <string name="err_label_policy">Privacy settings block the model</string>
     <string name="err_msg_policy">The provider refuses free models because of privacy settings. On OpenRouter open Settings, Privacy and enable Free model publication, then test the key again. %1$s</string>
+    <string name="err_label_region">Blocked in region</string>
+    <string name="err_msg_region">This provider is blocked in your region. Use a VPN, enable the worker in settings, or choose another provider.</string>
     <string name="zip_save">Save project as ZIP</string>
     <string name="zip_failed">Could not create the ZIP file</string>
     <string name="zip_saved">ZIP saved (%1$d files)</string>
@@ -562,4 +564,21 @@
     <string name="lock_disable">Turn off app lock</string>
     <string name="local_search_warning">Warning: local search is fragile and can break at any time, and it may violate the search engines\' terms of service. Use it at your own risk.</string>
     <string name="local_search_blocked">The search engine showed a consent or captcha page, so local search was stopped</string>
+    <string name="net_path_title">Connection path</string>
+    <string name="net_path_auto">Auto</string>
+    <string name="net_path_vpn_only">VPN only (blocks requests while no VPN is active)</string>
+    <string name="net_path_vpn_only_short">VPN only</string>
+    <string name="net_section_title">Network</string>
+    <string name="net_current_path">Current path: %1$s</string>
+    <string name="net_path_value_vpn">VPN</string>
+    <string name="net_path_value_direct">Direct</string>
+    <string name="net_validated_line">Validated: %1$s</string>
+    <string name="net_yes">Yes</string>
+    <string name="net_no">No</string>
+    <string name="net_setting_line">Connection path setting: %1$s</string>
+    <string name="net_routes_none">No route issues</string>
+    <string name="net_route_direct">Direct</string>
+    <string name="net_route_worker">Via worker</string>
+    <string name="net_route_blocked">Direct blocked</string>
+    <string name="net_route_row">%1$s: %2$s (%3$d s)</string>
 </resources>

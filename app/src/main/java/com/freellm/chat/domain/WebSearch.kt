@@ -27,6 +27,13 @@ object QueryBuilder {
         "وش", "لو", "سمحتي", "معلومات", "اشرح", "و", "يا", "اخي", "أخي", "عندي", "سؤال", "اسأل", "اسال"
     )
 
+    const val SHORT_WORDS = 12
+
+    fun wordCount(text: String): Int = text.trim().split(Regex("\\s+")).count { it.isNotEmpty() }
+
+    fun skipRewrite(question: String, hasAttachments: Boolean, searchIntent: Boolean): Boolean =
+        !hasAttachments && !searchIntent && wordCount(question) < SHORT_WORDS
+
     fun isTechnical(question: String, type: QType): Boolean = type == QType.CODE || techHint.containsMatchIn(question)
 
     fun system(technical: Boolean): String =
@@ -92,9 +99,11 @@ class WebSearchPipeline(
         ttlMs: Long,
         resultCount: Int = RESULTS,
         pages: Int = PAGES,
-        maxQueries: Int = QueryBuilder.MAX_QUERIES
+        maxQueries: Int = QueryBuilder.MAX_QUERIES,
+        rewrite: Boolean = true
     ): SearchOutcome {
-        val queries = QueryBuilder.generate(side, candidates, question, technical).take(maxQueries.coerceAtLeast(1))
+        val raw = if (rewrite) QueryBuilder.generate(side, candidates, question, technical) else QueryBuilder.fallback(question)
+        val queries = raw.take(maxQueries.coerceAtLeast(1))
         if (queries.isEmpty()) return SearchOutcome(null)
         val all = ArrayList<SearchResult>()
         var error: LlmException? = null

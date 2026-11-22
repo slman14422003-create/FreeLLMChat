@@ -139,6 +139,7 @@ dependencies {
     debugImplementation(libs.leakcanary)
 
     implementation(libs.okhttp)
+    implementation(libs.okhttp.dnsoverhttps)
     implementation(libs.pdfbox.android)
     implementation(libs.androidx.profileinstaller)
     implementation(libs.kotlinx.serialization.json)

@@ -76,21 +76,43 @@ class SideTasks(
         val picks = picker(candidates, router.health, router.limiter, clock()).take(attempts)
         for (t in picks) {
             router.limiter.record(t, clock())
-            val out = try {
-                withTimeoutOrNull(timeoutMs) {
-                    val sb = StringBuilder()
-                    transport.stream(t, listOf(ChatMsg("system", system), ChatMsg("user", user)), maxTokens, temperature)
-                        .collect { sb.append(it) }
-                    sb.toString()
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                null
+            var used = router.routed(t)
+            var (out, ex) = attempt(used, system, user, maxTokens, temperature, timeoutMs)
+            if (out.isNullOrBlank() && ex != null && routeKind(ex) && t.hasWorker && used.via == NetRoute.DIRECT) {
+                router.report(used, ex)
+                used = t.viaWorker()
+                val second = attempt(used, system, user, maxTokens, temperature, timeoutMs)
+                out = second.first
+                ex = second.second
             }
-            if (!out.isNullOrBlank()) return out.trim()
+            if (!out.isNullOrBlank()) {
+                router.report(used, null)
+                return out.trim()
+            }
+            router.report(used, ex ?: LlmException(ErrorKind.EMPTY))
         }
         return null
+    }
+
+    private suspend fun attempt(
+        t: Target,
+        system: String,
+        user: String,
+        maxTokens: Int,
+        temperature: Double?,
+        timeoutMs: Long
+    ): Pair<String?, LlmException?> = try {
+        val out = withTimeoutOrNull(timeoutMs) {
+            val sb = StringBuilder()
+            transport.stream(t, listOf(ChatMsg("system", system), ChatMsg("user", user)), maxTokens, temperature)
+                .collect { sb.append(it) }
+            sb.toString()
+        }
+        if (out == null) null to LlmException(ErrorKind.TIMEOUT, message = "side task timeout") else out to null
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Throwable) {
+        null to router.classify(e)
     }
 
     private companion object {

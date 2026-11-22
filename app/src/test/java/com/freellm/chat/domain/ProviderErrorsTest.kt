@@ -45,6 +45,46 @@ class ProviderErrorsTest {
         assertEquals(ErrorKind.SERVER, ProviderErrors.streamKind("upstream exploded"))
         assertTrue(ProviderErrors.streamRetryAfter("free-models-per-day", 0L)!! >= 60L)
     }
+
+    @Test fun geminiLocationBlockIsRegion() {
+        val body = """{"error":{"code":400,"message":"User location is not supported for the API use.","status":"FAILED_PRECONDITION"}}"""
+        assertEquals(ErrorKind.REGION, ProviderErrors.kind(400, body))
+    }
+
+    @Test fun unsupportedCountryOn403IsRegion() {
+        val body = """{"error":{"code":"unsupported_country_region_territory","message":"Country, region, or territory not supported"}}"""
+        assertEquals(ErrorKind.REGION, ProviderErrors.kind(403, body))
+    }
+
+    @Test fun code451IsRegion() {
+        assertEquals(ErrorKind.REGION, ProviderErrors.kind(451, ""))
+    }
+
+    @Test fun cloudflare1020HtmlIsRegion() {
+        val body = "<html><head><title>Attention Required! | Cloudflare</title></head><body>error code: 1020</body></html>"
+        assertEquals(ErrorKind.REGION, ProviderErrors.kind(403, body))
+        assertEquals(ErrorKind.REGION, ProviderErrors.kind(403, "<html><body>blocked by cloudflare</body></html>"))
+    }
+
+    @Test fun invalidKeyOn403StaysAuth() {
+        assertEquals(ErrorKind.AUTH, ProviderErrors.kind(403, """{"error":{"message":"Invalid API key"}}"""))
+    }
+
+    @Test fun rateLimitStaysRateLimit() {
+        assertEquals(ErrorKind.RATE_LIMIT, ProviderErrors.kind(429, "too many requests"))
+        assertEquals(ErrorKind.RATE_LIMIT, ProviderErrors.kind(429, ""))
+    }
+
+    @Test fun streamRegionPhrasesAreRegion() {
+        assertEquals(ErrorKind.REGION, ProviderErrors.streamKind("User location is not supported for the API use"))
+        assertEquals(ErrorKind.SERVER, ProviderErrors.streamKind("upstream exploded"))
+    }
+
+    @Test fun isRegionBlockNeedsCodeForPhrases() {
+        assertTrue(ProviderErrors.isRegionBlock(451, ""))
+        assertTrue(ProviderErrors.isRegionBlock(400, "not available in your region"))
+        assertEquals(false, ProviderErrors.isRegionBlock(500, "not available in your region"))
+    }
 }
 
 class ProviderErrorsRound10Test {

@@ -36,8 +36,27 @@ class PageFetcher(base: OkHttpClient, private val proxy: suspend () -> String = 
         })
         .build()
 
+    private sealed class Result {
+        class Text(val text: String) : Result()
+        data object Rejected : Result()
+        data object Unreachable : Result()
+    }
+
     suspend fun fetch(url: String): String? {
         if (!UrlPolicy.allowedUrl(url)) return null
+        val direct = try {
+            Request.Builder().url(url)
+                .header("Accept", "text/html,application/xhtml+xml,text/plain;q=0.9")
+                .header("User-Agent", USER_AGENT)
+                .build()
+        } catch (e: IllegalArgumentException) {
+            return null
+        }
+        when (val first = get(direct)) {
+            is Result.Text -> return first.text
+            Result.Rejected -> return null
+            Result.Unreachable -> {}
+        }
         val px = try {
             proxy().trim().trimEnd('/')
         } catch (e: CancellationException) {
@@ -45,30 +64,25 @@ class PageFetcher(base: OkHttpClient, private val proxy: suspend () -> String = 
         } catch (e: Throwable) {
             ""
         }
-        if (px.isNotEmpty()) {
-            val via = try {
-                Request.Builder().url(px + "/fetch?url=" + URLEncoder.encode(url, "UTF-8"))
-                    .header("Accept", "text/html,application/xhtml+xml,text/plain;q=0.9")
-                    .build()
-            } catch (e: IllegalArgumentException) {
-                null
-            }
-            if (via != null) get(via)?.let { return it }
+        if (px.isEmpty()) return null
+        val via = try {
+            Request.Builder().url(px + "/fetch?url=" + URLEncoder.encode(url, "UTF-8"))
+                .header("Accept", "text/html,application/xhtml+xml,text/plain;q=0.9")
+                .build()
+        } catch (e: IllegalArgumentException) {
+            return null
         }
-        val req = Request.Builder().url(url)
-            .header("Accept", "text/html,application/xhtml+xml,text/plain;q=0.9")
-            .header("User-Agent", USER_AGENT)
-            .build()
-        return get(req)
+        return (get(via) as? Result.Text)?.text
     }
 
-    private suspend fun get(req: Request): String? = try {
+    private suspend fun get(req: Request): Result = try {
         client.newCall(req).await().use { r ->
-            if (!r.isSuccessful) return@use null
+            if (r.code == 403 || r.code == 451) return@use Result.Unreachable
+            if (!r.isSuccessful) return@use Result.Rejected
             val type = r.header("Content-Type").orEmpty().lowercase()
             val html = type.isEmpty() || type.contains("html") || type.contains("xml")
-            if (!html && !type.startsWith("text/plain")) return@use null
-            val body = r.body ?: return@use null
+            if (!html && !type.startsWith("text/plain")) return@use Result.Rejected
+            val body = r.body ?: return@use Result.Rejected
             val charset = body.contentType()?.charset(Charsets.UTF_8) ?: Charsets.UTF_8
             val bytes = withContext(Dispatchers.IO) {
                 val src = body.source()
@@ -77,12 +91,14 @@ class PageFetcher(base: OkHttpClient, private val proxy: suspend () -> String = 
             }
             val raw = String(bytes, charset)
             val text = if (html) HtmlText.extract(raw) else raw.trim()
-            text.takeIf { it.length >= MIN_CHARS }
+            if (text.length >= MIN_CHARS) Result.Text(text) else Result.Rejected
         }
     } catch (e: CancellationException) {
         throw e
+    } catch (e: IOException) {
+        if (e.message == "blocked address") Result.Rejected else Result.Unreachable
     } catch (e: Throwable) {
-        null
+        Result.Rejected
     }
 
     private companion object {

@@ -106,6 +106,7 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
     val cs = MaterialTheme.colorScheme
     val theme by app.settings.theme.collectAsStateWithLifecycle(initialValue = "system")
     val proxy by app.settings.proxyUrl.collectAsStateWithLifecycle(initialValue = "")
+    val netPath by app.settings.netPath.collectAsStateWithLifecycle(initialValue = "auto")
     val autoSwitch by app.settings.autoSwitch.collectAsStateWithLifecycle(initialValue = true)
     val fastSwitch by app.settings.fastSwitch.collectAsStateWithLifecycle(initialValue = true)
     val autoResume by app.settings.autoResume.collectAsStateWithLifecycle(initialValue = true)
@@ -181,6 +182,19 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
             stringResource(R.string.response_style), styleOptions, style,
             onPick = {
                 scope.launch { app.settings.setStyle(it) }
+                dialog = null
+            },
+            onDismiss = { dialog = null }
+        )
+        "netpath" -> ChoiceDialog(
+            stringResource(R.string.net_path_title),
+            listOf(
+                "auto" to stringResource(R.string.net_path_auto),
+                "vpn_only" to stringResource(R.string.net_path_vpn_only)
+            ),
+            netPath,
+            onPick = {
+                scope.launch { app.settings.setNetPath(it) }
                 dialog = null
             },
             onDismiss = { dialog = null }
@@ -617,6 +631,12 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
                     stringResource(R.string.proxy_url),
                     proxy.ifBlank { stringResource(R.string.not_set) },
                     onClick = { dialog = "proxy" }
+                )
+                SettingsRow(
+                    Icons.Outlined.Cloud,
+                    stringResource(R.string.net_path_title),
+                    if (netPath == "vpn_only") stringResource(R.string.net_path_vpn_only_short) else stringResource(R.string.net_path_auto),
+                    onClick = { dialog = "netpath" }
                 )
             }
 

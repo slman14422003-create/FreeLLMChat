@@ -18,26 +18,35 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import okhttp3.Dns
+import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
-import java.net.Inet4Address
 import kotlinx.coroutines.flow.first
-import java.net.InetAddress
 import java.util.concurrent.TimeUnit
 
 class FreeLlmApp : Application() {
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + com.freellm.chat.data.CrashLog.guard)
 
+    val netState: com.freellm.chat.data.NetState by lazy { com.freellm.chat.data.NetState(this) }
+    val netDns: com.freellm.chat.data.NetDns by lazy { com.freellm.chat.data.NetDns(netState) }
+    @Volatile var foreground: Boolean = false
+
     val http: OkHttpClient by lazy {
         OkHttpClient.Builder()
-            .connectTimeout(12, TimeUnit.SECONDS)
+            .connectTimeout(5, TimeUnit.SECONDS)
             .readTimeout(90, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
+            .pingInterval(25, TimeUnit.SECONDS)
             .protocols(listOf(Protocol.HTTP_2, Protocol.HTTP_1_1))
             .retryOnConnectionFailure(true)
-            .connectionPool(okhttp3.ConnectionPool(10, 5, TimeUnit.MINUTES))
-            .dns(Ipv4FirstDns)
+            .dispatcher(Dispatcher().apply {
+                maxRequests = 64
+                maxRequestsPerHost = 10
+            })
+            .connectionPool(okhttp3.ConnectionPool(16, 5, TimeUnit.MINUTES))
+            .socketFactory(netState.socketFactory)
+            .dns(netDns)
+            .addInterceptor(com.freellm.chat.data.VpnGuard(netState))
             .addInterceptor(com.freellm.chat.data.LanGuard.interceptor)
             .build()
     }
@@ -45,7 +54,7 @@ class FreeLlmApp : Application() {
     val secrets: SecretStore by lazy { SecretStore(this) }
     val backup: BackupManager by lazy { BackupManager(this, secrets, settings, db.dao(), attachments) }
     val autoBackup: com.freellm.chat.data.AutoBackup by lazy { com.freellm.chat.data.AutoBackup(this, backup, secrets, local) }
-    val client: OpenAiClient by lazy { OpenAiClient(http) }
+    val client: OpenAiClient by lazy { OpenAiClient(http) { netState.vpn } }
     val local: com.freellm.chat.data.LocalPrefs by lazy { com.freellm.chat.data.LocalPrefs(this) }
     val usage: UsagePrefs by lazy { UsagePrefs(this) }
     val ratings: com.freellm.chat.data.ModelRatings by lazy { com.freellm.chat.data.ModelRatings(usage) }
@@ -84,9 +93,9 @@ class FreeLlmApp : Application() {
         }
     }
 
-    fun warmUp() {
+    fun warmUp(force: Boolean = false) {
         val now = System.currentTimeMillis()
-        if (now - lastWarm < 20_000) return
+        if (!force && now - lastWarm < 20_000) return
         lastWarm = now
         appScope.launch { runCatching { manager.warmUp() } }
     }
@@ -127,13 +136,24 @@ class FreeLlmApp : Application() {
                 router.forceHedge = it == true
             }
         }
+        appScope.launch {
+            settings.netPath.collect { netState.mode = it }
+        }
+        appScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(240_000)
+                if (foreground) warmUp(true)
+            }
+        }
         registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
             private var started = 0
             override fun onActivityStarted(activity: android.app.Activity) {
                 if (started++ == 0) warmUp()
+                foreground = started > 0
             }
             override fun onActivityStopped(activity: android.app.Activity) {
                 started = (started - 1).coerceAtLeast(0)
+                foreground = started > 0
             }
             override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: android.os.Bundle?) {}
             override fun onActivityResumed(activity: android.app.Activity) {}
@@ -141,37 +161,13 @@ class FreeLlmApp : Application() {
             override fun onActivitySaveInstanceState(activity: android.app.Activity, outState: android.os.Bundle) {}
             override fun onActivityDestroyed(activity: android.app.Activity) {}
         })
-        runCatching {
-            val cm = getSystemService(android.net.ConnectivityManager::class.java)
-            cm.registerDefaultNetworkCallback(object : android.net.ConnectivityManager.NetworkCallback() {
-                private var vpn: Boolean? = null
-
-                override fun onAvailable(network: android.net.Network) {
-                    http.connectionPool.evictAll()
-                    router.onNetworkChange()
-                }
-
-                override fun onCapabilitiesChanged(network: android.net.Network, caps: android.net.NetworkCapabilities) {
-                    val now = caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN)
-                    val was = vpn
-                    vpn = now
-                    if (was != null && was != now) {
-                        http.connectionPool.evictAll()
-                        router.onNetworkChange()
-                    }
-                }
-
-                override fun onLost(network: android.net.Network) {
-                    http.connectionPool.evictAll()
-                }
-            })
+        netState.start {
+            http.connectionPool.evictAll()
+            netDns.clear()
+            router.onNetworkChange()
+            warmUp(true)
         }
     }
 }
 
 private const val ROUTER_STATE_KEY = "router_state_v1"
-
-object Ipv4FirstDns : Dns {
-    override fun lookup(hostname: String): List<InetAddress> =
-        Dns.SYSTEM.lookup(hostname).sortedBy { if (it is Inet4Address) 0 else 1 }
-}

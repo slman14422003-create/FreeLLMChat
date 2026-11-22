@@ -46,3 +46,15 @@ class TimingLog(private val store: UsageStore? = null, private val keep: Int = 5
         const val KEY = "timing_v1"
     }
 }
+
+enum class RouteLabel { DIRECT, WORKER, BLOCKED }
+
+fun RouteInfo.label(): RouteLabel = when {
+    viaWorker -> RouteLabel.WORKER
+    directBad -> RouteLabel.BLOCKED
+    else -> RouteLabel.DIRECT
+}
+
+fun RouteInfo.remainingSec(now: Long): Long = ((untilMs - now) / 1000).coerceAtLeast(0)
+
+data class NetSummary(val vpn: Boolean, val validated: Boolean, val mode: String)

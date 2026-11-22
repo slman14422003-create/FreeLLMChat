@@ -49,6 +49,8 @@ data class Catalog(
 
 data class ChatMsg(val role: String, val content: String, val images: List<String> = emptyList())
 
+enum class NetRoute { DIRECT, WORKER }
+
 data class Target(
     val providerId: String,
     val providerName: String,
@@ -60,9 +62,13 @@ data class Target(
     val perModelLimits: Boolean = false,
     val altBaseUrl: String = "",
     val sharedLimits: Boolean = false,
-    val resetTz: String? = null
+    val resetTz: String? = null,
+    val via: NetRoute = NetRoute.DIRECT
 ) {
     val key: String get() = "$providerId/${model.id}"
+    val hasWorker: Boolean get() = altBaseUrl.isNotBlank()
+    val activeBase: String get() = if (via == NetRoute.WORKER && hasWorker) altBaseUrl else baseUrl
+    fun viaWorker(): Target = copy(via = NetRoute.WORKER)
     override fun toString(): String = "Target($key)"
 }
 

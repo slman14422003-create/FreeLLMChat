@@ -31,8 +31,13 @@ class SearchClientsTest {
         assertEquals("https://api.tavily.com/search", p.endpoint("tavily", "https://api.tavily.com", "/search"))
     }
 
-    @Test fun endpointGoesThroughProxyWhenSet() {
+    @Test fun endpointStaysDirectWhenProxySet() {
         val px = TavilySearch(OkHttpClient(), "k", "https://x.workers.dev/")
-        assertEquals("https://x.workers.dev/tavily/search", px.endpoint("tavily", "https://api.tavily.com", "/search"))
+        assertEquals("https://api.tavily.com/search", px.endpoint("tavily", "https://api.tavily.com", "/search"))
+        assertEquals("https://x.workers.dev/tavily/search", px.altEndpoint("tavily", "/search"))
+    }
+
+    @Test fun altEndpointIsNullWithoutProxy() {
+        assertEquals(null, p.altEndpoint("tavily", "/search"))
     }
 }
