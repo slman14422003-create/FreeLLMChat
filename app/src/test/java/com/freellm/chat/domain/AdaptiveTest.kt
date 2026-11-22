@@ -25,6 +25,13 @@ class AdaptiveTest {
     }
 
     @Test
+    fun overlapIgnoresMarkdownAndLongRestarts() {
+        val tail = "- CSF analysis: finds oligoclonal bands in the spinal fluid"
+        val next = "- **CSF analysis:** finds oligoclonal bands in the spinal fluid and raised IgG."
+        assertEquals(" and raised IgG.", Overlap.strip(tail, next))
+    }
+
+    @Test
     fun tokenSaverShrinksOldMessagesOnly() {
         val big = "x".repeat(2000)
         val msgs = (1..12).map { ChatMsg(if (it % 2 == 1) "user" else "assistant", big) }

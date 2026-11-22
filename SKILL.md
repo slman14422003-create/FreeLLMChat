@@ -188,3 +188,10 @@ description: Progress log and working notes for the FreeLLMChat Android project 
 - Not compiled locally (no Android SDK or Gradle): run `./gradlew testDebugUnitTest assembleDebug` first.
 
 - Test fix: RouterHedgeTest.hedgeDelayFollowsP95WithHistory seeded p95 2500 gave hedge delay 1500 ms, equal to the primary's 1500 ms answer (a virtual-time tie that opened a hedge); the seed is now 3000 ms (delay 1800 ms). Keep seeded p95 times 0.6 clear of any fake-transport delay.
+
+## Round 12 follow-up (cut answers, false empty replies)
+- Router quality check: the 200-char sample now waits for the think block to close and counts only visible answer chars, so reasoning models are no longer rejected as an empty reply while thinking.
+- OpenAiClient: a stream that ends without finish_reason or [DONE] is now INTERRUPTED even when text arrived (router continues on the next model); stream-cut errors carry the exception class and message, and under a VPN the provider moves to HTTP/1.1 for 10 minutes.
+- Overlap.strip ignores whitespace and markdown marks; Router HOLD_CHARS 160 and TAIL_CHARS 200 so a restarted line from the next model is deduplicated.
+- FailureLog entries have an optional detail field (model, HTTP code, message) shown under each row of the failure log.
+- Tests: AdaptiveTest.overlapIgnoresMarkdownAndLongRestarts, RouterHedgeTest.longThinkingIsNotMistakenForEmptyReply. Not compiled locally: run ./gradlew testDebugUnitTest.

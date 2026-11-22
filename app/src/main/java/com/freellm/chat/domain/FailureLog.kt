@@ -1,6 +1,6 @@
 package com.freellm.chat.domain
 
-data class FailureEntry(val time: Long, val provider: String, val reason: String)
+data class FailureEntry(val time: Long, val provider: String, val reason: String, val detail: String = "")
 
 class FailureLog(private val store: UsageStore? = null, private val max: Int = 50) {
     private val items = ArrayList<String>()
@@ -12,8 +12,8 @@ class FailureLog(private val store: UsageStore? = null, private val max: Int = 5
     private fun clean(s: String) = s.replace('|', ' ').replace('\n', ' ')
 
     @Synchronized
-    fun add(ts: Long, provider: String, reason: String) {
-        items.add("$ts|${clean(provider)}|${clean(reason)}")
+    fun add(ts: Long, provider: String, reason: String, detail: String = "") {
+        items.add("$ts|${clean(provider)}|${clean(reason)}|${clean(detail)}")
         while (items.size > max) items.removeAt(0)
         store?.write(KEY, items.joinToString("\n"))
     }
@@ -22,7 +22,7 @@ class FailureLog(private val store: UsageStore? = null, private val max: Int = 5
     fun all(): List<FailureEntry> = items.mapNotNull { line ->
         val p = line.split('|')
         val t = p.getOrNull(0)?.toLongOrNull() ?: return@mapNotNull null
-        FailureEntry(t, p.getOrElse(1) { "" }, p.getOrElse(2) { "" })
+        FailureEntry(t, p.getOrElse(1) { "" }, p.getOrElse(2) { "" }, p.getOrElse(3) { "" })
     }.reversed()
 
     @Synchronized

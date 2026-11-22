@@ -327,9 +327,9 @@ private const val CONTINUE_PROMPT =
     "Continue your previous reply exactly where it stopped. Do not repeat anything and do not add an introduction."
 private const val TOOL_CUT_PROMPT =
     "Your previous reply stopped while you were writing a tool block, so that block was discarded. Write the complete tool block again from its first character, or the final answer if no tool is needed."
-private const val HOLD_CHARS = 24
+private const val HOLD_CHARS = 160
 private const val QUALITY_CHECK_CHARS = 200
-private const val TAIL_CHARS = 120
+private const val TAIL_CHARS = 200
 private const val ALERT_AT = 0.8
 private const val PROACTIVE_AT = 0.9
 private const val DAY_MS = 86_400_000L
@@ -464,7 +464,7 @@ class Router(
         } else if (rk && t.via == NetRoute.WORKER) {
             routes.onWorkerFailure(t.providerId)
         }
-        failLog.add(clock(), t.providerName, ex.kind.name)
+        failLog.add(clock(), t.providerName, ex.kind.name, failDetail(t, ex))
         if (!deferred) {
             health.onFailure(t, ex, clock())
             stats.onFail(t.key)
@@ -532,7 +532,7 @@ class Router(
                 routes.onDirectFailure(tt.providerId, ex.kind)
                 if (tt.hasWorker) {
                     reasons[tt.providerName] = FailReason(tt.providerName, ReasonKind.ERROR, ex.kind)
-                    failLog.add(clock(), tt.providerName, ex.kind.name)
+                    failLog.add(clock(), tt.providerName, ex.kind.name, failDetail(tt, ex))
                     limiter.refund(tt, clock())
                     deferred.putIfAbsent(tt.key, tt)
                     onStateChanged?.invoke()
@@ -543,7 +543,7 @@ class Router(
                 workerDead.add(baseProviderId(tt))
             }
             reasons[tt.providerName] = FailReason(tt.providerName, ReasonKind.ERROR, ex.kind)
-            failLog.add(clock(), tt.providerName, ex.kind.name)
+            failLog.add(clock(), tt.providerName, ex.kind.name, failDetail(tt, ex))
             health.onFailure(tt, ex, clock())
             stats.onFail(tt.key)
             onOutcome?.invoke(tt.key, false, null)
@@ -656,8 +656,11 @@ class Router(
                 if (qcOn) {
                     qc.append(text)
                     if (qc.length >= QUALITY_CHECK_CHARS) {
-                        qcOn = false
-                        verify(qc.toString())
+                        val parts = ThinkSplit.split(qc.toString())
+                        if (!parts.thinking && parts.answer.length >= QUALITY_CHECK_CHARS) {
+                            qcOn = false
+                            verify(qc.toString())
+                        }
                     }
                 }
             }
@@ -817,6 +820,9 @@ class Router(
         emit(failure(reasons.values.toList(), soonest, clock(), pinned))
     }
 }
+
+internal fun failDetail(t: Target, ex: LlmException): String =
+    t.model.displayName + (if (ex.httpCode > 0) " HTTP " + ex.httpCode else "") + (ex.message?.takeIf { it.isNotBlank() }?.let { ": " + it.take(70) } ?: "")
 
 internal fun routeKind(ex: LlmException): Boolean =
     ex.kind == ErrorKind.REGION || ((ex.kind == ErrorKind.NETWORK || ex.kind == ErrorKind.TIMEOUT) && ex.connect)

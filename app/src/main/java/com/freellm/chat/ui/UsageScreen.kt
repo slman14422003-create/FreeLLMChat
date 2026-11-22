@@ -109,7 +109,8 @@ fun UsageScreen(app: FreeLlmApp, onBack: () -> Unit) {
             if (failures.isEmpty()) Text(stringResource(R.string.no_failures), color = cs.onSurfaceVariant)
             failures.take(30).forEach { f ->
                 Text(
-                    fmt.format(Date(f.time)) + " · " + f.provider + " · " + com.freellm.chat.domain.labelOf(f.reason) { r -> failCtx.getString(r) },
+                    fmt.format(Date(f.time)) + " · " + f.provider + " · " + com.freellm.chat.domain.labelOf(f.reason) { r -> failCtx.getString(r) } +
+                        (if (f.detail.isNotBlank()) "\n" + f.detail else ""),
                     style = MaterialTheme.typography.bodySmall
                 )
             }

@@ -75,11 +75,24 @@ object TokenSaver {
 object Overlap {
     private const val MIN = 6
 
+    private fun skipped(c: Char): Boolean =
+        c.isWhitespace() || c == '*' || c == '_' || c == '`' || c == '#' || c == '>' || c == '-' || c == '\u2022'
+
     fun strip(tail: String, next: String): String {
         if (tail.isEmpty() || next.isEmpty()) return next
-        var k = min(tail.length, next.length)
+        val nt = StringBuilder()
+        for (c in tail) if (!skipped(c)) nt.append(c)
+        val nn = StringBuilder()
+        val idx = ArrayList<Int>()
+        for ((i, c) in next.withIndex()) if (!skipped(c)) {
+            nn.append(c)
+            idx.add(i)
+        }
+        val t = nt.toString()
+        val n = nn.toString()
+        var k = min(t.length, n.length)
         while (k >= MIN) {
-            if (tail.endsWith(next.substring(0, k))) return next.substring(k)
+            if (t.endsWith(n.substring(0, k))) return next.substring(idx[k - 1] + 1)
             k--
         }
         return next

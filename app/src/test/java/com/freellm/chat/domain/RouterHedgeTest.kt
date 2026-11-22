@@ -189,4 +189,16 @@ class RouterHedgeTest {
         assertEquals("primary", text(events))
         assertEquals(1, tr.calls.size)
     }
+
+    @Test fun longThinkingIsNotMistakenForEmptyReply() = runTest {
+        val a = tgt("a", 1)
+        val b = tgt("b", 2)
+        val answer = "A proper visible answer that is long enough to pass the quality check. ".repeat(4)
+        val tr = FakeTransport { t, _, _ ->
+            if (t.providerId == "a") flow<String> { emit("<think>"); emit("x".repeat(500)); emit("</think>\n"); emit(answer) } else flow<String> { emit("other") }
+        }
+        val events = Router(tr, cfg, clock = { 0L }).stream(req(a, b)).toList()
+        assertEquals(a.key, (events.last() as RouteEvent.Done).target.key)
+        assertEquals(1, tr.calls.size)
+    }
 }

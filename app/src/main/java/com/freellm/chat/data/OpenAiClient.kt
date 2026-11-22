@@ -236,7 +236,8 @@ class OpenAiClient(
                         source.readUtf8Line()
                     } catch (e: IOException) {
                         if (call.isCanceled()) throw CancellationException("cancelled")
-                        throw LlmException(ErrorKind.INTERRUPTED, message = "stream cut")
+                        if (!useH1 && vpnActive()) h1Until[h1Key] = System.currentTimeMillis() + H1_FALLBACK_MS
+                        throw LlmException(ErrorKind.INTERRUPTED, message = "stream cut: " + e.javaClass.simpleName + " " + redact(e.message.orEmpty(), target.apiKey).take(80))
                     }) ?: break
                     if (line.isEmpty() || line.startsWith(":")) continue
                     if (!line.startsWith("data:")) continue
@@ -273,7 +274,7 @@ class OpenAiClient(
                     if (p.finished) finished = true
                 }
                 if (thinking) emit("</think>\n")
-                if (!finished && !sawText) throw LlmException(ErrorKind.INTERRUPTED, message = "no terminator")
+                if (!finished) throw LlmException(ErrorKind.INTERRUPTED, message = if (sawText) "ended without terminator" else "no terminator")
             }
         } finally {
             dog?.cancel()
