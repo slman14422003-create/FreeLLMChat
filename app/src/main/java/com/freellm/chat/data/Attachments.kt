@@ -159,8 +159,30 @@ class AttachmentStore(private val ctx: Context) {
     }
 
     fun dataUrl(a: Attachment): String? = try {
-        val bytes = File(a.path).readBytes()
+        val f = File(a.path)
+        val bytes = if (f.length() > SEND_BYTES) shrinkForSend(f) ?: f.readBytes() else f.readBytes()
         "data:image/jpeg;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+    } catch (e: Throwable) {
+        null
+    }
+
+    /** Smaller copy for the wire: large payloads are the usual reason free vision endpoints stall or reject. */
+    private fun shrinkForSend(f: File): ByteArray? = try {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(f.path, bounds)
+        var sample = 1
+        while (max(bounds.outWidth, bounds.outHeight) / (sample * 2) >= SEND_SIDE) sample *= 2
+        val raw = BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { inSampleSize = sample })
+        if (raw == null) null else {
+            val m = max(raw.width, raw.height)
+            val bmp = if (m > SEND_SIDE) {
+                val k = SEND_SIDE.toFloat() / m
+                Bitmap.createScaledBitmap(raw, max(1, (raw.width * k).toInt()), max(1, (raw.height * k).toInt()), true)
+            } else raw
+            val out = ByteArrayOutputStream()
+            bmp.compress(Bitmap.CompressFormat.JPEG, SEND_QUALITY, out)
+            out.toByteArray()
+        }
     } catch (e: Throwable) {
         null
     }
@@ -348,6 +370,9 @@ class AttachmentStore(private val ctx: Context) {
 
     companion object {
         const val MAX_SIDE = 1600
+        const val SEND_SIDE = 1280
+        const val SEND_QUALITY = 78
+        const val SEND_BYTES = 450_000L
         const val PAGE_SIDE = 1500
         const val MAX_PDF_PAGES = 8
         const val MAX_FILE_CHARS = 40_000

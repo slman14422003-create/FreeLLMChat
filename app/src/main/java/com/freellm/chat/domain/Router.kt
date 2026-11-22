@@ -340,6 +340,7 @@ private const val HEDGE_FIRST_MS = 1_800L
 private const val HEDGE_MIN_MS = 1_200L
 private const val HEDGE_MAX_MS = 2_500L
 private const val HEDGE_PICK_PRESSURE = 0.8
+private const val VISION_EXTRA_MS = 15_000L
 
 class Router(
     private val transport: ChatTransport,
@@ -525,6 +526,7 @@ class Router(
         val workerDead = HashSet<String>()
         var pass2 = false
         var qi = 0
+        var attempts = 0
 
         suspend fun fail(tt: Target, ex: LlmException, gotText: Boolean): Boolean {
             val rk = routeKind(ex) && !gotText
@@ -605,6 +607,8 @@ class Router(
                 if (bp >= ALERT_AT && alerted.add(tag)) emit(RouteEvent.NearLimit(t, (bp * 100).toInt()))
             }
             limiter.record(t, clock())
+            attempts++
+            req.onAttempt?.invoke(send, attempts, ordered.size)
             val msgs = buildMessages(req, t, partial.toString(), toolCut)
             var got = false
             var completed = false
@@ -677,7 +681,7 @@ class Router(
                         clock()
                     )
                     val primary = open(send, msgs)
-                    val firstMs = firstTokenMs(t, req.fast)
+                    val firstMs = firstTokenMs(t, req.fast && !req.needsVision) + if (req.needsVision) VISION_EXTRA_MS else 0L
                     val idle = idleMs(t)
                     var ch = primary.ch
                     var r0: ChannelResult<Chunk>? = null

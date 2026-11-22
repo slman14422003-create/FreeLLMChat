@@ -99,7 +99,8 @@ data class StreamUi(
     /** Set when a model is continuing an existing assistant message (hand-off). */
     val continuingId: Long? = null,
     val status: String? = null,
-    val sources: List<StoredSource> = emptyList()
+    val sources: List<StoredSource> = emptyList(),
+    val progress: Float? = null
 )
 
 class FetchAsk(val host: String, val answer: kotlinx.coroutines.CompletableDeferred<Boolean>)
@@ -212,6 +213,8 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
 
     fun stop() {
         job?.cancel()
+        val s = stream.value
+        if (s != null && s.error == null) stream.value = s.copy(active = false, status = null, progress = null)
     }
 
     fun dismissError() {
@@ -574,9 +577,18 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         }
     }
 
-    private suspend fun toChat(list: List<MessageEntity>, lastUserId: Long?, smart: Boolean): List<ChatMsg> =
+    private suspend fun toChat(
+        list: List<MessageEntity>,
+        lastUserId: Long?,
+        smart: Boolean,
+        onImage: (Int, Int) -> Unit = { _, _ -> }
+    ): List<ChatMsg> =
         withContext(kotlinx.coroutines.Dispatchers.IO) {
             var budget = MAX_HISTORY_IMAGES
+            val imageTotal = minOf(MAX_HISTORY_IMAGES, list.sumOf { m ->
+                if (m.role == "user") AttachmentCodec.decode(m.attachments).count { it.isImage } else 0
+            })
+            var imageDone = 0
             list.asReversed().map { m ->
                 val atts = AttachmentCodec.decode(m.attachments)
                 if (m.role != "user" || atts.isEmpty()) {
@@ -589,6 +601,8 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                                 imgs.add(0, it)
                                 budget--
                             }
+                            imageDone++
+                            onImage(imageDone, imageTotal)
                         }
                     }
                     val sb = StringBuilder()
@@ -781,7 +795,22 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
             }
         }
         val lastUserId = stored.lastOrNull { it.role == "user" }?.id
-        var history = toChat(windowed, lastUserId, g.smartAttachments).toMutableList()
+        val lastImageCount = stored.lastOrNull { it.role == "user" }?.let { AttachmentCodec.decode(it.attachments).count { a -> a.isImage } } ?: 0
+        if (lastImageCount > 0) {
+            stream.value = StreamUi(
+                active = true, continuingId = cont?.id,
+                status = app.getString(R.string.image_prep, 0, lastImageCount), progress = IMAGE_PREP_START
+            )
+        }
+        var history = toChat(windowed, lastUserId, g.smartAttachments) { done, total ->
+            if (total > 0) {
+                stream.value = StreamUi(
+                    active = true, continuingId = cont?.id,
+                    status = app.getString(R.string.image_prep, done, total),
+                    progress = IMAGE_PREP_START + (IMAGE_PREP_END - IMAGE_PREP_START) * done / total
+                )
+            }
+        }.toMutableList()
         val prefix = cont?.content.orEmpty()
         if (cont != null) history.add(ChatMsg("user", CONTINUE_PROMPT))
 
@@ -1008,7 +1037,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         bundle = bundle?.let { it.copy(items = it.items.take(AnswerPolicy.maxSources(styleNow))) }
         var toolSpecs: List<ToolSpec> = emptyList()
         val wsFiles = wsJob?.await() ?: false
-        if (cont == null && g.toolsEnabled && !ToolPolicy.trivial(lastUser) && ToolPolicy.hasIntent(lastUser, wsFiles)) {
+        if (cont == null && !lastHasImages && g.toolsEnabled && !ToolPolicy.trivial(lastUser) && ToolPolicy.hasIntent(lastUser, wsFiles)) {
             val off = g.toolsOff
             val enabledTools = ToolCatalog.ids().filter { it !in off }.toSet()
             toolSpecs = ToolPolicy.select(
@@ -1041,6 +1070,32 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
             if (li >= 0) msgs = msgs.toMutableList().also { it[li] = it[li].copy(content = SourcesPrompt.inject(it[li].content, usedBundle)) }
         }
         val liveSources = usedBundle?.stored().orEmpty()
+        var gotFirst = false
+        var curAttempt: Target? = null
+        var curAttemptNo = 0
+        var attemptAt = 0L
+        var attemptStatus: String? = null
+        var progressNow: Float? = null
+        var pushHook: (() -> Unit)? = null
+        fun refreshAttempt() {
+            val at = curAttempt
+            if (at == null || gotFirst) {
+                attemptStatus = null
+                progressNow = null
+                return
+            }
+            val waited = System.currentTimeMillis() - attemptAt
+            if (needsVision) {
+                val base = IMAGE_SEND_START + 0.04f * minOf(curAttemptNo - 1, 5)
+                progressNow = minOf(IMAGE_WAIT_CAP, base + waited / IMAGE_WAIT_SPAN_MS * (IMAGE_WAIT_CAP - base))
+            }
+            attemptStatus = when {
+                curAttemptNo > 1 -> app.getString(R.string.attempt_next, at.model.displayName, curAttemptNo)
+                needsVision && waited < IMAGE_SEND_MS -> app.getString(R.string.image_send, at.model.displayName)
+                needsVision -> app.getString(R.string.image_wait, at.model.displayName)
+                else -> null
+            }
+        }
         val req = RouteRequest(
             messages = msgs,
             mode = mode,
@@ -1056,9 +1111,16 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
             temperature = temp,
             proactive = g.budgetAlerts,
             estimatedTokens = RequestFitter.needed(msgs, maxTok),
-            fast = adaptive && (kind == TaskKind.QUICK || cls.difficulty == Difficulty.EASY),
+            fast = adaptive && !needsVision && (kind == TaskKind.QUICK || cls.difficulty == Difficulty.EASY),
             lang = guardLang,
-            firstMessage = cont == null && exclude == null && userTurns.size <= 1
+            firstMessage = cont == null && exclude == null && userTurns.size <= 1,
+            onAttempt = { t, n, _ ->
+                curAttempt = t
+                curAttemptNo = n
+                attemptAt = System.currentTimeMillis()
+                refreshAttempt()
+                pushHook?.invoke()
+            }
         )
         val tPre = System.currentTimeMillis()
         var firstTokenAt = 0L
@@ -1098,11 +1160,20 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
             val n = System.currentTimeMillis()
             if (force || n - lastPush >= 50L + minOf(150L, text.length / 40L)) {
                 lastPush = n
-                stream.value = StreamUi(text.toString(), notes.toList(), target, true, continuingId = cont?.id, sources = liveSources, status = toolStatus)
+                stream.value = StreamUi(text.toString(), notes.toList(), target, true, continuingId = cont?.id, sources = liveSources, status = toolStatus ?: attemptStatus, progress = progressNow)
             }
         }
 
-        stream.value = StreamUi(text.toString(), active = true, continuingId = cont?.id, sources = liveSources)
+        stream.value = StreamUi(text.toString(), active = true, continuingId = cont?.id, sources = liveSources, progress = if (needsVision) IMAGE_PREP_END else null)
+        pushHook = { push(true) }
+        val ticker = viewModelScope.launch {
+            while (!gotFirst) {
+                delay(TICK_MS)
+                if (gotFirst) break
+                refreshAttempt()
+                push(true)
+            }
+        }
         val events = if (toolSpecs.isEmpty()) router.stream(req) else app.toolRunner.stream(
             req, ToolContext(cid, lastUser),
             { n ->
@@ -1120,9 +1191,15 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                 when (ev) {
                     is RouteEvent.Started -> {
                         target = ev.target
+                        gotFirst = true
+                        attemptStatus = null
+                        progressNow = null
                         push(true)
                     }
                     is RouteEvent.Delta -> {
+                        gotFirst = true
+                        attemptStatus = null
+                        progressNow = null
                         if (firstTokenAt == 0L) firstTokenAt = System.currentTimeMillis()
                         if (released) {
                             text.append(ev.text)
@@ -1178,6 +1255,8 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
                 }
             }
         } finally {
+            ticker.cancel()
+            pushHook = null
             withContext(NonCancellable) {
                 if (toolSteps.any { it.project && it.ok }) {
                     notes.add(app.getString(R.string.project_note, withContext(kotlinx.coroutines.Dispatchers.IO) { app.workspace.count(cid) }))
@@ -1304,6 +1383,13 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
     }
 
     companion object {
+        private const val TICK_MS = 500L
+        private const val IMAGE_PREP_START = 0.05f
+        private const val IMAGE_PREP_END = 0.30f
+        private const val IMAGE_SEND_START = 0.32f
+        private const val IMAGE_WAIT_CAP = 0.92f
+        private const val IMAGE_WAIT_SPAN_MS = 45_000f
+        private const val IMAGE_SEND_MS = 1_500L
         private const val SEARCH_BUDGET_MS = 7_000L
         private const val LATE_SEARCH_MS = 20_000L
         private const val HOLD_CHARS = 24

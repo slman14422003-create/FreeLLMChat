@@ -104,6 +104,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
@@ -1622,9 +1623,26 @@ private fun StreamItem(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 StarBurst(size = 20.dp, spinning = true)
                 Spacer(Modifier.width(10.dp))
-                Text(s.status ?: stringResource(R.string.typing), color = cs.onSurfaceVariant)
+                Text(s.status ?: stringResource(R.string.typing), color = cs.onSurfaceVariant, modifier = Modifier.weight(1f, fill = false))
                 Spacer(Modifier.width(8.dp))
                 TypingDots()
+            }
+            val pr = s.progress
+            if (pr != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    LinearProgressIndicator(
+                        progress = { pr.coerceIn(0f, 1f) },
+                        modifier = Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)),
+                        color = cs.primary,
+                        trackColor = cs.surfaceContainerHigh
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        (pr.coerceIn(0f, 1f) * 100).toInt().toString() + "%",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = cs.onSurfaceVariant
+                    )
+                }
             }
         }
         if (s.sources.isNotEmpty()) SourcesRow(s.sources)

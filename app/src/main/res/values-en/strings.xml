@@ -581,4 +581,8 @@
     <string name="net_route_worker">Via worker</string>
     <string name="net_route_blocked">Direct blocked</string>
     <string name="net_route_row">%1$s: %2$s (%3$d s)</string>
+    <string name="image_prep">Preparing image %1$d of %2$d</string>
+    <string name="image_send">Sending the image to %1$s</string>
+    <string name="image_wait">Waiting for %1$s to read the image</string>
+    <string name="attempt_next">No reply, trying another model: %1$s (attempt %2$d)</string>
 </resources>

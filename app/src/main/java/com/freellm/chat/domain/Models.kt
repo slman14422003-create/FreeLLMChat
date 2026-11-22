@@ -101,7 +101,8 @@ data class RouteRequest(
     val temperature: Double? = null,
     val fast: Boolean = false,
     val lang: String? = null,
-    val firstMessage: Boolean = false
+    val firstMessage: Boolean = false,
+    val onAttempt: ((Target, Int, Int) -> Unit)? = null
 )
 
 enum class FailKind { NO_PROVIDER, PINNED_MISSING, NO_VISION, ALL_FAILED }

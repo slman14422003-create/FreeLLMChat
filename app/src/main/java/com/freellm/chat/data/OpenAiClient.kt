@@ -1,3 +1,5 @@
+@file:OptIn(kotlinx.coroutines.InternalCoroutinesApi::class)
+
 package com.freellm.chat.data
 
 import com.freellm.chat.domain.ChatMsg
@@ -153,7 +155,8 @@ class OpenAiClient(
 
     override fun stream(target: Target, messages: List<ChatMsg>, maxTokens: Int?, temperature: Double?, fast: Boolean): Flow<String> = flow {
         val base = target.activeBase
-        val ttfb = if (target.model.reasoning) TTFB_REASONING_MS else TTFB_MS
+        val hasImages = messages.any { it.images.isNotEmpty() }
+        val ttfb = if (target.model.reasoning) TTFB_REASONING_MS else if (hasImages) TTFB_VISION_MS else TTFB_MS
         val acc = StringBuilder()
         var msgs = messages
         var round = 0
@@ -195,7 +198,8 @@ class OpenAiClient(
         val useH1 = System.currentTimeMillis() < (h1Until[h1Key] ?: 0L)
         val client = if (useH1) h1 else http
         val call = client.newCall(if (viaWorker && ttfbMs > 0) req.newBuilder().header(WORKER_TTFB_HEADER, ttfbMs.toString()).build() else req)
-        val handle = currentCoroutineContext()[Job]?.invokeOnCompletion { call.cancel() }
+        // Fire as soon as cancellation starts, not only on completion, so a blocked read is aborted at once.
+        val handle = currentCoroutineContext()[Job]?.invokeOnCompletion(onCancelling = true, invokeImmediately = true) { call.cancel() }
         val timedOut = AtomicBoolean(false)
         val gotHeaders = AtomicBoolean(false)
         val dog = if (ttfbMs > 0) CoroutineScope(Dispatchers.Default).launch {
@@ -387,4 +391,5 @@ private const val FAST_REASONING_MIN_TOKENS = 1024
 private const val WORKER_TTFB_HEADER = "x-freellm-ttfb"
 private const val TTFB_MS = 8_000L
 private const val TTFB_REASONING_MS = 30_000L
+private const val TTFB_VISION_MS = 25_000L
 private const val H1_FALLBACK_MS = 600_000L

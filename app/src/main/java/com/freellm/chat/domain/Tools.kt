@@ -512,7 +512,8 @@ class ToolRunner(private val router: Router, private val executor: ToolExecutor)
             for (call in parsed.calls) {
                 onStatus(call.name)
                 val r = try {
-                    executor.execute(call, ctx)
+                    kotlinx.coroutines.withTimeoutOrNull(timeoutFor(call.name)) { executor.execute(call, ctx) }
+                        ?: ToolResult("Tool timed out: " + call.name + ". Continue without it and say what could not be verified.", false)
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Throwable) {
@@ -538,8 +539,17 @@ class ToolRunner(private val router: Router, private val executor: ToolExecutor)
         return if (a.isEmpty()) res else "$a \u2192 $res"
     }
 
+    private fun timeoutFor(name: String): Long = when (name) {
+        "fetch_url" -> FETCH_TIMEOUT_MS
+        "run_code" -> RUN_TIMEOUT_MS
+        else -> TOOL_TIMEOUT_MS
+    }
+
     companion object {
         const val MAX_ROUNDS = 6
+        const val TOOL_TIMEOUT_MS = 30_000L
+        const val RUN_TIMEOUT_MS = 60_000L
+        const val FETCH_TIMEOUT_MS = 120_000L
         private const val BAD_CALL =
             "The tool block could not be read. Use <tool_call>{\"name\":\"TOOL\",\"arguments\":{...}}</tool_call> or the body form shown for that tool."
         private const val CONTINUE_AFTER_TOOLS =

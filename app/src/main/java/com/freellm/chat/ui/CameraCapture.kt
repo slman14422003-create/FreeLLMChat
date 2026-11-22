@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.safeDrawing
@@ -47,6 +48,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.FlashAuto
@@ -59,6 +61,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -76,10 +79,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
@@ -96,6 +101,8 @@ import java.io.File
 private data class Shot(val file: File, val selected: Boolean)
 
 private const val MAX_SHOTS = 6
+private val SIDE_BTN = 56.dp
+private val CONTROLS_HEIGHT = 96.dp
 private const val STALE_MS = 3_600_000L
 
 private fun decodeThumb(f: File, target: Int): Bitmap? = try {
@@ -250,7 +257,11 @@ fun CameraCapture(onDone: (List<Uri>) -> Unit, onClose: () -> Unit) {
                 }
             }
             val flipBtn: @Composable () -> Unit = {
-                RoundTool({ lens = if (lens == CameraSelector.LENS_FACING_BACK) CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK }) {
+                RoundTool(
+                    { lens = if (lens == CameraSelector.LENS_FACING_BACK) CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK },
+                    size = SIDE_BTN,
+                    fill = Color(0x33FFFFFF)
+                ) {
                     Icon(Icons.Outlined.FlipCameraAndroid, stringResource(R.string.camera_flip), tint = Color.White)
                 }
             }
@@ -267,8 +278,35 @@ fun CameraCapture(onDone: (List<Uri>) -> Unit, onClose: () -> Unit) {
                 )
             }
             val doneBtn: @Composable () -> Unit = {
-                Button(onClick = { onDone(shots.filter { it.selected }.map { Uri.fromFile(it.file) }) }, enabled = chosen > 0) {
-                    Text(stringResource(R.string.camera_done, chosen), maxLines = 1)
+                val cs = MaterialTheme.colorScheme
+                val ready = chosen > 0
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(SIDE_BTN)) {
+                    Box(
+                        Modifier
+                            .size(SIDE_BTN)
+                            .clip(CircleShape)
+                            .background(if (ready) cs.primary else Color(0x33FFFFFF))
+                            .clickable(enabled = ready) { onDone(shots.filter { it.selected }.map { Uri.fromFile(it.file) }) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Outlined.Check,
+                            stringResource(R.string.camera_done, chosen),
+                            tint = if (ready) cs.onPrimary else Color(0x66FFFFFF)
+                        )
+                    }
+                    if (ready) {
+                        Box(
+                            Modifier
+                                .align(Alignment.TopEnd)
+                                .size(20.dp)
+                                .clip(CircleShape)
+                                .background(Color.White),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(chosen.toString(), color = Color.Black, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                        }
+                    }
                 }
             }
             val preview: @Composable (Modifier) -> Unit = { mod ->
@@ -310,10 +348,12 @@ fun CameraCapture(onDone: (List<Uri>) -> Unit, onClose: () -> Unit) {
                         closeBtn()
                         flashBtn()
                     }
-                    preview(Modifier.weight(1f).fillMaxWidth())
+                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        preview(Modifier.fillMaxWidth().aspectRatio(3f / 4f))
+                    }
                     Column(
-                        Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         if (shots.isNotEmpty()) {
                             hint()
@@ -327,14 +367,15 @@ fun CameraCapture(onDone: (List<Uri>) -> Unit, onClose: () -> Unit) {
                                 }
                             }
                         }
-                        Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) { flipBtn() }
-                            shutterBtn()
-                            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) { doneBtn() }
+                        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                            Row(
+                                Modifier.fillMaxWidth().height(CONTROLS_HEIGHT).padding(horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { doneBtn() }
+                                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { shutterBtn() }
+                                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { flipBtn() }
+                            }
                         }
                     }
                 }
@@ -366,7 +407,7 @@ fun CameraCapture(onDone: (List<Uri>) -> Unit, onClose: () -> Unit) {
                         shutterBtn()
                         Row(
                             Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            horizontalArrangement = Arrangement.SpaceEvenly,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             flipBtn()
@@ -380,10 +421,15 @@ fun CameraCapture(onDone: (List<Uri>) -> Unit, onClose: () -> Unit) {
 }
 
 @Composable
-private fun RoundTool(onClick: () -> Unit, content: @Composable () -> Unit) {
+private fun RoundTool(
+    onClick: () -> Unit,
+    size: Dp = 44.dp,
+    fill: Color = Color(0x66000000),
+    content: @Composable () -> Unit
+) {
     IconButton(
         onClick = onClick,
-        modifier = Modifier.size(44.dp).clip(CircleShape).background(Color(0x66000000))
+        modifier = Modifier.size(size).clip(CircleShape).background(fill)
     ) { content() }
 }
 
