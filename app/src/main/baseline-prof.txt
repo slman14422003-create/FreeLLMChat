@@ -1,0 +1,12 @@
+Lcom/freellm/chat/**;
+HSPLcom/freellm/chat/**->**(**)**
+HSPLandroidx/compose/runtime/**->**(**)**
+HSPLandroidx/compose/ui/**->**(**)**
+HSPLandroidx/compose/foundation/**->**(**)**
+HSPLandroidx/compose/material3/**->**(**)**
+HSPLandroidx/compose/animation/**->**(**)**
+HSPLandroidx/lifecycle/**->**(**)**
+HSPLandroidx/room/**->**(**)**
+HSPLandroidx/datastore/**->**(**)**
+HSPLkotlinx/coroutines/**->**(**)**
+HSPLokhttp3/**->**(**)**
