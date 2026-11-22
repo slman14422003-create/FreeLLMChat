@@ -15,8 +15,7 @@
   ],
   "keep": [
     "openrouter/openrouter/free",
-    "gemini/gemini-flash-latest",
-    "gemini/gemini-2.5-pro"
+    "gemini/gemini-flash-latest"
   ],
   "autoAdopt": {
     "gemini": 3,

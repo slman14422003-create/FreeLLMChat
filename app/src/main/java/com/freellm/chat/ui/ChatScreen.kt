@@ -1630,11 +1630,12 @@ private fun StreamItem(
             val pr = s.progress
             if (pr != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    LinearProgressIndicator(
+                    CircularProgressIndicator(
                         progress = { pr.coerceIn(0f, 1f) },
-                        modifier = Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)),
+                        modifier = Modifier.size(22.dp),
                         color = cs.primary,
-                        trackColor = cs.surfaceContainerHigh
+                        trackColor = cs.surfaceContainerHigh,
+                        strokeWidth = 3.dp
                     )
                     Spacer(Modifier.width(10.dp))
                     Text(

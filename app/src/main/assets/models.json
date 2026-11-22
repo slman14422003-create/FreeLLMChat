@@ -338,26 +338,6 @@
       ]
     },
     {
-      "id": "gemini-2.5-pro",
-      "provider": "gemini",
-      "displayName": "Gemini 2.5 Pro",
-      "priority": 19,
-      "contextWindow": 1000000,
-      "modes": [
-        "smart",
-        "code"
-      ],
-      "vision": true,
-      "reasoning": true,
-      "trainsOnData": true,
-      "caps": [
-        "code",
-        "reasoning",
-        "long_context",
-        "arabic"
-      ]
-    },
-    {
       "id": "openai/gpt-4.1",
       "provider": "github",
       "displayName": "GPT-4.1 (GitHub)",
@@ -538,43 +518,6 @@
       "vision": true,
       "trainsOnData": true,
       "rpm": 20,
-      "caps": [
-        "fast",
-        "long_context",
-        "arabic"
-      ]
-    },
-    {
-      "id": "gemini-2.5-flash",
-      "provider": "gemini",
-      "displayName": "Gemini 2.5 Flash",
-      "priority": 48,
-      "contextWindow": 1000000,
-      "modes": [
-        "fast",
-        "smart"
-      ],
-      "vision": true,
-      "reasoning": true,
-      "trainsOnData": true,
-      "caps": [
-        "fast",
-        "reasoning",
-        "long_context",
-        "arabic"
-      ]
-    },
-    {
-      "id": "gemini-2.5-flash-lite",
-      "provider": "gemini",
-      "displayName": "Gemini 2.5 Flash Lite",
-      "priority": 49,
-      "contextWindow": 1000000,
-      "modes": [
-        "fast"
-      ],
-      "vision": true,
-      "trainsOnData": true,
       "caps": [
         "fast",
         "long_context",

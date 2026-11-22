@@ -18,9 +18,15 @@
   "streaks": {
     "kilo/poolside/laguna-s-2.1:free": 3,
     "kilo/poolside/laguna-xs-2.1:free": 3,
-    "kilo/cohere/north-mini-code:free": 2
+    "kilo/cohere/north-mini-code:free": 2,
+    "gemini/gemini-2.5-pro": 3,
+    "gemini/gemini-2.5-flash": 3,
+    "gemini/gemini-2.5-flash-lite": 3
   },
   "dead": [
+    "gemini/gemini-2.5-flash",
+    "gemini/gemini-2.5-flash-lite",
+    "gemini/gemini-2.5-pro",
     "kilo/poolside/laguna-s-2.1:free",
     "kilo/poolside/laguna-xs-2.1:free"
   ],
