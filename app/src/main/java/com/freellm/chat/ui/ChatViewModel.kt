@@ -366,7 +366,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         compareJob?.cancel()
         mergeJob?.cancel()
         compareJob = viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
-            val all = targetsJob.await()
+            val all = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { manager.activeTargets() }
             val a = all.firstOrNull { it.key == k1 } ?: return@launch
             val b = all.firstOrNull { it.key == k2 } ?: return@launch
             val stored = repo.messagesOnce(cid).filter { it.role == "user" || it.role == "assistant" }
