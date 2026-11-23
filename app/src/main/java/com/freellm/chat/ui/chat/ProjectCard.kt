@@ -1,4 +1,4 @@
-package com.freellm.chat.ui.chat
+package com.freellm.chat.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -34,7 +34,6 @@ import com.freellm.chat.data.db.MessageEntity
 import com.freellm.chat.domain.CodeFiles
 import com.freellm.chat.domain.ProjectCheck
 import com.freellm.chat.domain.ProjectReview
-import com.freellm.chat.ui.Spacing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
