@@ -9,6 +9,7 @@ import com.freellm.chat.domain.LlmException
 import com.freellm.chat.domain.NetRoute
 import com.freellm.chat.domain.ProviderErrors
 import com.freellm.chat.domain.Target
+import com.freellm.chat.domain.TokenEstimator
 import com.freellm.chat.domain.baseProviderId
 import com.freellm.chat.domain.ThinkSplit
 import kotlinx.coroutines.CancellationException
@@ -53,13 +54,37 @@ class OpenAiClient(
 
     internal class Parsed(val content: String?, val finished: Boolean, val error: String?, val length: Boolean = false, val reasoning: String? = null)
 
+    private val learnedCap = ConcurrentHashMap<String, Int>()
+
+    private fun capKey(t: Target): String = baseProviderId(t) + "/" + t.model.id
+
+    internal fun clampTokens(t: Target, msgs: List<ChatMsg>, wanted: Int): Int {
+        if (wanted <= BIG_REPLY) return wanted
+        var limit = wanted
+        if (t.model.maxOutput > 0) limit = minOf(limit, t.model.maxOutput)
+        learnedCap[capKey(t)]?.let { limit = minOf(limit, it) }
+        val room = t.model.contextWindow - TokenEstimator.messages(msgs) - CONTEXT_SLACK
+        if (t.model.contextWindow > 0) limit = minOf(limit, maxOf(room, MIN_REPLY))
+        return maxOf(limit, MIN_REPLY)
+    }
+
+    internal fun capFromError(message: String, requested: Int): Int? {
+        val low = message.lowercase()
+        val about = low.contains("max_tokens") || low.contains("max_completion") || low.contains("maximum") || low.contains("too large") ||
+            low.contains("exceed") || low.contains("context length") || low.contains("output tokens")
+        if (!about) return null
+        val nums = Regex("\\d{3,6}").findAll(message).mapNotNull { it.value.toIntOrNull() }.filter { it in MIN_REPLY until requested }.toList()
+        val next = nums.minOrNull() ?: (requested / 2)
+        return next.coerceAtLeast(MIN_REPLY).takeIf { it < requested }
+    }
+
     private fun endpoint(base: String): String = base.trim().trimEnd('/') + "/chat/completions"
 
     private fun body(t: Target, msgs: List<ChatMsg>, stream: Boolean, maxTokens: Int?, temperature: Double? = null, fast: Boolean = false): String =
         buildJsonObject {
             put("model", t.model.id)
             put("stream", stream)
-            if (maxTokens != null) put("max_tokens", if (t.model.reasoning) maxOf(maxTokens, if (fast) FAST_REASONING_MIN_TOKENS else REASONING_MIN_TOKENS) else maxTokens)
+            if (maxTokens != null) put("max_tokens", clampTokens(t, msgs, if (t.model.reasoning) maxOf(maxTokens, if (fast) FAST_REASONING_MIN_TOKENS else REASONING_MIN_TOKENS) else maxTokens))
             if (temperature != null) put("temperature", temperature)
             putJsonArray("messages") {
                 msgs.forEach { m ->
@@ -160,19 +185,39 @@ class OpenAiClient(
         val acc = StringBuilder()
         var msgs = messages
         var round = 0
+        var cap = maxTokens
+        var capRetries = 0
+        val big = (maxTokens ?: 0) > BIG_REPLY
+        val limit = if (big) MAX_AUTO_CONTINUE_BIG else MAX_AUTO_CONTINUE
         while (true) {
             var cut = false
             try {
-                streamOnce(target, base, msgs, maxTokens, temperature, ttfb, fast) { cut = true }.collect {
+                streamOnce(target, base, msgs, cap, temperature, ttfb, fast) { cut = true }.collect {
                     acc.append(it)
                     emit(it)
                 }
             } catch (e: LlmException) {
+                val c = cap
+                if (round == 0 && acc.isEmpty() && capRetries < 2 && e.httpCode == 400 && c != null) {
+                    val next = capFromError(e.message.orEmpty(), c)
+                    if (next != null) {
+                        learnedCap[capKey(target)] = next
+                        cap = next
+                        capRetries++
+                        continue
+                    }
+                }
                 if (round == 0) throw e
+                if (big && ThinkSplit.strip(acc.toString()).isNotBlank()) throw LlmException(ErrorKind.INTERRUPTED, message = "continuation failed")
                 break
             }
             val visible = ThinkSplit.strip(acc.toString())
-            if (!cut || round >= MAX_AUTO_CONTINUE || visible.isBlank()) break
+            if (!cut) break
+            if (visible.isBlank()) break
+            if (round >= limit) {
+                if (big) throw LlmException(ErrorKind.INTERRUPTED, message = "output limit reached")
+                break
+            }
             round++
             msgs = messages + ChatMsg("assistant", visible) + ChatMsg("user", AUTO_CONTINUE)
         }
@@ -408,6 +453,10 @@ class OpenAiClient(
 }
 
 private const val MAX_AUTO_CONTINUE = 2
+private const val MAX_AUTO_CONTINUE_BIG = 8
+private const val BIG_REPLY = 6000
+private const val CONTEXT_SLACK = 300
+private const val MIN_REPLY = 512
 private const val AUTO_CONTINUE =
     "Continue exactly where your previous message stopped. Do not repeat anything already written and do not add any preface."
 

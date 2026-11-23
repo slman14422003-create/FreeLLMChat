@@ -78,6 +78,7 @@ private fun toolName(id: String): Int = when (id) {
     "run_code" -> R.string.tool_run_code
     "check_syntax" -> R.string.tool_check_syntax
     "project_template" -> R.string.tool_project_template
+    "project_plan" -> R.string.tool_project_plan
     "project_write" -> R.string.tool_project_write
     "project_read" -> R.string.tool_project_read
     "project_list" -> R.string.tool_project_list
@@ -101,6 +102,7 @@ private fun toolDesc(id: String): Int = when (id) {
     "run_code" -> R.string.tool_run_code_desc
     "check_syntax" -> R.string.tool_check_syntax_desc
     "project_template" -> R.string.tool_project_template_desc
+    "project_plan" -> R.string.tool_project_plan_desc
     "project_write" -> R.string.tool_project_write_desc
     "project_read" -> R.string.tool_project_read_desc
     "project_list" -> R.string.tool_project_list_desc
@@ -121,6 +123,7 @@ fun ToolsSettingsScreen(app: FreeLlmApp, onBack: () -> Unit) {
     val enabled by app.settings.toolsEnabled.collectAsStateWithLifecycle(initialValue = true)
     val mode by app.settings.toolsMode.collectAsStateWithLifecycle(initialValue = ToolPolicy.MODE_SMART)
     val off by app.settings.toolsOff.collectAsStateWithLifecycle(initialValue = emptySet())
+    val autoFix by app.settings.projectAutoFix.collectAsStateWithLifecycle(initialValue = true)
     val runner by app.settings.runnerUrl.collectAsStateWithLifecycle(initialValue = "")
     var dialog by remember { mutableStateOf<String?>(null) }
     var refresh by remember { mutableStateOf(0) }
@@ -185,6 +188,9 @@ fun ToolsSettingsScreen(app: FreeLlmApp, onBack: () -> Unit) {
             SettingsGroup(Modifier.appear(0)) {
                 SwitchRow(Icons.Outlined.Terminal, stringResource(R.string.tools_master), stringResource(R.string.tools_master_desc), enabled) {
                     scope.launch { app.settings.setToolsEnabled(it) }
+                }
+                SwitchRow(Icons.Outlined.Folder, stringResource(R.string.project_autofix), stringResource(R.string.project_autofix_desc), autoFix) {
+                    scope.launch { app.settings.setProjectAutoFix(it) }
                 }
                 if (enabled) {
                     SettingsRow(

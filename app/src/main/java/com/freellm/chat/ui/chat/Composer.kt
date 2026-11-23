@@ -85,6 +85,7 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.Compare
 import androidx.compose.material.icons.outlined.ContentCopy
@@ -131,6 +132,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -186,6 +188,11 @@ internal fun Composer(
     onQuick: (String) -> Unit,
     onImagesToPdf: () -> Unit,
     onPlus: () -> Unit,
+    listening: Boolean = false,
+    micLevel: Float = 0f,
+    micStatic: Boolean = false,
+    onMic: (() -> Unit)? = null,
+    onMicCancel: () -> Unit = {},
 ) {
     val cs = MaterialTheme.colorScheme
     var attachMenu by remember { mutableStateOf(false) }
@@ -307,6 +314,7 @@ internal fun Composer(
             }
             val trailing = when {
                 generating -> 0
+                listening -> 3
                 input.isNotBlank() || pending.isNotEmpty() -> 1
                 else -> 2
             }
@@ -329,7 +337,25 @@ internal fun Composer(
                     ) {
                         Icon(Icons.Filled.ArrowUpward, stringResource(R.string.send), Modifier.size(22.dp), tint = cs.onPrimary)
                     }
-                    else -> Unit
+                    3 -> Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircleButton(onClick = onMicCancel, background = cs.surfaceContainerHighest) {
+                            Icon(Icons.Filled.Close, stringResource(R.string.mic_cancel), Modifier.size(20.dp), tint = cs.onSurface)
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        val scale = if (micStatic) 1f else 1f + micLevel.coerceIn(0f, 1f) * 0.3f
+                        CircleButton(
+                            onClick = { onMic?.invoke() },
+                            modifier = Modifier.graphicsLayer { scaleX = scale; scaleY = scale },
+                            background = cs.primary
+                        ) {
+                            Icon(Icons.Filled.Mic, stringResource(R.string.mic_stop), Modifier.size(22.dp), tint = cs.onPrimary)
+                        }
+                    }
+                    else -> if (onMic != null) {
+                        CircleButton(onClick = onMic, background = cs.surfaceContainerHighest) {
+                            Icon(Icons.Filled.Mic, stringResource(R.string.mic_start), Modifier.size(22.dp), tint = cs.onSurface)
+                        }
+                    }
                 }
             }
         }

@@ -17,6 +17,14 @@ object MaxTokensPlanner {
         RegexOption.IGNORE_CASE
     )
 
+    const val PROJECT = 24000
+    const val PROJECT_MIN = 12000
+
+    fun project(maxWindow: Int): Int {
+        val room = if (maxWindow > 0) maxWindow - minOf(6000, maxWindow / 3) else PROJECT
+        return room.coerceIn(4096, PROJECT)
+    }
+
     fun plan(kind: TaskKind, question: String, style: String, hasAttachment: Boolean, sources: Boolean = false): Int {
         var base = when (kind) {
             TaskKind.QUICK -> if (question.trim().length <= 25) 500 else 700

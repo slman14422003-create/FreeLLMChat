@@ -15,15 +15,50 @@ object CodeFiles {
     const val MAX_TOTAL_CHARS = 4_000_000
 
     const val SYSTEM =
-        "When the user asks for a project, an app or several files, give every file in its own fenced code block " +
-            "and write its relative path alone on the line right before the fence, exactly like: File: app/src/Main.kt. " +
-            "Include every file needed to build and run the project. Never shorten a file with placeholders or ellipses."
+        "FILE RULES. Whenever your answer contains a file or several files, write each file in its own fenced code block " +
+            "and put its relative path alone on the line right before the fence, exactly like: File: app/src/Main.kt. " +
+            "Every file must be complete from its first line to its last line: no placeholders, no ellipses, no 'rest of the code', no 'same as before', no summaries. " +
+            "Never stop in the middle of a file. Write no comments in code and no README unless the user asks. Put nothing between files except the File: line."
 
     const val ZIP_SYSTEM =
-        "The user wants a ZIP of the result. Give every file in its own fenced code block with its relative path alone on the line right before the fence, like: File: app/src/Main.kt. " +
-            "Put each file's complete content in the block, no placeholders. " +
-            "After the last file, end the whole reply with exactly one final line: [[EXPORT_ZIP:project-name.zip]] using a short ascii name. " +
-            "The app reads that line and builds the ZIP from your files by itself. Never describe manual zipping and never print zip shell commands."
+        "PROJECT RULES. The user wants a complete working project. " +
+            "1) Start with one line: [[PLAN: path1, path2, ...]] listing every file you will write, including build files, resources, manifest and ignore files. The app checks the list at the end. " +
+            "2) Then write every planned file in the same order, each in its own fenced code block with its relative path alone on the line before the fence: File: path. Build and config files first, then resources, then source files. " +
+            "3) Each file is complete from its first to its last line. No placeholders, ellipses, 'rest of the code', TODO stubs or 'same as before'. Never write a file you did not list and never list a file you do not write. " +
+            "4) Everything that any file references (class, layout, drawable, color, style, string, script, stylesheet, dependency) must exist in a written file or in the build file. Check this before you finish. " +
+            "5) Keep files compact: no comments, no unused code, so the whole project fits in the reply. " +
+            "6) End with exactly one final line: [[EXPORT_ZIP:project-name.zip]] using a short ascii name. The app builds the ZIP from your files by itself. Never describe manual zipping and never print zip shell commands."
+
+    const val ANDROID_RULES =
+        "ANDROID CHECKLIST, every item is a written file: settings.gradle.kts with pluginManagement and dependencyResolutionManagement repositories google() and mavenCentral(), rootProject.name and include(\":app\"); " +
+            "root build.gradle.kts with the plugin versions; gradle.properties with android.useAndroidX=true and org.gradle.jvmargs; " +
+            "app/build.gradle.kts with namespace, applicationId, compileSdk 35, minSdk, targetSdk, versionCode, versionName and every library that any import uses; " +
+            "app/proguard-rules.pro only if the build file names it; app/src/main/AndroidManifest.xml without a package attribute that declares every activity and service you wrote; " +
+            "res/values/strings.xml, colors.xml and themes.xml defining every @string, @color and @style that anything references; " +
+            "a launcher icon res/mipmap-anydpi-v26/ic_launcher.xml (adaptive) with res/drawable/ic_launcher_foreground.xml and a background color, and reference @mipmap/ic_launcher_round only if you wrote it; " +
+            "every layout, menu and drawable XML that code or the manifest uses; .gitignore; " +
+            ".github/workflows/build.yml that runs on push, uses actions/checkout, actions/setup-java (temurin 17), gradle/actions/setup-gradle with a gradle-version, runs gradle assembleDebug and uploads app/build/outputs/apk/debug/*.apk (no gradlew is needed)."
+
+    const val WEB_RULES =
+        "WEB CHECKLIST: index.html links only to files you write (style.css, app.js); a Node project has package.json listing every imported package with a start script, and every relative require or import exists; " +
+            "a Python project has requirements.txt for every third-party import and a runnable entry file."
+
+    const val REPAIR_CONTINUE =
+        "The previous message was cut off or incomplete. Continue by writing, in full, only the files that are missing or cut off, each as File: path followed by one fenced code block. Then end with the [[EXPORT_ZIP:name.zip]] line."
+
+    private val androidAsk = Regex(
+        "\\b(android|apk|gradle|kotlin|jetpack|compose)\\b|\u0623\u0646\u062F\u0631\u0648\u064A\u062F|\u0627\u0646\u062F\u0631\u0648\u064A\u062F|\u062A\u0637\u0628\u064A\u0642",
+        RegexOption.IGNORE_CASE
+    )
+    private val notAndroid = Regex(
+        "\\b(website|web ?site|web app|flask|django|node|express|react|vue|python|html|css|javascript|bot)\\b|\u0645\u0648\u0642\u0639|\u0628\u0627\u064A\u062B\u0648\u0646|\u0628\u0648\u062A",
+        RegexOption.IGNORE_CASE
+    )
+
+    fun wantsAndroid(question: String): Boolean =
+        androidAsk.containsMatchIn(question) && (!notAndroid.containsMatchIn(question) || Regex("(?i)android|\u0623\u0646\u062F\u0631\u0648\u064A\u062F|\u0627\u0646\u062F\u0631\u0648\u064A\u062F").containsMatchIn(question))
+
+    fun stackRules(question: String): String = if (wantsAndroid(question)) ANDROID_RULES else WEB_RULES
 
     private val zipWord = Regex("\\bzip\\b|\u0645\u0636\u063a\u0648\u0637|\u0632\u064a\u0628", RegexOption.IGNORE_CASE)
     private val zipCmd = Regex("\\[\\[\\s*EXPORT_ZIP\\s*(?::\\s*([^\\]\\s]*))?\\s*]]", RegexOption.IGNORE_CASE)
@@ -41,7 +76,7 @@ object CodeFiles {
 
     fun stripCommand(text: String): String {
         if (text.indexOf('[') < 0) return text
-        var t = zipCmd.replace(text, "")
+        var t = ProjectCheck.stripPlan(zipCmd.replace(text, ""))
         val i = t.lastIndexOf("[[")
         if (i >= 0) {
             val tail = t.substring(i)
@@ -135,7 +170,9 @@ object CodeFiles {
 
     fun extract(markdown: String): List<CodeFile> = extractReport(markdown).files
 
-    fun extractReport(markdown: String): ExtractReport {
+    fun extractFinal(markdown: String): List<CodeFile> = extractReport(markdown, true).files
+
+    fun extractReport(markdown: String, overwrite: Boolean = false): ExtractReport {
         val lines = ThinkSplit.strip(markdown).lines()
         val out = ArrayList<CodeFile>()
         val taken = HashSet<String>()
@@ -145,6 +182,14 @@ object CodeFiles {
         var overChars = false
         var truncated = false
         fun add(rawPath: String, text: String, attach: String?): Boolean {
+            if (overwrite && rawPath in taken) {
+                val at = out.indexOfFirst { it.path == rawPath }
+                if (at >= 0) {
+                    total += text.length - out[at].content.length
+                    out[at] = CodeFile(rawPath, text, attach)
+                    return true
+                }
+            }
             total += text.length
             if (total > MAX_TOTAL_CHARS) { overChars = true; return false }
             if (out.size >= MAX_FILES) { overFiles = true; return false }

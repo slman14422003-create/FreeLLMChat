@@ -54,6 +54,7 @@ class FreeLlmApp : Application() {
             .build()
     }
     val settings: SettingsStore by lazy { SettingsStore(this) }
+    val whisper: com.freellm.chat.data.dictation.WhisperModels by lazy { com.freellm.chat.data.dictation.WhisperModels(this, http) }
     val saver: com.freellm.chat.data.SaverState by lazy { com.freellm.chat.data.SaverState(this, settings, appScope) }
     val secrets: SecretStore by lazy { SecretStore(this) }
     val backup: BackupManager by lazy { BackupManager(this, secrets, settings, db.dao(), attachments) }

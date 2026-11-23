@@ -555,12 +555,29 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         }
     }
 
+    fun saveFile(uri: Uri, m: MessageEntity, done: (Boolean) -> Unit) {
+        viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
+            val ok = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    val f = com.freellm.chat.domain.CodeFiles.extractFinal(m.content).firstOrNull() ?: return@withContext false
+                    val out = app.contentResolver.openOutputStream(uri) ?: return@withContext false
+                    out.use { it.write(f.content.toByteArray(Charsets.UTF_8)) }
+                    true
+                } catch (e: Throwable) {
+                    false
+                }
+            }
+            notice.value = app.getString(if (ok) R.string.file_saved else R.string.file_save_failed)
+            done(ok)
+        }
+    }
+
     fun saveZip(uri: Uri, m: MessageEntity, done: (Boolean) -> Unit) {
         viewModelScope.launch(com.freellm.chat.data.CrashLog.guard) {
             var count = 0
             val ok = withContext(kotlinx.coroutines.Dispatchers.IO) {
                 try {
-                    val extracted = com.freellm.chat.domain.CodeFiles.extract(m.content)
+                    val extracted = com.freellm.chat.domain.CodeFiles.extractFinal(m.content)
                     val files = if (m.notes?.contains("📁") == true) {
                         (app.workspace.files(m.conversationId) + extracted).distinctBy { it.path }
                     } else extracted
@@ -748,6 +765,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
 
     private suspend fun runAdaptiveInner(cid: Long, exclude: String?, cont: MessageEntity? = null) {
         generate(cid, exclude, cont)
+        autoComplete(cid)
         if (selection.value != "ADAPT" || !app.settings.autoResume.first()) return
         var tries = 0
         try {
@@ -773,7 +791,48 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         }
     }
 
-    private suspend fun generate(cid: Long, exclude: String?, cont: MessageEntity? = null) {
+    private suspend fun autoComplete(cid: Long) {
+        if (!app.settings.projectAutoFix.first()) return
+        var tries = 0
+        while (tries < MAX_REPAIR && lastError == null && conversationId.value == cid) {
+            val list = repo.messagesOnce(cid).filter { it.role == "user" || it.role == "assistant" }
+            val last = list.lastOrNull() ?: return
+            if (last.role != "assistant" || last.notes?.contains("📁") == true) return
+            val ask = list.lastOrNull { it.role == "user" }?.content ?: return
+            if (!(com.freellm.chat.domain.CodeFiles.wantsProject(ask) || com.freellm.chat.domain.CodeFiles.wantsZip(ask))) return
+            val review = com.freellm.chat.domain.ProjectCheck.review(last.content)
+            if (review.files.isEmpty() || review.issues.isEmpty()) return
+            tries++
+            notice.value = app.getString(R.string.project_fixing, tries)
+            stream.value = StreamUi(active = true, continuingId = last.id)
+            generate(cid, null, last, com.freellm.chat.domain.ProjectCheck.fixPrompt(review.issues))
+        }
+    }
+
+    fun repairProject() {
+        val cid = conversationId.value ?: return
+        start {
+            val last = repo.messagesOnce(cid).lastOrNull { it.role == "assistant" } ?: return@start
+            val review = com.freellm.chat.domain.ProjectCheck.review(last.content)
+            val prompt = if (review.issues.isEmpty()) com.freellm.chat.domain.CodeFiles.REPAIR_CONTINUE else com.freellm.chat.domain.ProjectCheck.fixPrompt(review.issues)
+            stream.value = StreamUi(active = true, continuingId = last.id)
+            runRepair(cid, last, prompt)
+        }
+    }
+
+    private suspend fun runRepair(cid: Long, last: MessageEntity, prompt: String) {
+        lastError = null
+        lastNoResume = false
+        activeCid = cid
+        try {
+            generate(cid, null, last, prompt)
+        } finally {
+            activeCid = null
+            if (stream.value?.active == true) stream.value = null
+        }
+    }
+
+    private suspend fun generate(cid: Long, exclude: String?, cont: MessageEntity? = null, repair: String? = null) {
         val t0 = System.currentTimeMillis()
         val gJob = viewModelScope.async(kotlinx.coroutines.Dispatchers.IO) { app.settings.snapshot() }
         val storedJob = viewModelScope.async(kotlinx.coroutines.Dispatchers.IO) { repo.messagesOnce(cid) }
@@ -816,7 +875,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
             }
         }.toMutableList()
         val prefix = cont?.content.orEmpty()
-        if (cont != null) history.add(ChatMsg("user", CONTINUE_PROMPT))
+        if (cont != null) history.add(ChatMsg("user", repair ?: CONTINUE_PROMPT))
 
         val all = manager.activeTargets()
         val sel = selection.value
@@ -1050,15 +1109,19 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
             )
         }
         val projectMode = ToolPolicy.projectMode(toolSpecs)
+        val projectAsk = com.freellm.chat.domain.CodeFiles.wantsZip(lastUser) || com.freellm.chat.domain.CodeFiles.wantsProject(lastUser)
+        val bigOutput = projectMode || projectAsk
         val sys = listOf(
             systemPrompt(cid, !projectMode && (kind == TaskKind.CODE || com.freellm.chat.domain.CodeFiles.wantsProject(lastUser)), g, guardLang ?: msgLang),
             if (followUp) CONTINUITY_PROMPT else "", hint, deep, memory, summaryText,
             AnswerPolicy.build(AnswerPolicy.spec(lastUser, styleNow, bundle)),
             if (toolSpecs.isNotEmpty()) ToolProtocol.system(toolSpecs, projectMode) else "",
-            if (!projectMode && com.freellm.chat.domain.CodeFiles.wantsZip(lastUser)) com.freellm.chat.domain.CodeFiles.ZIP_SYSTEM else ""
+            if (!projectMode && projectAsk) com.freellm.chat.domain.CodeFiles.ZIP_SYSTEM else "",
+            if (projectMode || projectAsk) com.freellm.chat.domain.CodeFiles.stackRules(lastUser) else ""
         ).filter { it.isNotEmpty() }.joinToString("\n")
         val temp = if (g.answerTemperature) TemperaturePolicy.pick(kind, cls, bundle != null) else null
         val maxTok = when {
+            bigOutput -> MaxTokensPlanner.project(cands.maxOfOrNull { it.model.contextWindow } ?: 0)
             cont != null -> null
             g.dynamicTokens -> MaxTokensPlanner.plan(kind, lastUser, g.style, hasAtt, bundle != null)
             saver && kind == TaskKind.QUICK -> QUICK_MAX_TOKENS
@@ -1179,7 +1242,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
             }
         }
         val events = if (toolSpecs.isEmpty()) router.stream(req) else app.toolRunner.stream(
-            req, ToolContext(cid, lastUser),
+            req, ToolContext(cid, lastUser, projectMode = projectMode, projectFiles = { withContext(kotlinx.coroutines.Dispatchers.IO) { app.workspace.files(cid) } }),
             { n ->
                 toolStatus = n?.let { app.getString(R.string.tool_running, it) }
                 push(true)
@@ -1404,6 +1467,7 @@ class ChatViewModel(private val app: FreeLlmApp) : ViewModel() {
         private const val SWEEP_MIN_AGE_MS = 600_000L
         private const val MAX_HISTORY_IMAGES = 4
         private const val MAX_RESUME = 2
+        private const val MAX_REPAIR = 2
         private const val RESUME_DELAY_MS = 2_000L
         private const val SUMMARY_IDLE_MS = 6_000L
         private const val QUICK_MAX_TOKENS = 1800

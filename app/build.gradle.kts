@@ -36,6 +36,23 @@ android {
         versionName = "1.4.0"
         buildConfigField("String", "MODELS_URL", "\"$modelsUrl\"")
         resourceConfigurations += listOf("ar", "en")
+        ndk {
+            abiFilters += listOf("arm64-v8a")
+        }
+        externalNativeBuild {
+            cmake {
+                arguments += listOf("-DANDROID_STL=c++_static", "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON")
+                val local = (project.findProperty("WHISPER_CPP_DIR") as String?)?.takeIf { it.isNotBlank() }
+                if (local != null) arguments += "-DWHISPER_CPP_DIR=$local"
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 
     sourceSets["main"].assets.srcDir(healthSeedDir)

@@ -73,3 +73,8 @@
 -keepclassmembers class com.freellm.chat.data.JsRunner$Bridge {
     @android.webkit.JavascriptInterface <methods>;
 }
+
+-keep class com.freellm.chat.data.dictation.WhisperNative { *; }
+-keepclasseswithmembernames class * {
+    native <methods>;
+}

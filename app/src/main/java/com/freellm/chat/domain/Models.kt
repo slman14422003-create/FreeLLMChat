@@ -28,6 +28,7 @@ data class ModelDef(
     val displayName: String,
     val priority: Int,
     val contextWindow: Int = 8000,
+    val maxOutput: Int = 0,
     val modes: List<String> = emptyList(),
     val vision: Boolean = false,
     val reasoning: Boolean = false,

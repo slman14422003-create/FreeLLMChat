@@ -1,6 +1,16 @@
 package com.freellm.chat.data.dictation
 
-enum class VoiceInputMode { SYSTEM, OFFLINE, AUTO }
+enum class VoiceInputMode {
+    SYSTEM, OFFLINE, AUTO;
+
+    companion object {
+        fun parse(v: String?): VoiceInputMode = when (v) {
+            "offline" -> OFFLINE
+            "auto" -> AUTO
+            else -> SYSTEM
+        }
+    }
+}
 
 enum class EngineKind { SYSTEM, OFFLINE }
 

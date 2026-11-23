@@ -219,6 +219,8 @@ internal fun MessageItem(
     onPdf: (MessageEntity) -> Unit,
     onCard: (MessageEntity) -> Unit,
     onZip: (MessageEntity) -> Unit = {},
+    onFile: (MessageEntity) -> Unit = {},
+    onFix: () -> Unit = {},
     onSpeak: (MessageEntity) -> Unit,
     onRate: (MessageEntity, Boolean) -> Unit = { _, _ -> },
     onContinue: () -> Unit = {}
@@ -294,11 +296,7 @@ internal fun MessageItem(
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 if (parts.thoughts.isNotEmpty()) ThinkChip(parts)
                 if (clean.isNotEmpty()) MarkdownText(clean)
-                if (zipName != null && hasZip) {
-                    androidx.compose.material3.OutlinedButton(onClick = { onZip(m) }) {
-                        Text(stringResource(R.string.zip_ready, zipName))
-                    }
-                }
+                if (hasZip) ProjectCard(m, { onZip(m) }, { onFile(m) }, onFix)
                 if (!m.modelName.isNullOrBlank()) ModelBadge(m.modelName)
                 val srcs = remember(m.sources) { SourcesPrompt.decode(m.sources) }
                 if (srcs.isNotEmpty()) SourcesRow(srcs)
@@ -534,28 +532,39 @@ internal fun StreamItem(
         if (parts.answer.isNotEmpty()) {
             MarkdownText(com.freellm.chat.domain.CodeFiles.stripCommand(parts.answer))
         } else if (s.active && !parts.thinking) {
+            val compact = s.status != null
             Row(verticalAlignment = Alignment.CenterVertically) {
-                StarBurst(size = 20.dp, spinning = true)
-                Spacer(Modifier.width(10.dp))
-                Text(s.status ?: stringResource(R.string.typing), color = cs.onSurfaceVariant, modifier = Modifier.weight(1f, fill = false))
-                Spacer(Modifier.width(8.dp))
-                TypingDots()
+                StarBurst(size = if (compact) 11.dp else 20.dp, spinning = true)
+                Spacer(Modifier.width(if (compact) 6.dp else 10.dp))
+                Text(
+                    s.status ?: stringResource(R.string.typing),
+                    color = if (compact) cs.onSurfaceVariant.copy(alpha = 0.55f) else cs.onSurfaceVariant,
+                    fontSize = if (compact) 9.sp else androidx.compose.ui.unit.TextUnit.Unspecified,
+                    lineHeight = if (compact) 11.sp else androidx.compose.ui.unit.TextUnit.Unspecified,
+                    maxLines = if (compact) 1 else Int.MAX_VALUE,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                Spacer(Modifier.width(if (compact) 4.dp else 8.dp))
+                if (!compact) TypingDots()
             }
             val pr = s.progress
             if (pr != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(
                         progress = { pr.coerceIn(0f, 1f) },
-                        modifier = Modifier.size(22.dp),
-                        color = cs.primary,
+                        modifier = Modifier.size(if (compact) 9.dp else 22.dp),
+                        color = if (compact) cs.primary.copy(alpha = 0.6f) else cs.primary,
                         trackColor = cs.surfaceContainerHigh,
-                        strokeWidth = 3.dp
+                        strokeWidth = if (compact) 1.dp else 3.dp
                     )
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(if (compact) 5.dp else 10.dp))
                     Text(
                         (pr.coerceIn(0f, 1f) * 100).toInt().toString() + "%",
+                        fontSize = if (compact) 8.sp else androidx.compose.ui.unit.TextUnit.Unspecified,
+                        lineHeight = if (compact) 10.sp else androidx.compose.ui.unit.TextUnit.Unspecified,
                         style = MaterialTheme.typography.labelMedium,
-                        color = cs.onSurfaceVariant
+                        color = if (compact) cs.onSurfaceVariant.copy(alpha = 0.55f) else cs.onSurfaceVariant
                     )
                 }
             }

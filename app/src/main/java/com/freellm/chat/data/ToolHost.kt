@@ -2,6 +2,7 @@ package com.freellm.chat.data
 
 import com.freellm.chat.FreeLlmApp
 import com.freellm.chat.domain.ChainSearch
+import com.freellm.chat.domain.CodeFiles
 import com.freellm.chat.domain.DateTools
 import com.freellm.chat.domain.ExtraTools
 import com.freellm.chat.domain.FetchGuard
@@ -63,6 +64,7 @@ class AppToolHost(private val app: FreeLlmApp) : ToolExecutor {
         "run_code" -> runCode(call)
         "check_syntax" -> checkSyntax(call, ctx)
         "project_template" -> template(call, ctx)
+        "project_plan" -> plan(call, ctx)
         "project_write" -> write(call, ctx)
         "project_read" -> read(call, ctx)
         "project_list" -> list(ctx)
@@ -309,6 +311,14 @@ class AppToolHost(private val app: FreeLlmApp) : ToolExecutor {
         }
     }
 
+    private suspend fun plan(call: ToolCall, ctx: ToolContext): ToolResult {
+        val raw = call.args["files"] ?: call.args["paths"] ?: call.args["list"] ?: return fail("files is required: a comma separated list of every file path.")
+        val paths = raw.split(',', '\n', ';').mapNotNull { CodeFiles.safePath(it.trim().trim('`', '"', '\'', ' ')) }.distinct()
+        if (paths.isEmpty()) return fail("No valid file paths found. Use relative paths with a file extension, like app/src/main/AndroidManifest.xml.")
+        ctx.chain.plan = paths
+        return ToolResult("Plan saved with " + paths.size + " files. Write every one of them with project_write, complete.", true, false)
+    }
+
     private suspend fun write(call: ToolCall, ctx: ToolContext): ToolResult {
         val path = call.str("path")
         val content = call.args["content"] ?: call.args["code"] ?: return fail("File content is missing. Put the full content inside the tool block.")
@@ -317,7 +327,12 @@ class AppToolHost(private val app: FreeLlmApp) : ToolExecutor {
         return withContext(Dispatchers.IO) {
             val err = app.workspace.write(ctx.conversationId, path, body)
             if (err != null) fail(err)
-            else ToolResult("Saved " + path + " (" + body.length + " chars). Project has " + app.workspace.count(ctx.conversationId) + " files.", true, true)
+            else {
+                val have = app.workspace.list(ctx.conversationId).map { it.path }.toSet()
+                val left = ctx.chain.plan.filter { it !in have }
+                val tail = if (ctx.chain.plan.isEmpty()) "" else if (left.isEmpty()) " All planned files are written." else " Still to write: " + left.take(25).joinToString(", ") + "."
+                ToolResult("Saved " + path + " (" + body.length + " chars). Project has " + have.size + " files." + tail, true, true)
+            }
         }
     }
 

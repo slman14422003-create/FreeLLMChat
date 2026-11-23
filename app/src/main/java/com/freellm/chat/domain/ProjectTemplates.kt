@@ -1,7 +1,7 @@
 package com.freellm.chat.domain
 
 object ProjectTemplates {
-    val types = listOf("web-static", "node-express", "python-flask", "python-cli", "kotlin-cli", "android-compose")
+    val types = listOf("web-static", "node-express", "python-flask", "python-cli", "kotlin-cli", "android-compose", "android-views")
 
     fun safeName(raw: String): String {
         val s = raw.trim().replace(Regex("[^A-Za-z0-9 _\\-]"), "").trim().take(40)
@@ -17,11 +17,85 @@ object ProjectTemplates {
             "python-flask" -> pythonFlask()
             "python-cli" -> pythonCli()
             "kotlin-cli" -> kotlinCli(slug)
-            "android-compose" -> androidCompose(name)
+            "android-compose" -> androidCompose(name, pkgOf(slug))
+            "android-views" -> androidViews(name, pkgOf(slug))
             else -> return null
         }
         return list.map { CodeFile(it.path, it.content.replace("{{name}}", name)) }
     }
+
+    private fun pkgOf(slug: String): String {
+        val id = slug.replace("-", "").ifEmpty { "app" }
+        return "com.example." + (if (id[0].isDigit()) "a$id" else id)
+    }
+
+    private val androidCommon = listOf(
+        f("gradle.properties", "org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8\nandroid.useAndroidX=true\nkotlin.code.style=official\nandroid.nonTransitiveRClass=true"),
+        f("app/proguard-rules.pro", "-keep class kotlin.Metadata { *; }"),
+        f(".gitignore", "build/\n.gradle/\nlocal.properties\n.idea/\n*.iml\n.kotlin/"),
+        f(
+            "app/src/main/res/values/colors.xml",
+            """
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#3B82F6</color>
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+</resources>
+"""
+        ),
+        f(
+            "app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml",
+            """
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>
+"""
+        ),
+        f(
+            "app/src/main/res/drawable/ic_launcher_foreground.xml",
+            """
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,30 L78,54 L54,78 L30,54 Z" />
+</vector>
+"""
+        ),
+        f(
+            ".github/workflows/build.yml",
+            """
+name: Build
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.10.2
+      - run: gradle assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: app/build/outputs/apk/debug/*.apk
+"""
+        )
+    )
 
     private fun f(path: String, content: String) = CodeFile(path, content.trimStart('\n').trimEnd() + "\n")
 
@@ -226,7 +300,7 @@ class MainTest {
         f(".gitignore", "build/\n.gradle/\n.idea/")
     )
 
-    private fun androidCompose(name: String) = listOf(
+    private fun androidCompose(name: String, pkg: String) = androidCommon + listOf(
         f(
             "settings.gradle.kts",
             """
@@ -260,7 +334,6 @@ plugins {
 }
 """
         ),
-        f("gradle.properties", "org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8\nandroid.useAndroidX=true\nkotlin.code.style=official"),
         f(
             "app/build.gradle.kts",
             """
@@ -271,11 +344,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.app"
+    namespace = "$pkg"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.app"
+        applicationId = "$pkg"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
@@ -312,6 +385,7 @@ dependencies {
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
         android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
@@ -324,9 +398,9 @@ dependencies {
 """
         ),
         f(
-            "app/src/main/java/com/example/app/MainActivity.kt",
+            "app/src/main/java/${pkg.replace('.', '/')}/MainActivity.kt",
             """
-package com.example.app
+package $pkg
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -360,6 +434,148 @@ class MainActivity : ComponentActivity() {
 </resources>
 """
         ),
-        f(".gitignore", "build/\n.gradle/\nlocal.properties\n.idea/")
+    )
+
+    private fun androidViews(name: String, pkg: String) = androidCommon + listOf(
+        f(
+            "settings.gradle.kts",
+            """
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "$name"
+include(":app")
+"""
+        ),
+        f(
+            "build.gradle.kts",
+            """
+plugins {
+    id("com.android.application") version "8.7.3" apply false
+    id("org.jetbrains.kotlin.android") version "2.0.21" apply false
+}
+"""
+        ),
+        f(
+            "app/build.gradle.kts",
+            """
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "$pkg"
+    compileSdk = 35
+
+    defaultConfig {
+        applicationId = "$pkg"
+        minSdk = 26
+        targetSdk = 35
+        versionCode = 1
+        versionName = "1.0"
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+dependencies {
+    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("com.google.android.material:material:1.12.0")
+}
+"""
+        ),
+        f(
+            "app/src/main/AndroidManifest.xml",
+            """
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.App">
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
+"""
+        ),
+        f(
+            "app/src/main/java/${pkg.replace('.', '/')}/MainActivity.kt",
+            """
+package $pkg
+
+import android.os.Bundle
+import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
+
+class MainActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+        findViewById<TextView>(R.id.title).text = getString(R.string.app_name)
+    }
+}
+"""
+        ),
+        f(
+            "app/src/main/res/layout/activity_main.xml",
+            """
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <TextView
+        android:id="@+id/title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:textSize="22sp" />
+</FrameLayout>
+"""
+        ),
+        f(
+            "app/src/main/res/values/strings.xml",
+            """
+<resources>
+    <string name="app_name">{{name}}</string>
+</resources>
+"""
+        ),
+        f(
+            "app/src/main/res/values/themes.xml",
+            """
+<resources>
+    <style name="Theme.App" parent="Theme.MaterialComponents.DayNight.NoActionBar" />
+</resources>
+"""
+        )
     )
 }

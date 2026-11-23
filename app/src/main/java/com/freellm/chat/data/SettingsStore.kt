@@ -53,6 +53,8 @@ class SettingsStore(context: Context) {
 
     private object K {
         val THEME = stringPreferencesKey("theme")
+        val VOICE = stringPreferencesKey("voice_input")
+        val WHISPER_MODEL = stringPreferencesKey("whisper_model")
         val WELCOME = booleanPreferencesKey("welcome_done")
         val ENABLED = stringSetPreferencesKey("enabled")
         val ORDER = stringPreferencesKey("order")
@@ -90,6 +92,7 @@ class SettingsStore(context: Context) {
         val TOOLS = booleanPreferencesKey("tools_enabled")
         val FAST_SWITCH = booleanPreferencesKey("fast_switch")
         val TOOLS_MODE = stringPreferencesKey("tools_mode")
+        val PROJECT_AUTOFIX = booleanPreferencesKey("project_autofix")
         val TOOLS_OFF = stringSetPreferencesKey("tools_off")
         val RUNNER_URL = stringPreferencesKey("runner_url")
         val NET_PATH = stringPreferencesKey("net_path")
@@ -149,6 +152,7 @@ class SettingsStore(context: Context) {
     val fastSwitch: Flow<Boolean> = fastSwitchRaw.map { it ?: true }.distinctUntilChanged()
     val toolsEnabled: Flow<Boolean> = data.map { it[K.TOOLS] ?: true }.distinctUntilChanged()
     val toolsMode: Flow<String> = data.map { it[K.TOOLS_MODE] ?: "smart" }.distinctUntilChanged()
+    val projectAutoFix: Flow<Boolean> = data.map { it[K.PROJECT_AUTOFIX] ?: true }.distinctUntilChanged()
     val toolsOff: Flow<Set<String>> = data.map { it[K.TOOLS_OFF] ?: emptySet() }.distinctUntilChanged()
     val runnerUrl: Flow<String> = data.map { it[K.RUNNER_URL]?.trim().orEmpty() }.distinctUntilChanged()
 
@@ -191,6 +195,18 @@ class SettingsStore(context: Context) {
             val i = e.indexOf('=')
             if (i > 0) e.substring(0, i) to e.substring(i + 1) else null
         }.toMap()
+
+    val voiceInput: Flow<String> = data.map { it[K.VOICE] ?: "system" }.distinctUntilChanged()
+
+    suspend fun setVoiceInput(v: String) {
+        ds.edit { it[K.VOICE] = v }
+    }
+
+    val whisperModel: Flow<String> = data.map { it[K.WHISPER_MODEL] ?: "BALANCED_Q" }.distinctUntilChanged()
+
+    suspend fun setWhisperModel(v: String) {
+        ds.edit { it[K.WHISPER_MODEL] = v }
+    }
 
     suspend fun setTheme(v: String) {
         ds.edit { it[K.THEME] = v }
@@ -387,6 +403,10 @@ class SettingsStore(context: Context) {
 
     suspend fun setToolsEnabled(v: Boolean) {
         ds.edit { it[K.TOOLS] = v }
+    }
+
+    suspend fun setProjectAutoFix(v: Boolean) {
+        ds.edit { it[K.PROJECT_AUTOFIX] = v }
     }
 
     suspend fun setToolsMode(v: String) {

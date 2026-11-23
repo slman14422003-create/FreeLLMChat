@@ -196,6 +196,25 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
     var renaming by remember { mutableStateOf<ConversationEntity?>(null) }
     var editing by remember { mutableStateOf<MessageEntity?>(null) }
     var input by rememberSaveable { mutableStateOf("") }
+    val micDeniedMsg = stringResource(R.string.mic_denied)
+    val micOpenSettings = stringResource(R.string.open_settings)
+    val micFailedMsg = stringResource(R.string.mic_failed)
+    val dictation = rememberDictation(
+        getInput = { input },
+        onText = { input = it },
+        onDenied = {
+            scope.launch {
+                val r = snackbar.showSnackbar(micDeniedMsg, actionLabel = micOpenSettings)
+                if (r == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                    ctx.startActivity(
+                        Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:" + ctx.packageName))
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }
+            }
+        },
+        onFailed = { scope.launch { snackbar.showSnackbar(micFailedMsg) } }
+    )
     var instrFor by remember { mutableStateOf<ConversationEntity?>(null) }
     var templatesOpen by remember { mutableStateOf(false) }
     val localPrefs = remember { (ctx.applicationContext as com.freellm.chat.FreeLlmApp).local }
@@ -290,19 +309,11 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
             }
         }
     }
-    val latestMessages by androidx.compose.runtime.rememberUpdatedState(messages)
-    var wasGenerating by remember { mutableStateOf(false) }
-    LaunchedEffect(generating) {
-        if (wasGenerating && !generating) {
-            kotlinx.coroutines.delay(400)
-            val last = latestMessages.lastOrNull { it.role != "user" }
-            val name = last?.let { com.freellm.chat.domain.CodeFiles.zipCommand(it.content) }
-            if (last != null && name != null && com.freellm.chat.domain.CodeFiles.extract(last.content).isNotEmpty()) {
-                zipMsg = last
-                saveZip.launch(name)
-            }
-        }
-        wasGenerating = generating
+    var fileMsg by remember { mutableStateOf<MessageEntity?>(null) }
+    val saveFile = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        val msg = fileMsg
+        fileMsg = null
+        if (uri != null && msg != null) vm.saveFile(uri, msg) {}
     }
     val savePdf = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
         val j = pdfJob
@@ -546,8 +557,13 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                                 },
                                 onZip = {
                                     zipMsg = it
-                                    saveZip.launch(com.freellm.chat.domain.CodeFiles.projectName(com.freellm.chat.domain.CodeFiles.extract(it.content)) + ".zip")
+                                    saveZip.launch((com.freellm.chat.domain.CodeFiles.zipCommand(it.content) ?: (com.freellm.chat.domain.CodeFiles.projectName(com.freellm.chat.domain.CodeFiles.extractFinal(it.content)) + ".zip")))
                                 },
+                                onFile = {
+                                    fileMsg = it
+                                    saveFile.launch(com.freellm.chat.domain.CodeFiles.extractFinal(it.content).firstOrNull()?.path?.substringAfterLast('/') ?: "file.txt")
+                                },
+                                onFix = { vm.repairProject() },
                                 onSpeak = { speaker.toggle(com.freellm.chat.domain.CodeFiles.stripCommand(com.freellm.chat.domain.ThinkSplit.strip(it.content))) },
                                 onRate = { msg, good -> vm.rate(msg, good) },
                                 onContinue = { vm.continueWith(null) }
@@ -617,7 +633,12 @@ fun ChatScreen(vm: ChatViewModel, onSettings: () -> Unit, onProviders: () -> Uni
                         pdfJob = PdfJob(null, pendingAtt.filter { it.isImage })
                         savePdf.launch("images.pdf")
                     },
-                    onPlus = { picker = if (generating) Picker.Continue else Picker.Model }
+                    onPlus = { picker = if (generating) Picker.Continue else Picker.Model },
+                    listening = dictation.listening(),
+                    micLevel = dictation.level(),
+                    micStatic = dictation.powerSave(),
+                    onMic = { dictation.toggle() },
+                    onMicCancel = { dictation.cancel() }
                 )
             }
         }

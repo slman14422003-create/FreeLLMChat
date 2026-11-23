@@ -31,6 +31,7 @@ import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Speed
@@ -102,9 +103,10 @@ private fun ChoiceDialog(
 }
 
 @Composable
-fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit, onStatus: () -> Unit, onUsage: () -> Unit, onBrain: () -> Unit, onSearch: () -> Unit, onAbout: () -> Unit, onPrivacy: () -> Unit, onTools: () -> Unit = {}, onDiag: () -> Unit = {}, onHealth: () -> Unit = {}, onWipeChats: () -> Unit = {}) {
+fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit, onStatus: () -> Unit, onUsage: () -> Unit, onBrain: () -> Unit, onSearch: () -> Unit, onAbout: () -> Unit, onPrivacy: () -> Unit, onTools: () -> Unit = {}, onDiag: () -> Unit = {}, onHealth: () -> Unit = {}, onWhisper: () -> Unit = {}, onWipeChats: () -> Unit = {}) {
     val cs = MaterialTheme.colorScheme
     val theme by app.settings.theme.collectAsStateWithLifecycle(initialValue = "system")
+    val voiceInput by app.settings.voiceInput.collectAsStateWithLifecycle(initialValue = "system")
     val proxy by app.settings.proxyUrl.collectAsStateWithLifecycle(initialValue = "")
     val netPath by app.settings.netPath.collectAsStateWithLifecycle(initialValue = "auto")
     val saverMode by app.settings.saverMode.collectAsStateWithLifecycle(initialValue = "off")
@@ -159,6 +161,11 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
         "detailed" to stringResource(R.string.style_detailed),
         "teacher" to stringResource(R.string.style_teacher)
     )
+    val voiceOptions = listOf(
+        "system" to stringResource(R.string.voice_mode_system),
+        "offline" to stringResource(R.string.voice_mode_offline),
+        "auto" to stringResource(R.string.voice_mode_auto)
+    )
     val activeCount = providers.count { it.enabled }
 
     when (dialog) {
@@ -166,6 +173,14 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
             stringResource(R.string.theme), themeOptions, theme,
             onPick = {
                 scope.launch { app.settings.setTheme(it) }
+                dialog = null
+            },
+            onDismiss = { dialog = null }
+        )
+        "voice" -> ChoiceDialog(
+            stringResource(R.string.voice_input_title), voiceOptions, voiceInput,
+            onPick = {
+                scope.launch { app.settings.setVoiceInput(it) }
                 dialog = null
             },
             onDismiss = { dialog = null }
@@ -624,6 +639,22 @@ fun SettingsScreen(app: FreeLlmApp, onBack: () -> Unit, onProviders: () -> Unit,
                         scope.launch { app.brainStore.save() }
                         brainCount = 0
                     }
+                )
+            }
+
+            SectionLabel(stringResource(R.string.voice_input_title))
+            SettingsGroup(Modifier.appear(3)) {
+                SettingsRow(
+                    Icons.Outlined.Mic,
+                    stringResource(R.string.voice_input_title),
+                    voiceOptions.firstOrNull { it.first == voiceInput }?.second ?: voiceOptions.first().second,
+                    onClick = { dialog = "voice" }
+                )
+                SettingsRow(
+                    Icons.Outlined.Mic,
+                    stringResource(R.string.whisper_title),
+                    stringResource(R.string.whisper_row_desc),
+                    onClick = onWhisper
                 )
             }
 
