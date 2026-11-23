@@ -217,3 +217,6 @@ description: Progress log and working notes for the FreeLLMChat Android project 
 - ProjectTemplates: android-compose fixed (namespace and applicationId from the name, icon, proguard file, colors, gradle.properties, GitHub workflow), new android-views template. Settings > Tools has the Complete projects automatically switch.
 - Tests: ProjectCheckTest (every template must be issue-free, cut files, plans, Android and web checks, cut tool block, token budget, compactWrites).
 - Not compiled locally (no Android SDK or Kotlin compiler): run ./gradlew testDebugUnitTest assembleDebug first. Riskiest spots: ProjectCheck scanner and regexes, the ToolRunner quiet mode, ProjectCard imports.
+
+## Round 14 follow-up (stub leak)
+- Bug: compactWrites replaced old project_write bodies by a [saved] stub inside the tool_call, models copied it and wrote files whose whole content was "[saved]". Now the whole block becomes the plain line "Wrote path (N chars).", ToolHost.write rejects marker-only content (ProjectCheck.isStub), ProjectCheck flags stub and near-empty files, MAX_GATES is 5, and the project prompt says never to write such markers as content.

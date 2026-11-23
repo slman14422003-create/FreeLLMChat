@@ -154,7 +154,12 @@ object ProjectCheck {
     private val dotsOnly = Regex("^\\s*(//|#|--|/\\*|\\*|<!--)?\\s*(\\.{3}|\u2026)\\s*(\\*/|-->)?\\s*$")
     private val commentMark = Regex("//|#|<!--|/\\*|^\\s*\\*|--")
 
+    private val stubRe = Regex("^\\[(?:saved|written|omitted|content|file)[^\\]]*]$|^Wrote .+ \\(\\d+ chars\\)\\.?$", RegexOption.IGNORE_CASE)
+
+    fun isStub(text: String): Boolean = stubRe.matches(text.trim())
+
     private fun placeholder(f: CodeFile): String? {
+        if (isStub(f.content)) return "content is only a placeholder marker, not the real file"
         val e = ext(f.path)
         if (e in textExt || e.isEmpty()) return null
         var n = 0
@@ -191,6 +196,10 @@ object ProjectCheck {
         cutPath?.let { out.add(ProjectIssue(IssueKind.CUT_OFF, it, "the reply stopped in the middle of this file")) }
         for (f in real) {
             val n = name(f.path)
+            if (!f.content.isBlank() && !isStub(f.content) && f.content.trim().length < 6 && n !in emptyOk && ext(f.path) in mustHaveContent) {
+                out.add(ProjectIssue(IssueKind.EMPTY, f.path, "file has almost no content"))
+                continue
+            }
             if (f.content.isBlank()) {
                 if (n !in emptyOk && ext(f.path) in mustHaveContent) out.add(ProjectIssue(IssueKind.EMPTY, f.path, "file is empty"))
                 continue

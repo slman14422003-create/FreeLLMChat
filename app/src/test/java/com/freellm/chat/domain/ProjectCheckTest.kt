@@ -124,6 +124,9 @@ class ProjectCheckTest {
             override suspend fun execute(call: ToolCall, ctx: ToolContext) = ToolResult("")
         }).compactWrites(raw)
         assertFalse(c.contains("xxxx"))
-        assertTrue(c.contains("project_write"))
+        assertTrue(c.contains("Wrote a.kt"))
+        assertTrue(ProjectCheck.isStub("[saved]"))
+        assertTrue(ProjectCheck.isStub(c))
+        assertTrue(IssueKind.PLACEHOLDER in kinds(listOf(CodeFile("settings.gradle.kts", "[saved]\n"))))
     }
 }

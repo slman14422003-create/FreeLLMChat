@@ -214,7 +214,7 @@ object ToolProtocol {
             sb.append("Project workspace rules. ")
                 .append("1) Call project_plan once with every file path of the project, including build files, resources, manifest and ignore files. ")
                 .append("2) Write each file with project_write: the complete file from its first to its last line, no placeholders, no ellipses, no comments, compact code. Put several small files in one reply, but only one large file per reply, and always close the block with the closing tag. ")
-                .append("3) Earlier file contents are removed from this conversation to save space; call project_read when you need to check a file you wrote. ")
+                .append("3) Earlier file contents are replaced in this conversation by a line like Wrote path (N chars). to save space; that line only means the file is saved. Never write such a line, [saved] or any marker as file content, and call project_read when you need to check a file you wrote. ")
                 .append("4) Everything any file references (class, layout, drawable, color, style, string, script, dependency) must exist in a written file. ")
                 .append("5) The app checks the whole project when you finish and reports missing or cut files; fix them with project_write. ")
                 .append("6) The final answer is one short sentence in the user's language. Never repeat file contents; the save card appears by itself.\n")
@@ -602,14 +602,20 @@ class ToolRunner(private val router: Router, private val executor: ToolExecutor)
     private fun cutMessage(path: String): String =
         "The block for $path was cut off by the output limit and was NOT saved. Write $path again, complete and compact, without comments, and close the block with the closing tag. If it is very large, split it into two files."
 
-    private val writeAttr = Regex("(?s)(<tool_call\\s[^>]*name\\s*=\\s*[\"']project_write[\"'][^>]*>)(.*?)(</tool_call>|$)")
-    private val jsonContent = Regex("(?s)(\"content\"\\s*:\\s*\")(?:[^\"\\\\]|\\\\.)*(\")")
+    private val toolBlock = Regex("(?s)<tool_call\\b[^>]*>.*?(?:</tool_call>|$)")
+    private val pathAttr = Regex("path\\s*=\\s*[\"']([^\"']+)[\"']")
+    private val pathJson = Regex("\"path\"\\s*:\\s*\"([^\"]+)\"")
 
     internal fun compactWrites(text: String): String {
         if (!text.contains("project_write")) return text
-        var t = writeAttr.replace(text) { m -> m.groupValues[1] + "[saved " + m.groupValues[2].length + " chars]" + m.groupValues[3] }
-        t = jsonContent.replace(t) { m -> m.groupValues[1] + "[saved]" + m.groupValues[2] }
-        return t
+        return toolBlock.replace(text) { m ->
+            val blk = m.value
+            if (!blk.contains("project_write")) blk
+            else {
+                val path = pathAttr.find(blk)?.groupValues?.get(1) ?: pathJson.find(blk)?.groupValues?.get(1) ?: "file"
+                "Wrote " + path + " (" + blk.length + " chars)."
+            }
+        }
     }
 
     private fun summarize(call: ToolCall, r: ToolResult): String {
@@ -629,7 +635,7 @@ class ToolRunner(private val router: Router, private val executor: ToolExecutor)
         const val MAX_ROUNDS = 6
         const val PROJECT_ROUNDS = 30
         const val PROJECT_CALLS = 12
-        const val MAX_GATES = 3
+        const val MAX_GATES = 5
         const val TOOL_TIMEOUT_MS = 30_000L
         const val RUN_TIMEOUT_MS = 60_000L
         const val FETCH_TIMEOUT_MS = 120_000L

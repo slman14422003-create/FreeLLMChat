@@ -324,6 +324,7 @@ class AppToolHost(private val app: FreeLlmApp) : ToolExecutor {
         val content = call.args["content"] ?: call.args["code"] ?: return fail("File content is missing. Put the full content inside the tool block.")
         if (path.isEmpty()) return fail("path is required")
         val body = content.trimEnd('\n', '\r', ' ') + "\n"
+        if (com.freellm.chat.domain.ProjectCheck.isStub(body)) return fail("The content is only a marker, not a file. Write the real, complete content of $path.")
         return withContext(Dispatchers.IO) {
             val err = app.workspace.write(ctx.conversationId, path, body)
             if (err != null) fail(err)
