@@ -178,7 +178,7 @@ jobs:
 
         val appNow = appPath?.let { m[it] }.orEmpty()
         if (appPath != null && !appNow.contains("namespace")) {
-            val fixed = Regex("android\\s*\\{").replaceFirst(appNow) { it.value + "\n    namespace = \"$pkg\"" }
+            val fixed = Regex("android\\s*\\{").replaceFirstWith(appNow) { it.value + "\n    namespace = \"$pkg\"" }
             if (fixed != appNow) put(appPath, fixed)
         }
 
@@ -229,7 +229,7 @@ jobs:
             var man = m.getValue(manifestPath)
             val orig = man
             if (netUse && !man.contains("android.permission.INTERNET")) {
-                man = Regex("(<manifest\\b[^>]*>)").replaceFirst(man) { it.value + "\n" + perm.trimEnd() }
+                man = Regex("(<manifest\\b[^>]*>)").replaceFirstWith(man) { it.value + "\n" + perm.trimEnd() }
             }
             val missingActs = activities.distinct().filter { a -> !Regex("android:name\\s*=\\s*\"[^\"]*" + Regex.escape(a.substringAfterLast('.')) + "\"").containsMatchIn(man) }
             if (missingActs.isNotEmpty() && man.contains("</application>")) {
@@ -320,4 +320,9 @@ jobs:
         val missing = deps.filter { !cur.contains(it, true) }
         if (missing.isNotEmpty()) put(path, cur.trimEnd() + "\n" + missing.joinToString("\n") + "\n")
     }
+}
+
+private fun Regex.replaceFirstWith(input: String, transform: (MatchResult) -> String): String {
+    val m = find(input) ?: return input
+    return input.replaceRange(m.range, transform(m))
 }
