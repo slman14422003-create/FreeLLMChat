@@ -180,3 +180,11 @@ dependencies {
 tasks.configureEach {
     if (name.startsWith("merge") && name.endsWith("Assets")) dependsOn(copyHealthSeed)
 }
+
+tasks.withType<Test>().configureEach {
+    timeout.set(java.time.Duration.ofMinutes(8))
+    testLogging {
+        events("started", "passed", "failed", "skipped")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
+}
