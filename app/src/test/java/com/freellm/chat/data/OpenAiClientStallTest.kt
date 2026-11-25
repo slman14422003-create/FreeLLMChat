@@ -19,6 +19,7 @@ import okio.buffer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
+import java.util.concurrent.TimeUnit
 
 class OpenAiClientStallTest {
     private val target = Target(
@@ -33,6 +34,7 @@ class OpenAiClientStallTest {
     @Test
     fun stalledStreamThrowsTimeout() {
         val pipe = Pipe(8192)
+        pipe.source.timeout().timeout(3, TimeUnit.SECONDS)
         val sink = pipe.sink.buffer()
         sink.writeUtf8("data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"hmm\"},\"finish_reason\":null}]}\n\n")
         sink.flush()
