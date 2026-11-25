@@ -1,0 +1,500 @@
+@file:OptIn(kotlinx.coroutines.InternalCoroutinesApi::class)
+
+package com.freellm.chat.data
+
+import com.freellm.chat.domain.ChatMsg
+import com.freellm.chat.domain.ChatTransport
+import com.freellm.chat.domain.ErrorKind
+import com.freellm.chat.domain.LlmException
+import com.freellm.chat.domain.NetRoute
+import com.freellm.chat.domain.ProviderErrors
+import com.freellm.chat.domain.Target
+import com.freellm.chat.domain.TokenEstimator
+import com.freellm.chat.domain.baseProviderId
+import com.freellm.chat.domain.ThinkSplit
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.IOException
+import java.net.SocketTimeoutException
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
+
+class OpenAiClient(
+    private val http: OkHttpClient,
+    private val vpnActive: () -> Boolean = { false },
+    private val idleStallMs: Long = IDLE_STALL_MS
+) : ChatTransport {
+    private val h1 by lazy { http.newBuilder().protocols(listOf(Protocol.HTTP_1_1)).build() }
+    private val h1Until = ConcurrentHashMap<String, Long>()
+    private val json = Json { ignoreUnknownKeys = true }
+    private val mediaJson = "application/json; charset=utf-8".toMediaType()
+
+    internal class Parsed(val content: String?, val finished: Boolean, val error: String?, val length: Boolean = false, val reasoning: String? = null)
+
+    private val learnedCap = ConcurrentHashMap<String, Int>()
+
+    private fun capKey(t: Target): String = baseProviderId(t) + "/" + t.model.id
+
+    internal fun clampTokens(t: Target, msgs: List<ChatMsg>, wanted: Int): Int {
+        if (wanted <= BIG_REPLY) return wanted
+        var limit = wanted
+        if (t.model.maxOutput > 0) limit = minOf(limit, t.model.maxOutput)
+        learnedCap[capKey(t)]?.let { limit = minOf(limit, it) }
+        val room = t.model.contextWindow - TokenEstimator.messages(msgs) - CONTEXT_SLACK
+        if (t.model.contextWindow > 0) limit = minOf(limit, maxOf(room, MIN_REPLY))
+        return maxOf(limit, MIN_REPLY)
+    }
+
+    internal fun capFromError(message: String, requested: Int): Int? {
+        val low = message.lowercase()
+        val about = low.contains("max_tokens") || low.contains("max_completion") || low.contains("maximum") || low.contains("too large") ||
+            low.contains("exceed") || low.contains("context length") || low.contains("output tokens")
+        if (!about) return null
+        val nums = Regex("\\d{3,6}").findAll(message).mapNotNull { it.value.toIntOrNull() }.filter { it in MIN_REPLY until requested }.toList()
+        val next = nums.minOrNull() ?: (requested / 2)
+        return next.coerceAtLeast(MIN_REPLY).takeIf { it < requested }
+    }
+
+    private fun endpoint(base: String): String = base.trim().trimEnd('/') + "/chat/completions"
+
+    private fun body(t: Target, msgs: List<ChatMsg>, stream: Boolean, maxTokens: Int?, temperature: Double? = null, fast: Boolean = false): String =
+        buildJsonObject {
+            put("model", t.model.id)
+            put("stream", stream)
+            if (maxTokens != null) put("max_tokens", clampTokens(t, msgs, if (t.model.reasoning) maxOf(maxTokens, if (fast) FAST_REASONING_MIN_TOKENS else REASONING_MIN_TOKENS) else maxTokens))
+            if (temperature != null && !t.model.reasoning) put("temperature", temperature)
+            if (t.providerId.substringBefore('#') == "gemini" && t.model.reasoning) put("reasoning_effort", if (fast) "low" else "medium")
+            putJsonArray("messages") {
+                msgs.forEach { m ->
+                    add(buildJsonObject {
+                        put("role", m.role)
+                        if (m.images.isEmpty()) {
+                            put("content", m.content)
+                        } else {
+                            putJsonArray("content") {
+                                add(buildJsonObject {
+                                    put("type", "text")
+                                    put("text", m.content.ifBlank { " " })
+                                })
+                                m.images.forEach { u ->
+                                    add(buildJsonObject {
+                                        put("type", "image_url")
+                                        putJsonObject("image_url") { put("url", u) }
+                                    })
+                                }
+                            }
+                        }
+                    })
+                }
+            }
+        }.toString()
+
+    private fun request(t: Target, base: String, bodyJson: String): Request {
+        val b = Request.Builder()
+            .url(endpoint(base))
+            .header("Accept", "application/json")
+        if (t.apiKey.isNotBlank()) b.header("Authorization", "Bearer ${t.apiKey}")
+        t.headers.forEach { (k, v) -> b.header(k, v) }
+        return b.post(bodyJson.toRequestBody(mediaJson)).build()
+    }
+
+    internal fun redacted(s: String, key: String): String = redact(s, key)
+
+    private fun redact(s: String, key: String): String =
+        Redact.text(if (key.isBlank()) s else s.replace(key, "***"))
+
+    private fun httpError(code: Int, retryAfter: String?, bodyText: String, key: String): LlmException {
+        val snippet = redact(bodyText.replace("\n", " ").take(200), key)
+        val kind = ProviderErrors.kind(code, bodyText)
+        val wait = ProviderErrors.retryAfter(code, bodyText, retryAfter?.trim()?.toLongOrNull(), System.currentTimeMillis())
+        return LlmException(kind, code, wait, snippet)
+    }
+
+    private fun hostOf(base: String): String = base.substringAfter("://").substringBefore("/")
+
+    private fun mapIo(e: IOException, base: String = ""): LlmException {
+        val where = if (base.isBlank()) "" else hostOf(base) + " "
+        return if (e.message == "vpn required") {
+            LlmException(ErrorKind.NETWORK, message = "vpn required")
+        } else if (e is SocketTimeoutException) {
+            LlmException(ErrorKind.TIMEOUT, message = where + e.message.orEmpty().take(90), connect = true)
+        } else {
+            LlmException(ErrorKind.NETWORK, message = where + e.javaClass.simpleName + ": " + e.message.orEmpty().take(80), connect = true)
+        }
+    }
+
+    internal fun parseChunk(data: String): Parsed? = try {
+        val obj = json.parseToJsonElement(data) as JsonObject
+        val err = obj["error"]
+        if (err != null && err !is JsonNull) {
+            Parsed(null, false, err.toString())
+        } else {
+            val choice = (obj["choices"] as? JsonArray)?.firstOrNull() as? JsonObject
+            val delta = choice?.get("delta") as? JsonObject
+            val prim = delta?.get("content") as? JsonPrimitive
+            val content = if (prim == null || prim is JsonNull) null else prim.content
+            val rp = (delta?.get("reasoning_content") ?: delta?.get("reasoning")) as? JsonPrimitive
+            val thought = if (rp == null || rp is JsonNull) null else rp.content
+            val reason = choice?.get("finish_reason") as? JsonPrimitive
+            val fin = reason != null && reason !is JsonNull
+            Parsed(content, fin, null, fin && reason?.content == "length", thought)
+        }
+    } catch (e: Exception) {
+        null
+    }
+
+    private fun retryable(e: LlmException): Boolean = when (e.kind) {
+        ErrorKind.TIMEOUT, ErrorKind.NETWORK, ErrorKind.REGION -> true
+        ErrorKind.AUTH -> e.httpCode == 403
+        ErrorKind.NOT_FOUND -> e.httpCode == 404 && e.message.orEmpty().trim().equals("Not found", ignoreCase = true)
+        ErrorKind.SERVER -> e.httpCode in listOf(502, 503, 504) || e.httpCode in 520..530
+        else -> false
+    }
+
+    override fun stream(target: Target, messages: List<ChatMsg>, maxTokens: Int?): Flow<String> =
+        stream(target, messages, maxTokens, null)
+
+    override fun stream(target: Target, messages: List<ChatMsg>, maxTokens: Int?, temperature: Double?): Flow<String> =
+        stream(target, messages, maxTokens, temperature, false)
+
+    override fun stream(target: Target, messages: List<ChatMsg>, maxTokens: Int?, temperature: Double?, fast: Boolean): Flow<String> = flow {
+        val base = target.activeBase
+        val hasImages = messages.any { it.images.isNotEmpty() }
+        val ttfb = if (target.model.reasoning) TTFB_REASONING_MS else if (hasImages) TTFB_VISION_MS else TTFB_MS
+        val acc = StringBuilder()
+        var msgs = messages
+        var round = 0
+        var cap = maxTokens
+        var capRetries = 0
+        val big = (maxTokens ?: 0) > BIG_REPLY
+        val limit = if (big) MAX_AUTO_CONTINUE_BIG else MAX_AUTO_CONTINUE
+        while (true) {
+            var cut = false
+            try {
+                streamOnce(target, base, msgs, cap, temperature, ttfb, fast) { cut = true }.collect {
+                    acc.append(it)
+                    emit(it)
+                }
+            } catch (e: LlmException) {
+                val c = cap
+                if (round == 0 && acc.isEmpty() && capRetries < 2 && e.httpCode == 400 && c != null) {
+                    val next = capFromError(e.message.orEmpty(), c)
+                    if (next != null) {
+                        learnedCap[capKey(target)] = next
+                        cap = next
+                        capRetries++
+                        continue
+                    }
+                }
+                if (round == 0) throw e
+                if (big && ThinkSplit.strip(acc.toString()).isNotBlank()) throw LlmException(ErrorKind.INTERRUPTED, message = "continuation failed")
+                break
+            }
+            val visible = ThinkSplit.strip(acc.toString())
+            if (!cut) break
+            if (visible.isBlank()) break
+            if (round >= limit) {
+                if (big) throw LlmException(ErrorKind.INTERRUPTED, message = "output limit reached")
+                break
+            }
+            round++
+            msgs = messages + ChatMsg("assistant", visible) + ChatMsg("user", AUTO_CONTINUE)
+        }
+    }.flowOn(Dispatchers.IO)
+
+    private fun streamOnce(
+        target: Target,
+        base: String,
+        messages: List<ChatMsg>,
+        maxTokens: Int?,
+        temperature: Double?,
+        ttfbMs: Long = 0L,
+        fast: Boolean = false,
+        onLength: () -> Unit = {}
+    ): Flow<String> = retryOn503(streamOnceRaw(target, base, messages, maxTokens, temperature, ttfbMs, fast, onLength))
+
+    private fun retryOn503(src: Flow<String>): Flow<String> = flow {
+        var emitted = false
+        try {
+            src.collect {
+                emitted = true
+                emit(it)
+            }
+        } catch (e: LlmException) {
+            if (emitted || e.httpCode != 503) throw e
+            delay(RETRY_503_MS + (0L..RETRY_503_JITTER_MS).random())
+            src.collect { emit(it) }
+        }
+    }
+
+    private fun streamOnceRaw(
+        target: Target,
+        base: String,
+        messages: List<ChatMsg>,
+        maxTokens: Int?,
+        temperature: Double?,
+        ttfbMs: Long = 0L,
+        fast: Boolean = false,
+        onLength: () -> Unit = {}
+    ): Flow<String> = flow {
+        val req = try {
+            request(target, base, body(target, messages, true, maxTokens, temperature, fast))
+        } catch (e: IllegalArgumentException) {
+            throw LlmException(ErrorKind.BAD_REQUEST, message = "invalid url or key format")
+        }
+        val viaWorker = target.via == NetRoute.WORKER && target.hasWorker
+        val h1Key = baseProviderId(target)
+        val useH1 = System.currentTimeMillis() < (h1Until[h1Key] ?: 0L)
+        val client = if (useH1) h1 else http
+        val call = client.newCall(if (viaWorker && ttfbMs > 0) req.newBuilder().header(WORKER_TTFB_HEADER, ttfbMs.toString()).build() else req)
+        val handle = currentCoroutineContext()[Job]?.invokeOnCompletion(onCancelling = true, invokeImmediately = true) { call.cancel() }
+        val timedOut = AtomicBoolean(false)
+        val gotHeaders = AtomicBoolean(false)
+        val dog = if (ttfbMs > 0) CoroutineScope(Dispatchers.Default).launch {
+            delay(ttfbMs)
+            if (!gotHeaders.get()) {
+                timedOut.set(true)
+                call.cancel()
+            }
+        } else null
+        try {
+            val resp = try {
+                call.execute()
+            } catch (e: IOException) {
+                if (timedOut.get()) {
+                    if (!useH1 && vpnActive()) h1Until[h1Key] = System.currentTimeMillis() + H1_FALLBACK_MS
+                    throw LlmException(ErrorKind.TIMEOUT, message = hostOf(base) + " no response in " + ttfbMs / 1000 + "s", connect = true)
+                }
+                if (call.isCanceled()) throw CancellationException("cancelled")
+                throw mapIo(e, base)
+            }
+            gotHeaders.set(true)
+            dog?.cancel()
+            resp.use { r ->
+                if (!r.isSuccessful) {
+                    val txt = try {
+                        r.body?.string().orEmpty()
+                    } catch (e: IOException) {
+                        ""
+                    }
+                    throw httpError(r.code, r.header("Retry-After"), txt, target.apiKey)
+                }
+                val source = r.body?.source() ?: throw LlmException(ErrorKind.EMPTY)
+                var finished = false
+                var thinking = false
+                var sawText = false
+                val lastChunk = AtomicLong(System.currentTimeMillis())
+                val stalled = AtomicBoolean(false)
+                val idleDog = CoroutineScope(Dispatchers.Default).launch {
+                    while (isActive) {
+                        val left = idleStallMs - (System.currentTimeMillis() - lastChunk.get())
+                        if (left <= 0) {
+                            stalled.set(true)
+                            call.cancel()
+                            try {
+                                source.close()
+                            } catch (e: Exception) {
+                            }
+                            return@launch
+                        }
+                        delay(left)
+                    }
+                }
+                try {
+                while (true) {
+                    val line = (try {
+                        source.readUtf8Line()
+                    } catch (e: Exception) {
+                        if (e is CancellationException) throw e
+                        if (stalled.get()) throw LlmException(ErrorKind.TIMEOUT, message = "stalled")
+                        if (e !is IOException) throw e
+                        if (call.isCanceled()) throw CancellationException("cancelled")
+                        if (!useH1 && vpnActive()) h1Until[h1Key] = System.currentTimeMillis() + H1_FALLBACK_MS
+                        throw LlmException(ErrorKind.INTERRUPTED, message = "stream cut: " + e.javaClass.simpleName + " " + redact(e.message.orEmpty(), target.apiKey).take(80))
+                    }) ?: break
+                    if (line.isEmpty() || line.startsWith(":")) continue
+                    if (!line.startsWith("data:")) continue
+                    val data = line.removePrefix("data:").trim()
+                    if (data == "[DONE]") {
+                        finished = true
+                        break
+                    }
+                    val p = parseChunk(data) ?: continue
+                    if (p.error != null) {
+                        val msg = redact(p.error, target.apiKey).take(200)
+                        throw LlmException(
+                            ProviderErrors.streamKind(msg), 0,
+                            ProviderErrors.streamRetryAfter(msg, System.currentTimeMillis()), msg
+                        )
+                    }
+                    if (!p.reasoning.isNullOrEmpty() || !p.content.isNullOrEmpty()) lastChunk.set(System.currentTimeMillis())
+                    if (!p.reasoning.isNullOrEmpty()) {
+                        if (!thinking) {
+                            thinking = true
+                            emit("<think>")
+                        }
+                        sawText = true
+                        emit(p.reasoning)
+                    }
+                    if (!p.content.isNullOrEmpty()) {
+                        if (thinking) {
+                            thinking = false
+                            emit("</think>\n")
+                        }
+                        sawText = true
+                        emit(p.content)
+                    }
+                    if (p.length) onLength()
+                    if (p.finished) finished = true
+                }
+                } finally {
+                    idleDog.cancel()
+                }
+                if (thinking) emit("</think>\n")
+                if (!finished) throw LlmException(if (sawText) ErrorKind.INTERRUPTED else ErrorKind.EMPTY, message = if (sawText) "ended without terminator" else "no terminator")
+            }
+        } finally {
+            dog?.cancel()
+            handle?.dispose()
+        }
+    }.flowOn(Dispatchers.IO)
+
+    suspend fun warm(target: Target) {
+        val worker = target.via == NetRoute.WORKER && target.hasWorker
+        val base = target.activeBase
+        if (base.isBlank()) return
+        withContext(Dispatchers.IO) {
+            try {
+                val id = baseProviderId(target)
+                val req = if (worker) {
+                    val root = base.replace(Regex("/" + Regex.escape(id) + "(/.*)?$"), "")
+                    Request.Builder().url("$root/_ping").get().build()
+                } else {
+                    val url = base.substringBefore("://") + "://" + hostOf(base) + "/"
+                    Request.Builder().url(url).head().build()
+                }
+                http.newCall(req).execute().close()
+            } catch (e: Exception) {
+            }
+        }
+    }
+
+    suspend fun test(target: Target): LlmException? {
+        val all = listOf(target.baseUrl) + listOfNotNull(target.altBaseUrl.takeIf { it.isNotBlank() && it != target.baseUrl })
+        var last: LlmException? = null
+        val trail = ArrayList<String>()
+        for ((i, base) in all.withIndex()) {
+            val err = testOnce(target, base) ?: return null
+            last = err
+            val tag = if (err.httpCode > 0) err.httpCode.toString() else err.kind.name
+            trail.add(hostOf(base) + " -> " + tag + ": " + err.message.orEmpty().take(120))
+            if (i == all.lastIndex || !retryable(err)) break
+        }
+        val l = last ?: return null
+        return LlmException(l.kind, l.httpCode, l.retryAfterSec, trail.joinToString(" | "))
+    }
+
+
+    private suspend fun testOnce(target: Target, base: String): LlmException? = withContext(Dispatchers.IO) {
+        val req = try {
+            request(
+                target,
+                base,
+                body(target, listOf(ChatMsg("user", "hi")), false, 5)
+            )
+        } catch (e: IllegalArgumentException) {
+            return@withContext LlmException(ErrorKind.BAD_REQUEST, message = "invalid url or key format")
+        }
+        try {
+            http.newCall(req).execute().use { r ->
+                if (r.isSuccessful) {
+                    null
+                } else {
+                    httpError(r.code, r.header("Retry-After"), r.body?.string().orEmpty(), target.apiKey)
+                }
+            }
+        } catch (e: IOException) {
+            mapIo(e, base)
+        }
+    }
+
+    suspend fun listModels(base: String, key: String): Pair<List<String>, LlmException?> = withContext(Dispatchers.IO) {
+        val root = base.trim().trimEnd('/')
+        if (root.isEmpty()) return@withContext emptyList<String>() to LlmException(ErrorKind.BAD_REQUEST, message = "empty url")
+        val ollamaRoot = root.removeSuffix("/v1")
+        var last: LlmException? = null
+        val urls = listOf(root + "/models" to "data", ollamaRoot + "/api/tags" to "models")
+        for ((url, field) in urls) {
+            try {
+                val b = Request.Builder().url(url).header("Accept", "application/json")
+                if (key.isNotBlank()) b.header("Authorization", "Bearer $key")
+                http.newCall(b.get().build()).execute().use { r ->
+                    val txt = r.body?.string().orEmpty()
+                    if (!r.isSuccessful) {
+                        last = httpError(r.code, null, txt, key)
+                    } else {
+                        val arr = (json.parseToJsonElement(txt) as? JsonObject)?.get(field) as? JsonArray
+                        val ids = arr.orEmpty().mapNotNull { e ->
+                            val o = e as? JsonObject ?: return@mapNotNull null
+                            ((o["id"] ?: o["name"]) as? JsonPrimitive)?.content
+                        }.distinct()
+                        if (ids.isNotEmpty()) return@withContext ids to null
+                        last = LlmException(ErrorKind.EMPTY, message = "no models")
+                    }
+                }
+            } catch (e: IOException) {
+                last = mapIo(e, url)
+            } catch (e: IllegalArgumentException) {
+                last = LlmException(ErrorKind.BAD_REQUEST, message = "invalid url")
+            } catch (e: Exception) {
+                last = LlmException(ErrorKind.SERVER, message = e.javaClass.simpleName)
+            }
+        }
+        emptyList<String>() to last
+    }
+}
+
+private const val MAX_AUTO_CONTINUE = 2
+private const val MAX_AUTO_CONTINUE_BIG = 8
+private const val BIG_REPLY = 6000
+private const val CONTEXT_SLACK = 300
+private const val MIN_REPLY = 512
+private const val AUTO_CONTINUE =
+    "Continue exactly where your previous message stopped. Do not repeat anything already written and do not add any preface."
+
+private const val REASONING_MIN_TOKENS = 3000
+private const val FAST_REASONING_MIN_TOKENS = 1024
+private const val RETRY_503_MS = 400L
+private const val RETRY_503_JITTER_MS = 200L
+private const val WORKER_TTFB_HEADER = "x-freellm-ttfb"
+private const val TTFB_MS = 8_000L
+private const val TTFB_REASONING_MS = 15_000L
+private const val TTFB_VISION_MS = 15_000L
+private const val IDLE_STALL_MS = 12_000L
+private const val H1_FALLBACK_MS = 600_000L
