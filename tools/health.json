@@ -1,6 +1,5 @@
 {
   "runs": [
-    "2026-11-07",
     "2026-11-08",
     "2026-11-09",
     "2026-11-10",
@@ -13,6 +12,7 @@
     "2026-11-19",
     "2026-11-20",
     "2026-11-21",
+    "2026-11-25",
     "2026-11-25"
   ],
   "streaks": {
@@ -32,19 +32,20 @@
     "gemini/gemini-2.5-flash-lite"
   ],
   "latency": {
-    "kilo/nvidia/nemotron-3-ultra-550b-a55b:free": 1410,
-    "kilo/kilo-auto/free": 1041,
-    "ovh/Qwen3.8-27B": 1858,
-    "ovh/gpt-oss-120b": 1867,
-    "ovh/Meta-Llama-3_3-70B-Instruct": 954,
-    "ovh/Mistral-Small-3.2-24B-Instruct-2506": 355,
-    "ovh/gpt-oss-20b": 551,
-    "llm7/gpt-oss:20b": 924,
+    "kilo/nvidia/nemotron-3-ultra-550b-a55b:free": 1866,
+    "kilo/kilo-auto/free": 857,
+    "ovh/Qwen3.8-27B": 1686,
+    "ovh/gpt-oss-120b": 1442,
+    "ovh/Meta-Llama-3_3-70B-Instruct": 806,
+    "ovh/Mistral-Small-3.2-24B-Instruct-2506": 500,
+    "ovh/gpt-oss-20b": 461,
+    "llm7/gpt-oss:20b": 814,
     "llm7/minimax-m2.7": 1299,
-    "llm7/codestral-latest": 610,
-    "llm7/mistral-Nemo-Instruct-2407": 478,
+    "llm7/codestral-latest": 494,
+    "llm7/mistral-Nemo-Instruct-2407": 401,
     "llm7/nemotron-3-nano:30b": 3145,
-    "kilo/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": 841,
-    "ovh/Qwen3.5-397B-A17B": 954
+    "kilo/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": 685,
+    "ovh/Qwen3.5-397B-A17B": 840,
+    "kilo/openrouter/free": 639
   }
 }
