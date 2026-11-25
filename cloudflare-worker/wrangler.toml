@@ -1,6 +1,0 @@
-name = "freellm"
-main = "worker.js"
-compatibility_date = "2025-01-01"
-
-[placement]
-region = "aws:us-east-1"
