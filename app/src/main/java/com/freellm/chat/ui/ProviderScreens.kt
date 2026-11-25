@@ -366,9 +366,9 @@ Text(
                     text = res,
                     color = if (ok) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error
                 )
-}
-            if (def.id == "gemini") GeminiDiag(app)
+                }
             }
+            if (def.id == "gemini") GeminiDiag(app)
             if (ui.hasKey) {
                 TextButton(onClick = { scope.launch { app.manager.removeKey(def.id) } }) {
                     Text(stringResource(if (savedKeys.size > 1) R.string.remove_all_keys else R.string.remove_key), color = MaterialTheme.colorScheme.error)

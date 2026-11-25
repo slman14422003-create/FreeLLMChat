@@ -467,35 +467,6 @@ fun SettingsRow(
     }
 }
 
-@Composable () -> Unit)? = null
-) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .background(surfaceHigh())
-            .let { if (onClick != null) it.clickable(onClick = onClick) else it }
-            .padding(horizontal = Spacing.xl, vertical = Spacing.lg),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(icon, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurface)
-        Spacer(Modifier.width(16.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-            if (subtitle != null) {
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        if (trailing != null) {
-            Spacer(Modifier.width(12.dp))
-            trailing()
-        }
-    }
-}
-
 @Composable
 fun SectionLabel(text: String) {
     if (LocalSettingsQuery.current.isNotBlank()) return
