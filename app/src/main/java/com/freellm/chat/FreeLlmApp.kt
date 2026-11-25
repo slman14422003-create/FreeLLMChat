@@ -59,7 +59,7 @@ class FreeLlmApp : Application() {
     val secrets: SecretStore by lazy { SecretStore(this) }
     val backup: BackupManager by lazy { BackupManager(this, secrets, settings, db.dao(), attachments) }
     val autoBackup: com.freellm.chat.data.AutoBackup by lazy { com.freellm.chat.data.AutoBackup(this, backup, secrets, local) }
-    val client: OpenAiClient by lazy { OpenAiClient(http) { netState.vpn } }
+    val client: OpenAiClient by lazy { OpenAiClient(http, { netState.vpn }) }
     val local: com.freellm.chat.data.LocalPrefs by lazy { com.freellm.chat.data.LocalPrefs(this) }
     val usage: UsagePrefs by lazy { UsagePrefs(this) }
     val ratings: com.freellm.chat.data.ModelRatings by lazy { com.freellm.chat.data.ModelRatings(usage) }

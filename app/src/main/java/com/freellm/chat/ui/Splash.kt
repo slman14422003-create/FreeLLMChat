@@ -87,7 +87,8 @@ fun SplashOverlay(onExit: () -> Unit = {}, onFinished: () -> Unit) {
     val spin = remember { Animatable(0f) }
     val title = remember { Animatable(0f) }
     val exit = remember { Animatable(0f) }
-    val logoIn = remember { Animatable(if (LocalReduceMotion.current) 1f else 0f) }
+    val reduceMotion = LocalReduceMotion.current
+    val logoIn = remember { Animatable(if (reduceMotion) 1f else 0f) }
 
     LaunchedEffect(Unit) {
         coroutineScope {
