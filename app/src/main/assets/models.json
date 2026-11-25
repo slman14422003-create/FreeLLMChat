@@ -1,5 +1,5 @@
 {
-  "version": 12,
+  "version": 13,
   "providers": [
     {
       "id": "gemini",
@@ -240,10 +240,10 @@
   ],
   "models": [
     {
-      "id": "gemini-3.8-flash",
+      "id": "gemini-flash-latest",
       "provider": "gemini",
-      "displayName": "Gemini 3.8 Flash",
-      "priority": 3,
+      "displayName": "Gemini Flash",
+      "priority": 2,
       "contextWindow": 1000000,
       "modes": [
         "fast",
@@ -260,10 +260,10 @@
       ]
     },
     {
-      "id": "gemini-flash-latest",
+      "id": "gemini-3.8-flash",
       "provider": "gemini",
-      "displayName": "Gemini Flash",
-      "priority": 2,
+      "displayName": "Gemini 3.8 Flash",
+      "priority": 3,
       "contextWindow": 1000000,
       "modes": [
         "fast",
@@ -821,26 +821,6 @@
       ]
     },
     {
-      "id": "cohere/north-mini-code:free",
-      "provider": "openrouter",
-      "displayName": "cohere/north-mini-code:free",
-      "priority": 200,
-      "contextWindow": 256000,
-      "modes": [
-        "fast",
-        "code"
-      ],
-      "vision": false,
-      "reasoning": false,
-      "trainsOnData": true,
-      "rpm": 20,
-      "caps": [
-        "code",
-        "fast",
-        "long_context"
-      ]
-    },
-    {
       "id": "command-r-plus-08-2024",
       "provider": "cohere",
       "displayName": "Command R+",
@@ -949,26 +929,6 @@
       ]
     },
     {
-      "id": "cohere/north-mini-code:free",
-      "provider": "kilo",
-      "displayName": "cohere/north-mini-code:free",
-      "priority": 201,
-      "contextWindow": 256000,
-      "modes": [
-        "fast",
-        "code"
-      ],
-      "vision": false,
-      "reasoning": false,
-      "trainsOnData": true,
-      "rph": 200,
-      "caps": [
-        "code",
-        "fast",
-        "long_context"
-      ]
-    },
-    {
       "id": "gemini-3.5-flash-lite",
       "provider": "gemini",
       "displayName": "Gemini 3.5 Flash-Lite",
@@ -1026,6 +986,21 @@
       ]
     },
     {
+      "id": "openrouter/free",
+      "provider": "kilo",
+      "displayName": "openrouter/free",
+      "priority": 201,
+      "contextWindow": 8000,
+      "modes": [
+        "smart"
+      ],
+      "vision": false,
+      "reasoning": false,
+      "trainsOnData": true,
+      "rph": 200,
+      "caps": []
+    },
+    {
       "id": "@cf/zai-org/glm-4.7-flash",
       "provider": "cloudflare",
       "displayName": "@cf/zai-org/glm-4.7-flash",
@@ -1062,23 +1037,6 @@
       ]
     },
     {
-      "id": "dots-studio/dots-3-note-preview:free",
-      "provider": "openrouter",
-      "displayName": "dots-studio/dots-3-note-preview:free",
-      "priority": 203,
-      "contextWindow": 512000,
-      "modes": [
-        "smart"
-      ],
-      "vision": true,
-      "reasoning": false,
-      "trainsOnData": true,
-      "rpm": 20,
-      "caps": [
-        "long_context"
-      ]
-    },
-    {
       "id": "nvidia/nemotron-3.5-lightning:free",
       "provider": "openrouter",
       "displayName": "nvidia/nemotron-3.5-lightning:free",
@@ -1112,6 +1070,25 @@
       "rpm": 20,
       "caps": [
         "code",
+        "long_context"
+      ]
+    },
+    {
+      "id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+      "provider": "openrouter",
+      "displayName": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+      "priority": 207,
+      "contextWindow": 256000,
+      "modes": [
+        "fast",
+        "smart"
+      ],
+      "vision": true,
+      "reasoning": false,
+      "trainsOnData": true,
+      "rpm": 20,
+      "caps": [
+        "fast",
         "long_context"
       ]
     }
